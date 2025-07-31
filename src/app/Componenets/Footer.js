@@ -21,7 +21,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="text-center py-4 bg-gray-50 text-xs text-gray-600">
-        © 2024 Easy2 Laundry. All rights reserved.
+        © 2025 Easy2 Laundry. All rights reserved.
       </div>
     </footer>
   );
