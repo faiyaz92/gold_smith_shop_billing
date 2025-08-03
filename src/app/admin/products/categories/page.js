@@ -20,6 +20,7 @@ export default function CategoriesPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+            
 
   // Fetch categories from Firestore
   useEffect(() => {
