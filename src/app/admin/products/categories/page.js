@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/app/firebase';
 import { addDoc, collection, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { uploadToCloudinary } from '@/app/cloudinary'; // ✅ Cloudinary uploader
+import { uploadToCloudinary } from '@/app/cloudinary';
 import Image from 'next/image';
-import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Menu, X, Home, Package, ShoppingBag, Users,
@@ -13,9 +12,10 @@ import {
 } from 'lucide-react';
 
 export default function CategoriesPage() {
-  const [categoryName, setCategoryName] = useState('');
-  const [categoryImage, setCategoryImage] = useState(null);
+  const [categoriesname, setCategoriesname] = useState('');
+  const [categoriesimage, setCategoriesimage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
+  const [uploadError, setUploadError] = useState('');
 
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,48 +30,85 @@ export default function CategoriesPage() {
 
   const categoriesRef = collection(db, 'categories');
 
-  // ✅ Use custom Cloudinary uploader
+  // Enhanced Cloudinary upload function
   const handleImageUpload = async (imageFile) => {
     try {
+      if (!imageFile) {
+        throw new Error('No image file selected');
+      }
+
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(imageFile.type)) {
+        throw new Error('Only JPEG, PNG, and WebP images are allowed');
+      }
+
+      // Validate file size (5MB max)
+      if (imageFile.size > 5 * 1024 * 1024) {
+        throw new Error('Image size must be less than 5MB');
+      }
+
       const imageUrl = await uploadToCloudinary(imageFile);
+      if (!imageUrl) {
+        throw new Error('Failed to upload image to Cloudinary');
+      }
+
       return imageUrl;
     } catch (error) {
       console.error("Upload Error:", error.message);
-      throw new Error("Image upload failed.");
+      setUploadError(error.message);
+      throw error;
     }
   };
 
+  const generateCategoriesId = () => {
+    return 'cat-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now().toString(36);
+  };
+
   const handleAddCategory = async () => {
-    if (!categoryName || !categoryImage) {
-      alert('Please fill all fields');
+    if (!categoriesname) {
+      setUploadError('Category name is required');
+      return;
+    }
+    if (!categoriesimage) {
+      setUploadError('Category image is required');
       return;
     }
 
     setIsLoading(true);
+    setUploadError('');
+
     try {
-      const imageUrl = await handleImageUpload(categoryImage);
+      const imageUrl = await handleImageUpload(categoriesimage);
+      const categoriesid = generateCategoriesId();
 
       await addDoc(categoriesRef, {
-        name: categoryName,
-        image: imageUrl,
+        categoriesid,
+        categoriesname,
+        categoriesimage: imageUrl,
         createdAt: new Date(),
       });
 
-      setCategoryName('');
-      setCategoryImage(null);
+      setCategoriesname('');
+      setCategoriesimage(null);
       setPreviewUrl('');
       fetchCategories();
     } catch (error) {
-      alert(error.message);
+      console.error('Add Category Error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const fetchCategories = async () => {
-    const snapshot = await getDocs(categoriesRef);
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setCategories(data);
+    try {
+      const snapshot = await getDocs(categoriesRef);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCategories(data);
+    } catch (error) {
+      console.error('Fetch Error:', error);
+      setUploadError('Failed to load categories');
+    }
   };
 
   const handleDeleteCategory = async (id) => {
@@ -82,29 +119,32 @@ export default function CategoriesPage() {
       fetchCategories();
     } catch (error) {
       console.error('Delete Error:', error);
-      alert('Failed to delete category');
+      setUploadError('Failed to delete category');
     }
   };
 
   const handleEditCategory = (category) => {
     setEditingId(category.id);
-    setEditName(category.name);
-    setEditPreviewUrl(category.image);
+    setEditName(category.categoriesname);
+    setEditPreviewUrl(category.categoriesimage);
+    setEditImage(null);
   };
 
   const handleUpdateCategory = async () => {
     if (!editName) {
-      alert('Category name cannot be empty'); 
+      setUploadError('Category name cannot be empty');
       return;
     }
 
     setIsLoading(true);
+    setUploadError('');
+
     try {
-      const updateData = { name: editName };
+      const updateData = { categoriesname: editName };
 
       if (editImage) {
         const imageUrl = await handleImageUpload(editImage);
-        updateData.image = imageUrl;
+        updateData.categoriesimage = imageUrl;
       }
 
       await updateDoc(doc(db, 'categories', editingId), updateData);
@@ -112,7 +152,6 @@ export default function CategoriesPage() {
       fetchCategories();
     } catch (error) {
       console.error('Update Error:', error);
-      alert('Failed to update category');
     } finally {
       setIsLoading(false);
     }
@@ -123,6 +162,7 @@ export default function CategoriesPage() {
     setEditName('');
     setEditImage(null);
     setEditPreviewUrl('');
+    setUploadError('');
   };
 
   useEffect(() => {
@@ -135,6 +175,7 @@ export default function CategoriesPage() {
 
   const handleLogout = () => {
     // TODO: implement logout
+    console.log('Logout clicked');
   };
 
   return (
@@ -233,20 +274,30 @@ export default function CategoriesPage() {
         )}
       </AnimatePresence>
 
-      {/* Main */}
+      {/* Main Content */}
       <div className="p-6 space-y-8">
-        {/* Add Form */}
+        {/* Add Category Form */}
         <div className="bg-gray-900/50 p-6 rounded-lg border border-yellow-500/20">
           <h2 className="text-2xl font-bold mb-4 text-yellow-400">Add New Category</h2>
+          
+          {uploadError && (
+            <div className="mb-4 p-3 bg-red-900/50 text-red-300 rounded border border-red-500/30">
+              {uploadError}
+            </div>
+          )}
+
           <div className="grid md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="block text-sm font-medium">Category Name</label>
               <input
                 type="text"
                 placeholder="Enter category name"
-                value={categoryName}
-                onChange={(e) => setCategoryName(e.target.value)}
-                className="w-full p-2 rounded bg-gray-800 border border-yellow-500/20 text-white"
+                value={categoriesname}
+                onChange={(e) => {
+                  setCategoriesname(e.target.value);
+                  setUploadError('');
+                }}
+                className="w-full p-2 rounded bg-gray-800 border border-yellow-500/20 text-white focus:outline-none focus:ring-1 focus:ring-yellow-500/50"
               />
             </div>
 
@@ -254,12 +305,15 @@ export default function CategoriesPage() {
               <label className="block text-sm font-medium">Category Image</label>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg, image/png, image/webp"
                 onChange={(e) => {
-                  setCategoryImage(e.target.files[0]);
-                  setPreviewUrl(URL.createObjectURL(e.target.files[0]));
+                  if (e.target.files && e.target.files[0]) {
+                    setCategoriesimage(e.target.files[0]);
+                    setPreviewUrl(URL.createObjectURL(e.target.files[0]));
+                    setUploadError('');
+                  }
                 }}
-                className="w-full p-2 rounded bg-gray-800 border border-yellow-500/20 text-white"
+                className="w-full p-2 rounded bg-gray-800 border border-yellow-500/20 text-white file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-yellow-500/20 file:text-yellow-400 hover:file:bg-yellow-500/30"
               />
             </div>
 
@@ -267,7 +321,7 @@ export default function CategoriesPage() {
               <button
                 disabled={isLoading}
                 onClick={handleAddCategory}
-                className="w-full px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold rounded"
+                className="w-full px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Adding...' : 'Add Category'}
               </button>
@@ -277,117 +331,134 @@ export default function CategoriesPage() {
           {previewUrl && (
             <div className="mt-4">
               <p className="text-sm font-medium mb-2">Image Preview:</p>
-              <Image
-                src={previewUrl}
-                alt="Category preview"
-                width={200}
-                height={200}
-                className="rounded border-2 border-yellow-500/30 object-cover"
-              />
+              <div className="relative w-40 h-40 border-2 border-yellow-500/30 rounded overflow-hidden">
+                <Image
+                  src={previewUrl}
+                  alt="Category preview"
+                  fill
+                  className="object-cover"
+                />
+              </div>
             </div>
           )}
         </div>
 
-        {/* Categories Table */}
+        {/* Categories List */}
         <div className="bg-gray-900/50 p-6 rounded-lg border border-yellow-500/20">
           <h2 className="text-2xl font-bold mb-6 text-yellow-400">Categories List</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-800 text-yellow-400">
-                  <th className="p-3 text-left">#</th>
-                  <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Image</th>
-                  <th className="p-3 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((cat, index) => (
-                  <tr key={cat.id} className="border-b border-gray-700 hover:bg-gray-800/50">
-                    <td className="p-3">{index + 1}</td>
-                    <td className="p-3">
-                      {editingId === cat.id ? (
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="w-full p-2 rounded bg-gray-700 border border-yellow-500/20"
-                        />
-                      ) : (
-                        <span>{cat.name}</span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {editingId === cat.id ? (
-                        <div className="flex flex-col space-y-2">
+          
+          {categories.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              No categories found. Add your first category above.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-800 text-yellow-400">
+                    <th className="p-3 text-left">#</th>
+                    <th className="p-3 text-left">ID</th>
+                    <th className="p-3 text-left">Name</th>
+                    <th className="p-3 text-left">Image</th>
+                    <th className="p-3 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((cat, index) => (
+                    <tr key={cat.id} className="border-b border-gray-700 hover:bg-gray-800/50 transition-colors">
+                      <td className="p-3">{index + 1}</td>
+                      <td className="p-3 text-sm text-gray-400 font-mono">{cat.categoriesid}</td>
+                      <td className="p-3">
+                        {editingId === cat.id ? (
                           <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              setEditImage(e.target.files[0]);
-                              setEditPreviewUrl(URL.createObjectURL(e.target.files[0]));
-                            }}
-                            className="text-white"
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="w-full p-2 rounded bg-gray-700 border border-yellow-500/20 focus:outline-none focus:ring-1 focus:ring-yellow-500/50"
                           />
-                          <div className="relative w-20 h-20">
+                        ) : (
+                          <span>{cat.categoriesname}</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {editingId === cat.id ? (
+                          <div className="flex flex-col space-y-2">
+                            <input
+                              type="file"
+                              accept="image/jpeg, image/png, image/webp"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  setEditImage(e.target.files[0]);
+                                  setEditPreviewUrl(URL.createObjectURL(e.target.files[0]));
+                                  setUploadError('');
+                                }
+                              }}
+                              className="text-white text-sm"
+                            />
+                            <div className="relative w-20 h-20 border border-yellow-500/30 rounded overflow-hidden">
+                              <Image
+                                src={editPreviewUrl}
+                                alt="Preview"
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative w-20 h-20 border border-yellow-500/30 rounded overflow-hidden">
                             <Image
-                              src={editPreviewUrl}
-                              alt="Preview"
+                              src={cat.categoriesimage}
+                              alt={cat.categoriesname}
                               fill
-                              className="object-cover rounded"
+                              className="object-cover"
                             />
                           </div>
-                        </div>
-                      ) : (
-                        <div className="relative w-20 h-20">
-                          <Image
-                            src={cat.image}
-                            alt={cat.name}
-                            fill
-                            className="object-cover rounded"
-                          />
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {editingId === cat.id ? (
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={handleUpdateCategory}
-                            disabled={isLoading}
-                            className="p-2 bg-green-600 hover:bg-green-700 rounded"
-                          >
-                            <Save size={18} />
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            className="p-2 bg-red-600 hover:bg-red-700 rounded"
-                          >
-                            <XCircle size={18} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleEditCategory(cat)}
-                            className="p-2 bg-yellow-600 hover:bg-yellow-700 rounded"
-                          >
-                            <Edit size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCategory(cat.id)}
-                            className="p-2 bg-red-600 hover:bg-red-700 rounded"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {editingId === cat.id ? (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={handleUpdateCategory}
+                              disabled={isLoading}
+                              className="p-2 bg-green-600 hover:bg-green-700 rounded transition-colors disabled:opacity-50"
+                              title="Save"
+                            >
+                              <Save size={18} />
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="p-2 bg-red-600 hover:bg-red-700 rounded transition-colors"
+                              title="Cancel"
+                            >
+                              <XCircle size={18} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditCategory(cat)}
+                              className="p-2 bg-yellow-600 hover:bg-yellow-700 rounded transition-colors"
+                              title="Edit"
+                            >
+                              <Edit size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCategory(cat.id)}
+                              className="p-2 bg-red-600 hover:bg-red-700 rounded transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>
