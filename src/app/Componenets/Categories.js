@@ -75,7 +75,7 @@ function Categories({ isMobile }) {
                 "
               >
                 {category.categoriesimage ? (
-                  <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                  <div className="relative w-10 h-10  overflow-hidden">
                     <Image 
                       src={category.categoriesimage} 
                       alt={category.categoriesname}

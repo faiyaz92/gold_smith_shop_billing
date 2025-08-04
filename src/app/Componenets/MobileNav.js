@@ -3,10 +3,12 @@ import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Home, ShoppingCart, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useMediaQuery } from 'react-responsive';
 
 export default function MobileNav({ cart, openCart }) {
   const [activeTab, setActiveTab] = useState('home');
   const pathname = usePathname();
+  const isMobile = useMediaQuery({ maxWidth: 768 }); // Hide on screens wider than 768px
 
   useEffect(() => {
     if (pathname === '/') setActiveTab('home');
@@ -20,9 +22,11 @@ export default function MobileNav({ cart, openCart }) {
     { id: 'account', icon: User, label: 'Account', action: () => {} },
   ];
 
+  if (!isMobile) return null; // Don't render on desktop
+
   return (
-    <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
-      <div className="bg-white rounded-full shadow-2xl border border-gray-200/60 px-6 py-3 flex items-center justify-between w-[90vw] max-w-md relative">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 pb-4 px-4 safe-pb">
+      <div className="bg-white rounded-full shadow-2xl border border-gray-200/60 px-6 py-3 flex items-center justify-between w-full max-w-md mx-auto relative">
         {/* Active background highlight */}
         <AnimatePresence>
           {activeTab && (
