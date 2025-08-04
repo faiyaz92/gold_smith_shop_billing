@@ -163,7 +163,8 @@ export default function ProductsPage() {
                     className="mb-8"
                 >
                     <h1 className="text-2xl sm:text-3xl font-bold text-yellow-400 mb-2">Products Management</h1>
-                    <p className="text-gray-400">Manage your store's products, categories, and subcategories</p>
+                 <p className="text-gray-400">Manage your store&apos;s products, categories, and subcategories</p>
+
                 </motion.div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
