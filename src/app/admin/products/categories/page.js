@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/app/firebase';
-import { addDoc, collection, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, getDocs, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { uploadToCloudinary } from '@/app/cloudinary';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Menu, X, Home, Package, ShoppingBag, Users,
-  Edit, Trash2, Save, XCircle
+  Edit, Trash2, Save, XCircle, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 export default function CategoriesPage() {
@@ -30,28 +30,41 @@ export default function CategoriesPage() {
 
   const categoriesRef = collection(db, 'categories');
 
-  // Enhanced Cloudinary upload function
+  // Initialize sort orders for existing categories (run once)
+  const initializeSortOrders = async () => {
+    try {
+      const snapshot = await getDocs(categoriesRef);
+      const batch = writeBatch(db);
+      
+      snapshot.docs.forEach((doc, index) => {
+        if (typeof doc.data().sortOrder === 'undefined') {
+          batch.update(doc.ref, { sortOrder: index });
+        }
+      });
+
+      await batch.commit();
+      console.log('Sort orders initialized successfully');
+      fetchCategories();
+    } catch (error) {
+      console.error('Error initializing sort orders:', error);
+    }
+  };
+
   const handleImageUpload = async (imageFile) => {
     try {
-      if (!imageFile) {
-        throw new Error('No image file selected');
-      }
+      if (!imageFile) throw new Error('No image file selected');
 
-      // Validate file type
       const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
       if (!validTypes.includes(imageFile.type)) {
         throw new Error('Only JPEG, PNG, and WebP images are allowed');
       }
 
-      // Validate file size (5MB max)
       if (imageFile.size > 5 * 1024 * 1024) {
         throw new Error('Image size must be less than 5MB');
       }
 
       const imageUrl = await uploadToCloudinary(imageFile);
-      if (!imageUrl) {
-        throw new Error('Failed to upload image to Cloudinary');
-      }
+      if (!imageUrl) throw new Error('Failed to upload image to Cloudinary');
 
       return imageUrl;
     } catch (error) {
@@ -86,6 +99,7 @@ export default function CategoriesPage() {
         categoriesid,
         categoriesname,
         categoriesimage: imageUrl,
+        sortOrder: categories.length,
         createdAt: new Date(),
       });
 
@@ -95,6 +109,7 @@ export default function CategoriesPage() {
       fetchCategories();
     } catch (error) {
       console.error('Add Category Error:', error);
+      setUploadError(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -103,7 +118,12 @@ export default function CategoriesPage() {
   const fetchCategories = async () => {
     try {
       const snapshot = await getDocs(categoriesRef);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map((doc, index) => ({
+        id: doc.id,
+        sortOrder: doc.data().sortOrder ?? index, // Fallback to index if missing
+        ...doc.data()
+      }));
+      data.sort((a, b) => a.sortOrder - b.sortOrder);
       setCategories(data);
     } catch (error) {
       console.error('Fetch Error:', error);
@@ -116,10 +136,51 @@ export default function CategoriesPage() {
 
     try {
       await deleteDoc(doc(db, 'categories', id));
+      const updatedCategories = categories.filter(cat => cat.id !== id);
+      const batch = writeBatch(db);
+      
+      updatedCategories.forEach((cat, index) => {
+        batch.update(doc(db, 'categories', cat.id), { 
+          sortOrder: index 
+        });
+      });
+
+      await batch.commit();
       fetchCategories();
     } catch (error) {
       console.error('Delete Error:', error);
-      setUploadError('Failed to delete category');
+      setUploadError('Failed to delete category: ' + error.message);
+    }
+  };
+
+  const handleMoveCategory = async (id, direction) => {
+    try {
+      const index = categories.findIndex(cat => cat.id === id);
+      if (index === -1) throw new Error('Category not found');
+
+      const newIndex = direction === 'up' ? index - 1 : index + 1;
+      if (newIndex < 0 || newIndex >= categories.length) {
+        throw new Error('Cannot move category further in this direction');
+      }
+
+      const batch = writeBatch(db);
+      
+      // Get current sort orders with fallbacks
+      const currentSortOrder = categories[index].sortOrder ?? index;
+      const targetSortOrder = categories[newIndex].sortOrder ?? newIndex;
+
+      batch.update(doc(db, 'categories', id), { 
+        sortOrder: targetSortOrder 
+      });
+      batch.update(doc(db, 'categories', categories[newIndex].id), { 
+        sortOrder: currentSortOrder 
+      });
+
+      await batch.commit();
+      fetchCategories();
+    } catch (error) {
+      console.error('Move Error:', error);
+      setUploadError(`Failed to move category: ${error.message}`);
     }
   };
 
@@ -152,6 +213,7 @@ export default function CategoriesPage() {
       fetchCategories();
     } catch (error) {
       console.error('Update Error:', error);
+      setUploadError(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -167,6 +229,8 @@ export default function CategoriesPage() {
 
   useEffect(() => {
     fetchCategories();
+    // Uncomment to initialize sort orders for existing categories (run once)
+    // initializeSortOrders();
   }, []);
 
   const handleNavigation = (id) => {
@@ -436,6 +500,30 @@ export default function CategoriesPage() {
                           </div>
                         ) : (
                           <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleMoveCategory(cat.id, 'up')}
+                              disabled={index === 0}
+                              className={`p-2 rounded transition-colors ${
+                                index === 0 
+                                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                  : 'bg-blue-600 hover:bg-blue-700'
+                              }`}
+                              title="Move Up"
+                            >
+                              <ArrowUp size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleMoveCategory(cat.id, 'down')}
+                              disabled={index === categories.length - 1}
+                              className={`p-2 rounded transition-colors ${
+                                index === categories.length - 1
+                                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                  : 'bg-blue-600 hover:bg-blue-700'
+                              }`}
+                              title="Move Down"
+                            >
+                              <ArrowDown size={18} />
+                            </button>
                             <button
                               onClick={() => handleEditCategory(cat)}
                               className="p-2 bg-yellow-600 hover:bg-yellow-700 rounded transition-colors"

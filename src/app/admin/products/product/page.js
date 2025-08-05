@@ -40,7 +40,7 @@ export default function ProductPage() {
         return {
           id: docSnap.id,
           ...data,
-          categoryName: categoryDoc.exists() ? categoryDoc.data().name : 'Unknown'
+          categoryName: categoryDoc.exists() ? categoryDoc.data().categoriesname : 'Unknown' // ✅ UPDATED
         };
       })
     );
@@ -78,7 +78,7 @@ export default function ProductPage() {
     if (!form.name || !form.image || !form.price || !form.categoryId) {
       return alert('All fields are required');
     }
-    
+
     try {
       if (editingId) {
         await updateDoc(doc(db, 'products', editingId), form);
@@ -120,11 +120,9 @@ export default function ProductPage() {
   const handleNavigation = (tab) => {
     setActiveTab(tab);
     setIsMobileMenuOpen(false);
-    // Add your navigation logic here
   };
 
   const handleLogout = () => {
-    // Add your logout logic here
     console.log('Logout');
   };
 
@@ -145,8 +143,7 @@ export default function ProductPage() {
         </motion.div>
 
         <div className="hidden md:flex items-center space-x-6 text-sm">
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: <Home className="w-4 h-4" /> },
+          {[{ id: 'dashboard', label: 'Dashboard', icon: <Home className="w-4 h-4" /> },
             { id: 'products', label: 'Products', icon: <Package className="w-4 h-4" /> },
             { id: 'orders', label: 'Orders', icon: <ShoppingBag className="w-4 h-4" /> },
             { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> },
@@ -257,7 +254,9 @@ export default function ProductPage() {
           >
             <option value="">Select Category</option>
             {categories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
+              <option key={cat.id} value={cat.id}>
+                {cat.categoriesname} {/* ✅ UPDATED */}
+              </option>
             ))}
           </select>
           <div className="col-span-full">
