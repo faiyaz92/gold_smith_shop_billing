@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiSearch, FiX, FiMenu, FiHelpCircle } from 'react-icons/fi';
+import { FiSearch, FiX, FiHelpCircle, FiHome } from 'react-icons/fi';
 import Link from 'next/link';
-
 
 export default function Navbar() {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -21,13 +20,11 @@ export default function Navbar() {
     <nav className={`sticky top-0 w-full bg-white z-40 transition-all duration-300 ${scrolled ? 'shadow-md' : 'shadow-sm'}`}>
       {/* Main Navbar */}
       <div className="max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 h-16">
-        {/* Logo */}
-        <div className="flex items-center">
-          <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center">
-            <span className="mr-2">🧺</span>
-            <span className="hidden sm:inline">Easy2 Laundry</span>
-            <span className="sm:hidden">Easy2 Laundry</span>
-          </div>
+        {/* Logo Only - No Home Icon */}
+        <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center">
+          <span className="mr-2">🧺</span>
+          <span className="hidden sm:inline">Easy2 Laundry</span>
+          <span className="sm:hidden">E2L</span>
         </div>
 
         {/* Desktop Search */}
@@ -42,8 +39,12 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Right Side - Desktop */}
+        {/* Right Side Navigation (Desktop) */}
         <div className="hidden sm:flex gap-6 items-center text-sm">
+          <Link href="/" className="hover:text-blue-600 transition">
+            <FiHome size={20} className="text-gray-600 hover:text-blue-600" />
+          </Link>
+          
           <button className="hover:text-blue-600 transition flex items-center gap-1">
             <FiHelpCircle className="text-base" />
             <span>Help</span>
@@ -56,16 +57,21 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Mobile Search Toggle */}
-        <button
-          className="sm:hidden p-2 text-gray-600 hover:text-blue-600 transition"
-          onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-        >
-          {isMobileSearchOpen ? <FiX size={20} /> : <FiSearch size={20} />}
-        </button>
+        {/* Mobile Right Side (Home + Search) */}
+        <div className="flex items-center gap-2 sm:hidden">
+          <Link href="/" className="hover:text-blue-600 transition p-2">
+            <FiHome size={20} />
+          </Link>
+          <button
+            className="p-2 text-gray-600 hover:text-blue-600 transition"
+            onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+          >
+            {isMobileSearchOpen ? <FiX size={20} /> : <FiSearch size={20} />}
+          </button>
+        </div>
       </div>
 
-      {/* Mobile Search Panel - Slides down */}
+      {/* Mobile Search Panel */}
       <div className={`sm:hidden overflow-hidden transition-all duration-300 ease-in-out ${isMobileSearchOpen ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="px-4 pb-3">
           <div className="relative">
