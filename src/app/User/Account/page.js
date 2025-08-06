@@ -7,6 +7,7 @@ import { auth, db } from '@/app/firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import Navbar from '@/app/Componenets/Navbar';
+import MobileNav from '@/app/Componenets/MobileNav'; // Add this import
 
 const Page = () => {
   const router = useRouter();
@@ -519,6 +520,7 @@ const Page = () => {
   return (
     <>
       <Navbar />
+      <MobileNav /> {/* Add MobileNav here */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-16 mt-14 sm:mt-8 md:mt-12 lg:mt-16 bg-white">
         <h1 className="text-2xl sm:text-3xl font-semibold mb-6 sm:mb-8 text-blue-600">My Account</h1>
 
