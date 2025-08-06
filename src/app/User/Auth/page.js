@@ -5,7 +5,7 @@ import { auth, db, RecaptchaVerifier } from '@/app/firebase';
 import { signInWithPhoneNumber } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
-import Navbar from '@/app/components/Navbar';
+import Navbar from '@/app/Componenets/Navbar';
 
 export default function UserLogin() {
   const [phone, setPhone] = useState('');
@@ -80,11 +80,10 @@ export default function UserLogin() {
 
   return (
     <>
-
       <Navbar />
-      <div className="min-h-screen flex items-center justify-center bg-black/80 backdrop-blur-md transition-all duration-500">
-        <div className="w-full max-w-md p-6 rounded-lg bg-black/90 backdrop-blur-md border border-yellow-500/20">
-          <h1 className="text-2xl font-normal mb-6 text-center text-yellow-500">USER LOGIN</h1>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="w-full max-w-md p-6 rounded-lg bg-white border border-blue-600/20">
+          <h1 className="text-2xl font-normal mb-6 text-center text-blue-600">USER LOGIN</h1>
 
           <div id="recaptcha-container" />
 
@@ -93,7 +92,7 @@ export default function UserLogin() {
               <input
                 type="tel"
                 placeholder="Phone Number (10 digits)"
-                className="w-full px-4 py-2 bg-black/50 border border-yellow-500/30 rounded-md text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/50 transition-all duration-300"
+                className="w-full px-4 py-2 bg-white border border-blue-600/30 rounded-md text-blue-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/50 transition-all duration-300"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 maxLength={10}
@@ -102,7 +101,7 @@ export default function UserLogin() {
               <button
                 onClick={sendOTP}
                 disabled={loading}
-                className={`w-full py-2 px-4 rounded-md font-medium text-black bg-yellow-500 hover:bg-yellow-300 transition-all duration-300 group ${loading ? 'opacity-70' : ''
+                className={`w-full py-2 px-4 rounded-md font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all duration-300 group ${loading ? 'opacity-70' : ''
                   }`}
               >
                 {loading ? 'Sending OTP...' : 'VERIFY OTP'}
@@ -115,7 +114,7 @@ export default function UserLogin() {
               <input
                 type="text"
                 placeholder="Enter OTP"
-                className="w-full px-4 py-2 bg-black/50 border border-yellow-500/30 rounded-md text-white focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/50 transition-all duration-300"
+                className="w-full px-4 py-2 bg-white border border-blue-600/30 rounded-md text-blue-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/50 transition-all duration-300"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 maxLength={6}
@@ -124,7 +123,7 @@ export default function UserLogin() {
               <button
                 onClick={verifyOTP}
                 disabled={loading}
-                className={`w-full py-2 px-4 rounded-md font-medium text-black bg-yellow-500 hover:bg-yellow-300 transition-all duration-300 group ${loading ? 'opacity-70' : ''
+                className={`w-full py-2 px-4 rounded-md font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all duration-300 group ${loading ? 'opacity-70' : ''
                   }`}
               >
                 {loading ? 'Verifying...' : 'SUBMIT'}
@@ -133,6 +132,6 @@ export default function UserLogin() {
           )}
         </div>
       </div>
-      </>
-      );
+    </>
+  );
 }
