@@ -14,7 +14,7 @@ export default function MobileNav({ cart, openCart }) {
   useEffect(() => {
     if (pathname === '/') setActiveTab('home');
     else if (pathname === '/cart') setActiveTab('cart');
-    else if (pathname === '../User/Account') setActiveTab('account');
+    else if (pathname === '/User/Account') setActiveTab('account');
   }, [pathname]);
 
   const tabs = [
