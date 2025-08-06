@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Home, ShoppingCart, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery } from 'react-responsive';
@@ -8,18 +8,19 @@ import { useMediaQuery } from 'react-responsive';
 export default function MobileNav({ cart, openCart }) {
   const [activeTab, setActiveTab] = useState('home');
   const pathname = usePathname();
+  const router = useRouter();
   const isMobile = useMediaQuery({ maxWidth: 768 }); // Hide on screens wider than 768px
 
   useEffect(() => {
     if (pathname === '/') setActiveTab('home');
     else if (pathname === '/cart') setActiveTab('cart');
-    else if (pathname === '/account') setActiveTab('account');
+    else if (pathname === '../User/Account') setActiveTab('account');
   }, [pathname]);
 
   const tabs = [
     { id: 'home', icon: Home, label: 'Home', action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
     { id: 'cart', icon: ShoppingCart, label: 'Cart', action: openCart },
-    { id: 'account', icon: User, label: 'Account', action: () => {} },
+    { id: 'account', icon: User, label: 'Account', action: () => router.push('../User/Account') },
   ];
 
   if (!isMobile) return null; // Don't render on desktop
