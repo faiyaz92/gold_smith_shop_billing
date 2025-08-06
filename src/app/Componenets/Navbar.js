@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { FiSearch, FiX, FiMenu, FiHelpCircle } from 'react-icons/fi';
+import Link from 'next/link';
+
 
 export default function Navbar() {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -27,7 +29,7 @@ export default function Navbar() {
             <span className="sm:hidden">Easy2 Laundry</span>
           </div>
         </div>
-        
+
         {/* Desktop Search */}
         <div className="flex-1 mx-4 hidden sm:block">
           <div className="relative w-full max-w-md mx-auto">
@@ -46,13 +48,16 @@ export default function Navbar() {
             <FiHelpCircle className="text-base" />
             <span>Help</span>
           </button>
-          <button className="py-1.5 px-4 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition hover:scale-105 active:scale-95">
-            Login
-          </button>
+
+          <Link href="/User/Account">
+            <button className="py-1.5 px-4 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition hover:scale-105 active:scale-95">
+              Login
+            </button>
+          </Link>
         </div>
 
         {/* Mobile Search Toggle */}
-        <button 
+        <button
           className="sm:hidden p-2 text-gray-600 hover:text-blue-600 transition"
           onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
         >
