@@ -24,25 +24,28 @@ function Categories({ isMobile }) {
         const productsSnapshot = await getDocs(collection(db, 'products'));
 
         const products = productsSnapshot.docs.map(doc => doc.data());
-
         const categoriesData = categoriesSnapshot.docs.map((doc) => {
-          const { categoriesname, categoriesimage } = doc.data();
-          const count = products.filter(
-            (product) => product.category?.trim().toLowerCase() === categoriesname.trim().toLowerCase()
-          ).length;
+          const data = doc.data();
+          const { categoriesname, categoriesimage, sortOrder } = data;
 
-          console.log("Category:", categoriesname, "| Count:", count); // Debug
+          const count = products.filter((product) =>
+            product.category &&
+            product.category.trim().toLowerCase() === categoriesname?.trim().toLowerCase()
+          ).length;
 
           return {
             id: doc.id,
             categoriesname,
             categoriesimage,
-            count
+            sortOrder: sortOrder ?? 999,
+            count,
           };
         });
 
-        const sorted = categoriesData.sort((a, b) => b.count - a.count);
+        const sorted = categoriesData.sort((a, b) => a.sortOrder - b.sortOrder);
+
         setCategories(sorted);
+        console.log("Categories:", sorted);
       } catch (error) {
         console.error('Error fetching categories/products:', error);
       } finally {
@@ -70,7 +73,9 @@ function Categories({ isMobile }) {
     <section className={isMobile ? "lg:hidden w-full px-4 py-2" : "hidden lg:block basis-[20%] max-w-xs"}>
       <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">Categories</h2>
 
-      {isMobile ? (
+      {categories.length === 0 ? (
+        <p className="text-sm text-gray-500">No categories found.</p>
+      ) : isMobile ? (
         <div className="relative">
           <div className="flex space-x-3 pb-2 overflow-x-auto scrollbar-hide">
             {categories.map((category) => (
@@ -132,7 +137,7 @@ function Categories({ isMobile }) {
 }
 
 Categories.propTypes = {
-  isMobile: PropTypes.bool
+  isMobile: PropTypes.bool,
 };
 
 export default Categories;
