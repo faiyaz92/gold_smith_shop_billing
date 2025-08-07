@@ -24,14 +24,13 @@ function Categories({ isMobile }) {
         const productsSnapshot = await getDocs(collection(db, 'products'));
 
         const products = productsSnapshot.docs.map(doc => doc.data());
+
         const categoriesData = categoriesSnapshot.docs.map((doc) => {
           const data = doc.data();
           const { categoriesname, categoriesimage, sortOrder } = data;
 
-          const count = products.filter((product) =>
-            product.category &&
-            product.category.trim().toLowerCase() === categoriesname?.trim().toLowerCase()
-          ).length;
+          // ✅ Match by categoryId instead of category name
+          const count = products.filter((product) => product.categoryId === doc.id).length;
 
           return {
             id: doc.id,
@@ -45,7 +44,7 @@ function Categories({ isMobile }) {
         const sorted = categoriesData.sort((a, b) => a.sortOrder - b.sortOrder);
 
         setCategories(sorted);
-        console.log("Categories:", sorted);
+        console.log("Categories with counts:", sorted);
       } catch (error) {
         console.error('Error fetching categories/products:', error);
       } finally {
@@ -84,7 +83,7 @@ function Categories({ isMobile }) {
                 className="flex-shrink-0 w-28 flex flex-col items-center gap-2 p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 hover:border-blue-200 transform hover:-translate-y-1"
               >
                 {category.categoriesimage ? (
-                  <div className="relative w-10 h-10 overflow-hidden">
+                  <div className="relative w-10 h-10 overflow-hidden rounded-full">
                     <Image
                       src={category.categoriesimage}
                       alt={category.categoriesname}
