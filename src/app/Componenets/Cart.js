@@ -2,10 +2,23 @@
 import { ShoppingCart, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 export default function Cart({ cart, isMobile, onClose }) {
   const [isVisible, setIsVisible] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  // Check authentication
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Animation for mount/unmount
   useEffect(() => {
@@ -13,25 +26,24 @@ export default function Cart({ cart, isMobile, onClose }) {
     return () => setIsVisible(false);
   }, []);
 
+  // Navigate on checkout
+  const handleCheckout = () => {
+    if (isAuthenticated) {
+      router.push('/User/Checkoutpage/');
+    } else {
+      router.push('/User/Auth/');
+    }
+  };
+
   // Mobile drawer animation variants
   const mobileVariants = {
     hidden: { y: "100%", opacity: 0 },
     visible: { 
       y: 0, 
       opacity: 1,
-      transition: { 
-        type: "spring", 
-        damping: 25, 
-        stiffness: 300 
-      }
+      transition: { type: "spring", damping: 25, stiffness: 300 }
     },
-    exit: { 
-      y: "100%", 
-      opacity: 0,
-      transition: { 
-        duration: 0.3 
-      } 
-    }
+    exit: { y: "100%", opacity: 0, transition: { duration: 0.3 } }
   };
 
   // Desktop sidebar animation variants
@@ -40,19 +52,9 @@ export default function Cart({ cart, isMobile, onClose }) {
     visible: { 
       x: 0, 
       opacity: 1,
-      transition: { 
-        type: "spring", 
-        damping: 25, 
-        stiffness: 300 
-      }
+      transition: { type: "spring", damping: 25, stiffness: 300 }
     },
-    exit: { 
-      x: 50, 
-      opacity: 0,
-      transition: { 
-        duration: 0.3 
-      } 
-    }
+    exit: { x: 50, opacity: 0, transition: { duration: 0.3 } }
   };
 
   // Item animation variants
@@ -61,10 +63,7 @@ export default function Cart({ cart, isMobile, onClose }) {
     visible: (i) => ({
       opacity: 1,
       y: 0,
-      transition: {
-        delay: i * 0.05,
-        duration: 0.3
-      }
+      transition: { delay: i * 0.05, duration: 0.3 }
     }),
     exit: { opacity: 0, x: -20 }
   };
@@ -140,6 +139,7 @@ export default function Cart({ cart, isMobile, onClose }) {
                   whileHover={{ scale: 1.02 }}
                   className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-medium" 
                   disabled={cart.length === 0}
+                  onClick={handleCheckout}
                 >
                   Checkout
                 </motion.button>
@@ -225,6 +225,7 @@ export default function Cart({ cart, isMobile, onClose }) {
               whileHover={{ scale: 1.02 }}
               className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg hover:from-blue-700 hover:to-blue-600 transition disabled:opacity-50 font-medium shadow-md" 
               disabled={cart.length === 0}
+              onClick={handleCheckout}
             >
               Proceed to Checkout
             </motion.button>
