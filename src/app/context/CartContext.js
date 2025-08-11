@@ -1,4 +1,3 @@
-
 "use client";
 
 import { createContext, useContext, useState, useEffect } from 'react';
@@ -43,7 +42,6 @@ export const CartProvider = ({ children }) => {
       }
     });
   };
-
 
   const removeFromCart = (productId) => {
     setCart(prevCart => prevCart.filter(item => item.id !== productId));
@@ -92,7 +90,6 @@ export const CartProvider = ({ children }) => {
     setCart([]);
     localStorage.removeItem('cart');
   };
-
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
