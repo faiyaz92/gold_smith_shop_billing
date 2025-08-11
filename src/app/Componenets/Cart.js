@@ -5,35 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
-export default function Cart({ cart, setCart, isMobile, onClose }) {
+export default function Cart({ cart, isMobile, onClose }) {
   const [isVisible, setIsVisible] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isCartLoaded, setIsCartLoaded] = useState(false);
   const router = useRouter();
-
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-  // Load cart from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedCart = localStorage.getItem('cart');
-      if (savedCart) {
-        try {
-          setCart(JSON.parse(savedCart));
-        } catch (err) {
-          console.error("Error parsing saved cart", err);
-        }
-      }
-      setIsCartLoaded(true); // Mark that we have loaded cart from localStorage
-    }
-  }, [setCart]);
-
-  // Save cart to localStorage only after loading
-  useEffect(() => {
-    if (isCartLoaded && typeof window !== 'undefined') {
-      localStorage.setItem('cart', JSON.stringify(cart));
-    }
-  }, [cart, isCartLoaded]);
 
   // Check authentication
   useEffect(() => {
@@ -59,26 +35,39 @@ export default function Cart({ cart, setCart, isMobile, onClose }) {
     }
   };
 
-  // Animation variants
+  // Mobile drawer animation variants
   const mobileVariants = {
     hidden: { y: "100%", opacity: 0 },
-    visible: { y: 0, opacity: 1, transition: { type: "spring", damping: 25, stiffness: 300 } },
+    visible: { 
+      y: 0, 
+      opacity: 1,
+      transition: { type: "spring", damping: 25, stiffness: 300 }
+    },
     exit: { y: "100%", opacity: 0, transition: { duration: 0.3 } }
   };
 
+  // Desktop sidebar animation variants
   const desktopVariants = {
     hidden: { x: 50, opacity: 0 },
-    visible: { x: 0, opacity: 1, transition: { type: "spring", damping: 25, stiffness: 300 } },
+    visible: { 
+      x: 0, 
+      opacity: 1,
+      transition: { type: "spring", damping: 25, stiffness: 300 }
+    },
     exit: { x: 50, opacity: 0, transition: { duration: 0.3 } }
   };
 
+  // Item animation variants
   const itemVariants = {
     hidden: { opacity: 0, y: 10 },
-    visible: (i) => ({ opacity: 1, y: 0, transition: { delay: i * 0.05, duration: 0.3 } }),
+    visible: (i) => ({
+      opacity: 1,
+      y: 0,
+      transition: { delay: i * 0.05, duration: 0.3 }
+    }),
     exit: { opacity: 0, x: -20 }
   };
 
-  // ----------------- RENDER -----------------
   if (isMobile) {
     return (
       <AnimatePresence>
@@ -91,18 +80,23 @@ export default function Cart({ cart, setCart, isMobile, onClose }) {
               exit="exit"
               variants={mobileVariants}
             >
-              {/* Header */}
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Your Cart</h2>
-                <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 transition-colors">
+                <button 
+                  onClick={onClose}
+                  className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                >
                   <X className="w-5 h-5 stroke-[1.5]" />
                 </button>
               </div>
 
-              {/* Items */}
               <ul className="space-y-3 flex-1 overflow-y-auto pr-1">
                 {cart.length === 0 ? (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex flex-col items-center justify-center h-full"
+                  >
                     <ShoppingCart className="w-8 h-8 stroke-[1.5] text-gray-300 mb-2" />
                     <p className="text-gray-500">Your cart is empty</p>
                   </motion.div>
@@ -130,8 +124,12 @@ export default function Cart({ cart, setCart, isMobile, onClose }) {
                 )}
               </ul>
 
-              {/* Total + Checkout */}
-              <motion.div className="border-t pt-4 mt-4 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+              <motion.div 
+                className="border-t pt-4 mt-4 text-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
                 <div className="flex justify-between mb-3">
                   <span className="font-medium">Total</span>
                   <span className="font-semibold">₹{total}</span>
@@ -153,7 +151,6 @@ export default function Cart({ cart, setCart, isMobile, onClose }) {
     );
   }
 
-  // Desktop
   return (
     <AnimatePresence>
       <motion.aside 
@@ -176,7 +173,11 @@ export default function Cart({ cart, setCart, isMobile, onClose }) {
 
           <ul className="space-y-3 flex-1 overflow-y-auto pr-1">
             {cart.length === 0 ? (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center h-full"
+              >
                 <ShoppingCart className="w-10 h-10 stroke-[1.5] text-gray-300 mb-3" />
                 <p className="text-gray-500">Your cart is empty</p>
                 <p className="text-gray-400 text-sm mt-1">Add items to get started</p>
@@ -205,7 +206,12 @@ export default function Cart({ cart, setCart, isMobile, onClose }) {
             )}
           </ul>
 
-          <motion.div className="border-t pt-4 mt-4 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+          <motion.div 
+            className="border-t pt-4 mt-4 text-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
             <div className="flex justify-between mb-3">
               <span className="font-medium">Subtotal</span>
               <span className="font-semibold">₹{total}</span>
