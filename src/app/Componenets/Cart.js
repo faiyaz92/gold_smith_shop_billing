@@ -236,5 +236,4 @@ export default function Cart({ cart, isMobile, onClose }) {
   );
 }
 
-
-sdvm,nbsdvuysdrvijhobsdfioysdvn fvs
+fvs
