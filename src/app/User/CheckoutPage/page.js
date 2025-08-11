@@ -10,8 +10,11 @@ import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { getAuth } from "firebase/auth";
 
-const CheckoutPage = () => {
-    const { cart, cartCount, clearCart } = useCart();
+const CheckoutPageComponent = () => {
+    const cartContext = useCart();
+    if (!cartContext) return null; // Avoid build errors
+
+    const { cart, cartCount, clearCart } = cartContext;
     const router = useRouter();
 
     const [formData, setFormData] = useState({
@@ -58,7 +61,6 @@ const CheckoutPage = () => {
             return;
         }
 
-        // Step 1: Prepare full cart data (with name & image)
         const enrichedCart = cart.map((item) => ({
             id: item.id,
             name: item.name,
@@ -80,10 +82,8 @@ const CheckoutPage = () => {
         };
 
         try {
-            // Save order to Firebase
             await addDoc(collection(db, 'orders'), orderData);
 
-            // Update inventory
             const promises = cart.map(async (item) => {
                 const productRef = doc(db, 'products', item.id);
                 const productSnap = await getDoc(productRef);
@@ -302,4 +302,4 @@ const CheckoutPage = () => {
     );
 };
 
-export default CheckoutPage;
+export default CheckoutPageComponent;
