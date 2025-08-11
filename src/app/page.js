@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Head from 'next/head';
 import Navbar from '@/app/Componenets/Navbar';
 import Products from '@/app/Componenets/Products';
@@ -11,34 +11,31 @@ import Categories from './Componenets/Categories';
 export default function Home() {
   const [cart, setCart] = useState([]);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(null);
 
-  // ✅ Add or increase quantity
   const addToCart = (name, price) => {
     setCart(prev => {
       const existing = prev.find(item => item.name === name);
       if (existing) {
-        return prev.map(item =>
-          item.name === name ? { ...item, quantity: item.quantity + 1 } : item
-        );
+        return prev.map(item => item.name === name ? { ...item, quantity: item.quantity + 1 } : item);
       } else {
         return [...prev, { name, price, quantity: 1 }];
       }
     });
   };
 
-  // ✅ Remove or decrease quantity
   const removeFromCart = (name) => {
-    setCart(prev => {
-      return prev
-        .map(item =>
-          item.name === name ? { ...item, quantity: item.quantity - 1 } : item
-        )
-        .filter(item => item.quantity > 0); // Remove if quantity reaches 0
-    });
+    setCart(prev => prev.map(item => item.name === name ? { ...item, quantity: item.quantity - 1 } : item).filter(item => item.quantity > 0));
   };
 
-  // ✅ Calculate total
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const handleCategoryClick = useCallback((categoryId) => {
+    const el = document.querySelector(`[data-categoryid="${categoryId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   return (
     <div className="bg-gray-50 text-gray-900 leading-relaxed min-h-screen">
@@ -48,45 +45,23 @@ export default function Home() {
       </Head>
 
       <Navbar />
-      
-      <Categories isMobile={true} />
-      
+
+      <Categories isMobile={true} onCategoryClick={handleCategoryClick} activeCategory={activeCategory} />
+
       <main className="max-w-7xl mx-auto lg:flex lg:space-x-6 px-4 lg:px-8 py-6">
-        <Categories isMobile={false} />
+        <Categories isMobile={false} onCategoryClick={handleCategoryClick} activeCategory={activeCategory} />
 
-        {/* ✅ Pass cart, addToCart, and removeFromCart to Products */}
-        <Products 
-          cart={cart}
-          addToCart={addToCart}
-          removeFromCart={removeFromCart}
-        />
+        <Products cart={cart} addToCart={addToCart} removeFromCart={removeFromCart} onActiveCategoryChange={setActiveCategory} />
 
-        {/* ✅ Same for Cart */}
-        <Cart 
-          cart={cart} 
-          total={total} 
-          isMobile={false}
-          addToCart={addToCart}
-          removeFromCart={removeFromCart}
-        />
+        <Cart cart={cart} total={total} isMobile={false} addToCart={addToCart} removeFromCart={removeFromCart} />
       </main>
 
       <Footer />
-      
-      <MobileNav 
-        cart={cart} 
-        openCart={() => setMobileCartOpen(true)} 
-      />
-      
+
+      <MobileNav cart={cart} openCart={() => setMobileCartOpen(true)} />
+
       {mobileCartOpen && (
-        <Cart 
-          cart={cart} 
-          total={total} 
-          isMobile={true} 
-          onClose={() => setMobileCartOpen(false)}
-          addToCart={addToCart}
-          removeFromCart={removeFromCart}
-        />
+        <Cart cart={cart} total={total} isMobile={true} onClose={() => setMobileCartOpen(false)} addToCart={addToCart} removeFromCart={removeFromCart} />
       )}
     </div>
   );

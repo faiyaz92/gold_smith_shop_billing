@@ -6,7 +6,7 @@ import { db } from '@/app/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import Image from 'next/image';
 
-function Categories({ isMobile }) {
+function Categories({ isMobile, onCategoryClick, activeCategory }) {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,14 +22,11 @@ function Categories({ isMobile }) {
       try {
         const categoriesSnapshot = await getDocs(collection(db, 'categories'));
         const productsSnapshot = await getDocs(collection(db, 'products'));
-
         const products = productsSnapshot.docs.map(doc => doc.data());
 
         const categoriesData = categoriesSnapshot.docs.map((doc) => {
           const data = doc.data();
           const { categoriesname, categoriesimage, sortOrder } = data;
-
-          // ✅ Match by categoryId instead of category name
           const count = products.filter((product) => product.categoryId === doc.id).length;
 
           return {
@@ -42,9 +39,7 @@ function Categories({ isMobile }) {
         });
 
         const sorted = categoriesData.sort((a, b) => a.sortOrder - b.sortOrder);
-
         setCategories(sorted);
-        console.log("Categories with counts:", sorted);
       } catch (error) {
         console.error('Error fetching categories/products:', error);
       } finally {
@@ -80,16 +75,14 @@ function Categories({ isMobile }) {
             {categories.map((category) => (
               <button
                 key={category.id}
-                className="flex-shrink-0 w-28 flex flex-col items-center gap-2 p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 hover:border-blue-200 transform hover:-translate-y-1"
+                onClick={() => onCategoryClick(category.id)}
+                className={`flex-shrink-0 w-28 flex flex-col items-center gap-2 p-3 rounded-lg border transition-all duration-300 transform hover:-translate-y-1 ${
+                  activeCategory === category.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100'
+                }`}
               >
                 {category.categoriesimage ? (
                   <div className="relative w-10 h-10 overflow-hidden rounded-full">
-                    <Image
-                      src={category.categoriesimage}
-                      alt={category.categoriesname}
-                      fill
-                      className="object-cover"
-                    />
+                    <Image src={category.categoriesimage} alt={category.categoriesname} fill className="object-cover" />
                   </div>
                 ) : (
                   <span className="p-2 bg-blue-50 rounded-full">
@@ -108,16 +101,14 @@ function Categories({ isMobile }) {
           {categories.map((category) => (
             <button
               key={category.id}
-              className="w-full flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100 hover:border-blue-200 transform hover:-translate-y-1"
+              onClick={() => onCategoryClick(category.id)}
+              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 transform hover:-translate-y-1 ${
+                activeCategory === category.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100'
+              }`}
             >
               {category.categoriesimage ? (
                 <div className="relative w-8 h-8 rounded-full overflow-hidden">
-                  <Image
-                    src={category.categoriesimage}
-                    alt={category.categoriesname}
-                    fill
-                    className="object-cover"
-                  />
+                  <Image src={category.categoriesimage} alt={category.categoriesname} fill className="object-cover" />
                 </div>
               ) : (
                 <span className="p-2 bg-blue-50 rounded-full">
@@ -137,6 +128,8 @@ function Categories({ isMobile }) {
 
 Categories.propTypes = {
   isMobile: PropTypes.bool,
+  onCategoryClick: PropTypes.func,
+  activeCategory: PropTypes.string
 };
 
 export default Categories;
