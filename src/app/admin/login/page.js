@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRouter } from 'next/navigation';
@@ -19,7 +18,7 @@ export default function AdminLogin() {
 
         // Simulate API call delay
         setTimeout(() => {
-            if (email === 'easy@123' && password === '786') {
+            if (email === 'easy2solutions25@gmail.com' && password === 'Easy@123456') {
                 localStorage.setItem('adminAuth', 'true');
                 router.push('/admin/dashboard');
             } else {
@@ -34,13 +33,13 @@ export default function AdminLogin() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 to-black"
+            className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-50 to-gray-100"
         >
             <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 0.5 }}
-                className="w-full max-w-md bg-black/50 border border-yellow-700/40 rounded-lg p-6 sm:p-8 space-y-6 backdrop-blur-md shadow-lg"
+                className="w-full max-w-md bg-white border border-gray-200 rounded-lg p-6 sm:p-8 space-y-6 shadow-lg"
             >
                 <motion.div
                     initial={{ y: -20, opacity: 0 }}
@@ -50,11 +49,11 @@ export default function AdminLogin() {
                 >
                     <motion.h2
                         whileHover={{ scale: 1.02 }}
-                        className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent"
+                        className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent"
                     >
                         Admin Login
                     </motion.h2>
-                    <p className="mt-2 text-sm text-gray-400">Enter your credentials to access the dashboard</p>
+                    <p className="mt-2 text-sm text-gray-600">Enter your credentials to access the dashboard</p>
                 </motion.div>
 
                 <AnimatePresence>
@@ -66,7 +65,7 @@ export default function AdminLogin() {
                             transition={{ duration: 0.3 }}
                             className="overflow-hidden"
                         >
-                            <div className="p-3 bg-red-900/50 text-red-300 rounded text-sm">
+                            <div className="p-3 bg-red-100 text-red-700 rounded text-sm border border-red-200">
                                 {error}
                             </div>
                         </motion.div>
@@ -80,15 +79,15 @@ export default function AdminLogin() {
                         transition={{ delay: 0.2 }}
                         className="space-y-2"
                     >
-                        <label className="text-sm font-medium">Email</label>
+                        <label className="text-sm font-medium text-gray-700">Email</label>
                         <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-yellow-600" />
+                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-600" />
                             <input
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="admin@example.com"
-                                className="w-full pl-10 pr-4 py-2 bg-gray-900/50 border border-yellow-700/40 rounded focus:outline-none focus:border-yellow-500 transition-colors"
+                                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                                 required
                             />
                         </div>
@@ -100,15 +99,15 @@ export default function AdminLogin() {
                         transition={{ delay: 0.3 }}
                         className="space-y-2"
                     >
-                        <label className="text-sm font-medium">Password</label>
+                        <label className="text-sm font-medium text-gray-700">Password</label>
                         <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-yellow-600" />
+                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-600" />
                             <input
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
-                                className="w-full pl-10 pr-4 py-2 bg-gray-900/50 border border-yellow-700/40 rounded focus:outline-none focus:border-yellow-500 transition-colors"
+                                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                                 required
                             />
                         </div>
@@ -124,10 +123,11 @@ export default function AdminLogin() {
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             disabled={isLoading}
-                            className={`w-full py-2 rounded font-medium flex items-center justify-center ${isLoading
-                                ? 'bg-yellow-700/50 cursor-not-allowed'
-                                : 'bg-yellow-600 hover:bg-yellow-500 text-black'
-                                } transition-all`}
+                            className={`w-full py-2 rounded font-medium flex items-center justify-center ${
+                                isLoading
+                                    ? 'bg-blue-400 cursor-not-allowed'
+                                    : 'bg-blue-600 hover:bg-blue-500 text-white'
+                            } transition-all`}
                         >
                             {isLoading ? (
                                 <>
