@@ -60,7 +60,7 @@ const Page = () => {
             address: formattedUser.address
           });
 
-          await fetchUserOrders(userDoc.id);
+          await fetchUserOrders(currentUser.uid);
         } else {
           const newUser = {
             uid: currentUser.uid,
@@ -120,6 +120,13 @@ const Page = () => {
           total: Number(data.total || 0),
           date: data.timestamp?.toDate() || new Date(),
           estimatedDelivery: data.deliveryDate?.toDate() || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          status: data.status || 'Pending',
+          paymentMethod: data.paymentMethod || 'COD',
+          city: data.city || '',
+          zip: data.zip || '',
+          email: data.email || '',
+          paymentStatus: data.paymentStatus || 'Paid',
+          paymentId: data.paymentId || ''
         };
       });
 
@@ -235,7 +242,81 @@ const Page = () => {
       case 'account':
         return (
           <div className="bg-white border border-blue-200 rounded-lg p-4 sm:p-6 transition-all duration-300 hover:border-blue-300">
-            {/* Account overview content remains the same */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-2 border-blue-200">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-blue-600">{user.name}</h2>
+                <p className="text-gray-600">{user.email}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="font-medium text-blue-600 mb-2">Personal Information</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Name</p>
+                    <p className="text-gray-800">{user.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Email</p>
+                    <p className="text-gray-800">{user.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Phone</p>
+                    <p className="text-gray-800">{user.phone || 'Not provided'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleEditClick('info')}
+                  className="mt-3 text-blue-600 hover:text-blue-500 text-sm font-medium flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                  Edit Information
+                </button>
+              </div>
+
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="font-medium text-blue-600 mb-2">Default Shipping Address</h3>
+                {user.address ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Address</p>
+                      <p className="text-gray-800">{user.address}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">City</p>
+                      <p className="text-gray-800">{user.city}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">ZIP Code</p>
+                      <p className="text-gray-800">{user.zip}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No shipping address saved</p>
+                )}
+                <button
+                  onClick={() => handleEditClick('address')}
+                  className="mt-3 text-blue-600 hover:text-blue-500 text-sm font-medium flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                  {user.address ? 'Edit Address' : 'Add Address'}
+                </button>
+              </div>
+            </div>
           </div>
         );
 
@@ -245,7 +326,14 @@ const Page = () => {
             <h2 className="text-xl font-bold mb-6 text-blue-600">All Orders</h2>
             {orders.length === 0 ? (
               <div className="bg-white border border-blue-200 rounded-lg p-8 text-center">
-                {/* Empty orders state */}
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <h3 className="mt-4 text-lg font-medium text-gray-900">No orders yet</h3>
+                <p className="mt-1 text-gray-500">You haven't placed any orders yet.</p>
+                <Link href="/Shop" className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                  Start Shopping
+                </Link>
               </div>
             ) : (
               orders.map((order) => (
@@ -253,7 +341,6 @@ const Page = () => {
                   key={order.id}
                   className="bg-white p-4 sm:p-6 mb-6 rounded-xl border border-blue-200 transition-all duration-300 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-100"
                 >
-                  {/* Order header */}
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
                     <div>
                       <h4 className="font-medium text-blue-600">Order #{order.srNo}</h4>
@@ -348,14 +435,78 @@ const Page = () => {
       case 'address':
         return (
           <div className="bg-white border border-blue-200 rounded-lg p-4 sm:p-6 transition-all duration-300 hover:border-blue-300">
-            {/* Address content remains the same */}
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-blue-600">My Addresses</h2>
+              <button
+                onClick={() => handleEditClick('address')}
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-all duration-200 hover:scale-[1.02]"
+              >
+                Add New Address
+              </button>
+            </div>
+
+            {user.address ? (
+              <div className="border border-blue-200 rounded-lg p-4 sm:p-6 relative group">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-medium text-blue-600 mb-2">Default Shipping Address</h3>
+                    <p className="text-gray-800 mb-1">{user.name}</p>
+                    <p className="text-gray-800 mb-1">{user.address}</p>
+                    <p className="text-gray-800 mb-1">
+                      {user.city}, {user.zip}
+                    </p>
+                    <p className="text-gray-800">Phone: {user.phone}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditClick('address')}
+                      className="text-blue-600 hover:text-blue-500"
+                      title="Edit"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No saved addresses</h3>
+                <p className="mt-1 text-sm text-gray-500">Add your first shipping address.</p>
+                <div className="mt-6">
+                  <button
+                    onClick={() => handleEditClick('address')}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    Add Address
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
 
       case 'wishlist':
         return (
           <div className="bg-white border border-blue-200 rounded-lg p-4 sm:p-6 transition-all duration-300 hover:border-blue-300">
-            {/* Wishlist content remains the same */}
+            <h2 className="text-xl font-semibold text-blue-600 mb-6">My Wishlist</h2>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">Your wishlist is empty</h3>
+              <p className="mt-1 text-sm text-gray-500">Save your favorite items here</p>
+              <div className="mt-6">
+                <Link href="/Shop" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                  Continue Shopping
+                </Link>
+              </div>
+            </div>
           </div>
         );
 
