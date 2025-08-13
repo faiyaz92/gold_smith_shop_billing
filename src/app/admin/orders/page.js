@@ -25,25 +25,34 @@ export default function AdminOrders() {
     } else {
       const fetchOrders = async () => {
         try {
-          const q = query(collection(db, 'orders'), orderBy('timestamp', 'desc'));
+          const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
           const snapshot = await getDocs(q);
           const fetchedOrders = snapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            const orderDate = data.timestamp?.toDate();
-            const deliveryDate = data.deliveryDate?.toDate() || new Date(orderDate?.getTime() + 5 * 86400000);
+            const orderDate = data.createdAt?.toDate();
+            const deliveryDetails = data.deliveryDetails || {};
+            const items = data.items || [];
+            
+            // Calculate total if not provided
+            const calculatedTotal = items.reduce((sum, item) => 
+              sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
+            
+            const total = data.total || calculatedTotal;
+            
             return {
               id: docSnap.id,
-              customer: data.name || "No Name",
-              email: data.email || "N/A",
-              address: `${data.address || ''}, ${data.city || ''}, ${data.zip || ''}`,
-              items: data.cart || [],
-              amount: Number(data.total) || 0,
+              customer: deliveryDetails.name || "No Name",
+              email: deliveryDetails.email || "N/A",
+              phone: deliveryDetails.phone || "N/A",
+              address: `${deliveryDetails.address || ''}, ${deliveryDetails.city || ''}, ${deliveryDetails.state || ''} - ${deliveryDetails.pincode || ''}`,
+              items: items,
+              amount: Number(total) || 0,
               paymentMethod: data.paymentMethod || "N/A",
-              paymentId: data.paymentId || "",
               status: data.status || "Pending",
-              date: orderDate?.toLocaleDateString() || 'Invalid/Missing Timestamp',
-              rawTimestamp: data.timestamp,
-              deliveryDate: deliveryDate,
+              date: orderDate?.toLocaleDateString() || 'Invalid/Missing Date',
+              rawTimestamp: data.createdAt,
+              userId: data.userId || "N/A",
+              deliveryDetails: deliveryDetails
             };
           });
           setOrders(fetchedOrders);
@@ -80,21 +89,11 @@ export default function AdminOrders() {
     }
   };
 
-  const handleDeliveryDateChange = async (orderId, newDate) => {
-    try {
-      const orderRef = doc(db, 'orders', orderId);
-      const deliveryDate = new Date(newDate);
-      await updateDoc(orderRef, { deliveryDate });
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, deliveryDate } : o));
-    } catch (err) {
-      console.error("Failed to update delivery date", err);
-    }
-  };
-
   const filteredOrders = orders.filter(order => {
     const matchesSearch =
       order.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer?.toLowerCase().includes(searchQuery.toLowerCase());
+      order.customer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.phone?.includes(searchQuery);
 
     const matchesStatus = statusFilter ? order.status === statusFilter : true;
 
@@ -168,7 +167,7 @@ export default function AdminOrders() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <input
             type="text"
-            placeholder="Search by Order ID or Customer"
+            placeholder="Search by Order ID, Customer or Phone"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 p-2 rounded bg-gray-50 border border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
@@ -208,10 +207,10 @@ export default function AdminOrders() {
                 <th className="p-3 border-b border-blue-100">Sr No</th>
                 <th className="p-3 border-b border-blue-100">Order ID</th>
                 <th className="p-3 border-b border-blue-100">Customer</th>
+                <th className="p-3 border-b border-blue-100">Phone</th>
                 <th className="p-3 border-b border-blue-100">Address</th>
-                <th className="p-3 border-b border-blue-100">Payment Method</th>
+                <th className="p-3 border-b border-blue-100">Payment</th>
                 <th className="p-3 border-b border-blue-100">Amount</th>
-                <th className="p-3 border-b border-blue-100">Delivery Date</th>
                 <th className="p-3 border-b border-blue-100">Status</th>
                 <th className="p-3 border-b border-blue-100">Order Date</th>
                 <th className="p-3 border-b border-blue-100">Expand</th>
@@ -229,17 +228,10 @@ export default function AdminOrders() {
                       <td className="p-3 border-b border-blue-100">{index + 1}</td>
                       <td className="p-3 border-b border-blue-100">{order.id}</td>
                       <td className="p-3 border-b border-blue-100">{order.customer}</td>
+                      <td className="p-3 border-b border-blue-100">{order.phone}</td>
                       <td className="p-3 border-b border-blue-100">{order.address}</td>
                       <td className="p-3 border-b border-blue-100">{order.paymentMethod}</td>
                       <td className="p-3 border-b border-blue-100">₹{order.amount.toFixed(2)}</td>
-                      <td className="p-3 border-b border-blue-100">
-                        <input
-                          type="date"
-                          value={order.deliveryDate.toISOString().split('T')[0]}
-                          onChange={(e) => handleDeliveryDateChange(order.id, e.target.value)}
-                          className="bg-white border border-blue-200 text-blue-600 text-sm rounded px-2 py-1 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
-                        />
-                      </td>
                       <td className="p-3 border-b border-blue-100">
                         <select
                           value={order.status}
@@ -263,15 +255,30 @@ export default function AdminOrders() {
                     {expandedOrder === order.id && (
                       <tr>
                         <td colSpan={10} className="bg-blue-50 p-4">
-                          <p className="font-semibold text-blue-600 mb-2">Order Items:</p>
-                          {order.items.map((item, idx) => (
-                            <div key={idx} className="flex justify-between text-sm text-gray-700">
-                              <span>{item.name} x{item.quantity}</span>
-                              <span>₹{Number(item.price || 0).toFixed(2)}</span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p className="font-semibold text-blue-600 mb-2">Order Items:</p>
+                              {order.items.map((item, idx) => (
+                                <div key={idx} className="flex justify-between text-sm text-gray-700 mb-1">
+                                  <span>{item.name} x{item.quantity}</span>
+                                  <span>₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
+                                </div>
+                              ))}
+                              <div className="mt-3 text-right text-blue-600 font-semibold">
+                                Total: ₹{order.amount.toFixed(2)}
+                              </div>
                             </div>
-                          ))}
-                          <div className="mt-3 text-right text-blue-600 font-semibold">
-                            Total: ₹{order.amount.toFixed(2)}
+                            <div>
+                              <p className="font-semibold text-blue-600 mb-2">Delivery Details:</p>
+                              <div className="text-sm text-gray-700 space-y-1">
+                                <p><span className="font-medium">Name:</span> {order.deliveryDetails.name || 'N/A'}</p>
+                                <p><span className="font-medium">Phone:</span> {order.deliveryDetails.phone || 'N/A'}</p>
+                                <p><span className="font-medium">Address:</span> {order.deliveryDetails.address || 'N/A'}</p>
+                                <p><span className="font-medium">City:</span> {order.deliveryDetails.city || 'N/A'}</p>
+                                <p><span className="font-medium">State:</span> {order.deliveryDetails.state || 'N/A'}</p>
+                                <p><span className="font-medium">Pincode:</span> {order.deliveryDetails.pincode || 'N/A'}</p>
+                              </div>
+                            </div>
                           </div>
                         </td>
                       </tr>
