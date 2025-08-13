@@ -26,45 +26,34 @@ export default function Cart({ cart, isMobile, onClose }) {
     return () => setIsVisible(false);
   }, []);
 
-  // Navigate on checkout
+  // Navigate to checkout with COD
   const handleCheckout = () => {
+    // Save cart to localStorage
+    localStorage.setItem('checkoutCart', JSON.stringify(cart));
+
     if (isAuthenticated) {
-      router.push('/User/Checkoutpage/');
+      router.push('/User/CheckoutPage?method=cod');
     } else {
       router.push('/User/Auth/');
     }
   };
 
-  // Mobile drawer animation variants
+  // Animation variants
   const mobileVariants = {
     hidden: { y: "100%", opacity: 0 },
-    visible: { 
-      y: 0, 
-      opacity: 1,
-      transition: { type: "spring", damping: 25, stiffness: 300 }
-    },
+    visible: { y: 0, opacity: 1, transition: { type: "spring", damping: 25, stiffness: 300 } },
     exit: { y: "100%", opacity: 0, transition: { duration: 0.3 } }
   };
 
-  // Desktop sidebar animation variants
   const desktopVariants = {
     hidden: { x: 50, opacity: 0 },
-    visible: { 
-      x: 0, 
-      opacity: 1,
-      transition: { type: "spring", damping: 25, stiffness: 300 }
-    },
+    visible: { x: 0, opacity: 1, transition: { type: "spring", damping: 25, stiffness: 300 } },
     exit: { x: 50, opacity: 0, transition: { duration: 0.3 } }
   };
 
-  // Item animation variants
   const itemVariants = {
     hidden: { opacity: 0, y: 10 },
-    visible: (i) => ({
-      opacity: 1,
-      y: 0,
-      transition: { delay: i * 0.05, duration: 0.3 }
-    }),
+    visible: (i) => ({ opacity: 1, y: 0, transition: { delay: i * 0.05, duration: 0.3 } }),
     exit: { opacity: 0, x: -20 }
   };
 
@@ -82,21 +71,14 @@ export default function Cart({ cart, isMobile, onClose }) {
             >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold">Your Cart</h2>
-                <button 
-                  onClick={onClose}
-                  className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-                >
+                <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 transition-colors">
                   <X className="w-5 h-5 stroke-[1.5]" />
                 </button>
               </div>
 
               <ul className="space-y-3 flex-1 overflow-y-auto pr-1">
                 {cart.length === 0 ? (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex flex-col items-center justify-center h-full"
-                  >
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full">
                     <ShoppingCart className="w-8 h-8 stroke-[1.5] text-gray-300 mb-2" />
                     <p className="text-gray-500">Your cart is empty</p>
                   </motion.div>
@@ -124,12 +106,7 @@ export default function Cart({ cart, isMobile, onClose }) {
                 )}
               </ul>
 
-              <motion.div 
-                className="border-t pt-4 mt-4 text-sm"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-              >
+              <motion.div className="border-t pt-4 mt-4 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
                 <div className="flex justify-between mb-3">
                   <span className="font-medium">Total</span>
                   <span className="font-semibold">₹{total}</span>
@@ -141,7 +118,7 @@ export default function Cart({ cart, isMobile, onClose }) {
                   disabled={cart.length === 0}
                   onClick={handleCheckout}
                 >
-                  Checkout
+                  Checkout (COD)
                 </motion.button>
               </motion.div>
             </motion.div>
@@ -173,11 +150,7 @@ export default function Cart({ cart, isMobile, onClose }) {
 
           <ul className="space-y-3 flex-1 overflow-y-auto pr-1">
             {cart.length === 0 ? (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center h-full"
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full">
                 <ShoppingCart className="w-10 h-10 stroke-[1.5] text-gray-300 mb-3" />
                 <p className="text-gray-500">Your cart is empty</p>
                 <p className="text-gray-400 text-sm mt-1">Add items to get started</p>
@@ -206,12 +179,7 @@ export default function Cart({ cart, isMobile, onClose }) {
             )}
           </ul>
 
-          <motion.div 
-            className="border-t pt-4 mt-4 text-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
+          <motion.div className="border-t pt-4 mt-4 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
             <div className="flex justify-between mb-3">
               <span className="font-medium">Subtotal</span>
               <span className="font-semibold">₹{total}</span>
@@ -227,7 +195,7 @@ export default function Cart({ cart, isMobile, onClose }) {
               disabled={cart.length === 0}
               onClick={handleCheckout}
             >
-              Proceed to Checkout
+              Proceed to Checkout (COD)
             </motion.button>
           </motion.div>
         </div>

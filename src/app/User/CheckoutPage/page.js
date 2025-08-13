@@ -1,146 +1,180 @@
-"use client";
-
-import { useState, useEffect } from 'react';
-import { useCart } from '@/app/context/CartContext';
+'use client';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { db } from '@/app/firebase';
-import Script from 'next/script';
-import Navbar from '@/app/Componenets/Navbar';
-import { addDoc, collection, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
-import { getAuth } from "firebase/auth";
-import Image from 'next/image';
+import Navbar from '@/app/Componenets/Navbar';
 
-const CheckoutPageComponent = () => {
-    // Always call hooks at the top level
-    const { cart = [], cartCount = 0, clearCart = () => {} } = useCart() || {};
-    const router = useRouter();
-
-    const [formData, setFormData] = useState({
+export default function CheckoutPage() {
+    const [cart, setCart] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [form, setForm] = useState({
         name: '',
-        email: '',
+        phone: '',
         address: '',
         city: '',
-        zip: '',
+        pincode: '',
+        state: ''
     });
 
-    const [totalPrice, setTotalPrice] = useState(0);
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const method = searchParams.get('method') || 'cod';
 
+    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+    // Load cart from localStorage
     useEffect(() => {
-        // calculate total price
-        const total = cart.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
-        setTotalPrice(total);
-    }, [cart]);
+        const savedCart = JSON.parse(localStorage.getItem('checkoutCart')) || [];
+        setCart(savedCart);
+    }, []);
 
-    const handleInputChange = (e) => {
-        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    // Handle input change
+    const handleChange = (e) => {
+        setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    const handlePlaceOrder = async () => {
+    // Place order (COD)
+    const placeOrder = async () => {
+        if (!form.name || !form.phone || !form.address || !form.city || !form.pincode || !form.state) {
+            alert('Please fill all delivery details');
+            return;
+        }
+
+        if (cart.length === 0) {
+            alert('Your cart is empty');
+            return;
+        }
+
+        setLoading(true);
         try {
             const auth = getAuth();
             const user = auth.currentUser;
+
             if (!user) {
-                router.push("/login");
+                router.push('/User/Auth/');
                 return;
             }
 
-            const orderData = {
-                ...formData,
-                cart,
-                totalPrice,
-                status: "pending",
-                createdAt: new Date(),
-                userId: user.uid
-            };
+            // Prepare items array to save only necessary fields
+            const itemsToSave = cart.map(item => ({
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                total: item.price * item.quantity
+            }));
 
-            await addDoc(collection(db, "orders"), orderData);
-            clearCart();
-            router.push("/User/Orders");
+            // Save order in Firebase
+            await addDoc(collection(db, 'orders'), {
+                userId: user.uid,
+                items: itemsToSave,
+                total: total,
+                deliveryDetails: {
+                    name: form.name,
+                    phone: form.phone,
+                    address: form.address,
+                    city: form.city,
+                    pincode: form.pincode,
+                    state: form.state
+                },
+                paymentMethod: method.toUpperCase(),
+                status: 'Pending',
+                shippingInfo: {
+                    method: 'Standard Shipping',
+                    cost: 0,
+                    estimatedDelivery: '3-7 days'
+                },
+                createdAt: serverTimestamp()
+            });
+
+            // Clear cart
+            localStorage.removeItem('checkoutCart');
+
+            router.push('/User/Account/');
         } catch (error) {
-            console.error("Error placing order:", error);
+            console.error('Error placing order:', error);
+            alert('Error placing order');
         }
+        setLoading(false);
     };
 
     return (
         <>
             <Navbar />
-            <div className="checkout-container max-w-3xl mx-auto p-4">
-                <h1 className="text-2xl font-bold mb-4">Checkout</h1>
+            <div className="max-w-6xl mx-auto p-4 md:p-8">
+                <h1 className="text-2xl font-bold mb-6">Checkout</h1>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 
-                <div className="form-section mb-6">
-                    <input
-                        type="text"
-                        name="name"
-                        placeholder="Name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className="border w-full p-2 mb-2"
-                    />
-                    <input
-                        type="email"
-                        name="email"
-                        placeholder="Email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        className="border w-full p-2 mb-2"
-                    />
-                    <input
-                        type="text"
-                        name="address"
-                        placeholder="Address"
-                        value={formData.address}
-                        onChange={handleInputChange}
-                        className="border w-full p-2 mb-2"
-                    />
-                    <input
-                        type="text"
-                        name="city"
-                        placeholder="City"
-                        value={formData.city}
-                        onChange={handleInputChange}
-                        className="border w-full p-2 mb-2"
-                    />
-                    <input
-                        type="text"
-                        name="zip"
-                        placeholder="ZIP Code"
-                        value={formData.zip}
-                        onChange={handleInputChange}
-                        className="border w-full p-2 mb-2"
-                    />
-                </div>
-
-                <div className="order-summary mb-6">
-                    <h2 className="text-xl font-semibold mb-2">Order Summary</h2>
-                    {cart.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                                <Image
-                                    src={item.image || "/placeholder.jpg"}
-                                    alt={item.name}
-                                    width={50}
-                                    height={50}
-                                    className="rounded"
-                                />
-                                <span>{item.name}</span>
-                            </div>
-                            <span>₹{(item.price || 0) * (item.quantity || 1)}</span>
+                    {/* Delivery Form */}
+                    <motion.div
+                        className="bg-white p-6 rounded-lg shadow-md border"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                    >
+                        <h2 className="text-lg font-semibold mb-4">Delivery Details</h2>
+                        <div className="space-y-4">
+                            <input name="name" placeholder="Full Name" value={form.name} onChange={handleChange} className="w-full border p-2 rounded" />
+                            <input name="phone" placeholder="Phone Number" value={form.phone} onChange={handleChange} className="w-full border p-2 rounded" />
+                            <textarea name="address" placeholder="Full Address" value={form.address} onChange={handleChange} className="w-full border p-2 rounded" rows="3" />
+                            <input name="city" placeholder="City" value={form.city} onChange={handleChange} className="w-full border p-2 rounded" />
+                            <input name="pincode" placeholder="Pincode" value={form.pincode} onChange={handleChange} className="w-full border p-2 rounded" />
+                            <input name="state" placeholder="State" value={form.state} onChange={handleChange} className="w-full border p-2 rounded" />
                         </div>
-                    ))}
-                    <div className="font-bold mt-4">Total: ₹{totalPrice}</div>
-                </div>
+                    </motion.div>
 
-                <motion.button
-                    onClick={handlePlaceOrder}
-                    whileTap={{ scale: 0.95 }}
-                    className="bg-blue-600 text-white w-full py-2 rounded"
-                >
-                    Place Order
-                </motion.button>
+                    {/* Order Summary */}
+                    <motion.div
+                        className="bg-white p-6 rounded-lg shadow-md border flex flex-col"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                    >
+                        <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
+                        <div className="flex-1 overflow-y-auto space-y-3 mb-4">
+                            {cart.length === 0 ? (
+                                <p className="text-gray-500">Your cart is empty</p>
+                            ) : (
+                                cart.map((item, index) => (
+                                    <div key={index} className="flex justify-between text-sm border-b pb-2">
+                                        <div>
+                                            <p className="font-medium">{item.name}</p>
+                                            <p className="text-gray-500 text-xs">Qty: {item.quantity} × ₹{item.price}</p>
+                                        </div>
+                                        <span className="font-medium">₹{item.price * item.quantity}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="mt-4 border-t pt-4">
+                            <div className="flex justify-between mb-2">
+                                <span>Subtotal</span>
+                                <span>₹{total}</span>
+                            </div>
+                            <div className="flex justify-between mb-2 text-gray-500 text-sm">
+                                <span>Shipping</span>
+                                <span>Free</span>
+                            </div>
+                            <div className="flex justify-between font-semibold text-lg">
+                                <span>Total</span>
+                                <span>₹{total}</span>
+                            </div>
+                        </div>
+
+                        <motion.button
+                            whileTap={{ scale: 0.98 }}
+                            whileHover={{ scale: 1.02 }}
+                            disabled={cart.length === 0 || loading}
+                            onClick={placeOrder}
+                            className="w-full py-3 mt-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 font-medium"
+                        >
+                            {loading ? 'Placing Order...' : `Place Order (${method.toUpperCase()})`}
+                        </motion.button>
+                    </motion.div>
+
+                </div>
             </div>
         </>
     );
-};
-
-export default CheckoutPageComponent;
+}

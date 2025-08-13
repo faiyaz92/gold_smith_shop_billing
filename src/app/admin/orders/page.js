@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useRouter } from 'next/navigation';
@@ -118,17 +117,17 @@ export default function AdminOrders() {
   if (!isClient) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-gray-100">
+    <div className="min-h-screen bg-white text-gray-800">
       {/* Navbar */}
       <motion.nav
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3 }}
-        className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 bg-gray-900/80 backdrop-blur-md border-b border-yellow-500/30"
+        className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 bg-white shadow-md border-b border-blue-200"
       >
         <motion.div
           whileHover={{ scale: 1.05 }}
-          className="text-xl font-bold tracking-tight bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent"
+          className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent"
         >
           EASY2 Admin
         </motion.div>
@@ -142,7 +141,7 @@ export default function AdminOrders() {
               key={item.id}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className={`flex items-center gap-2 px-3 py-1 rounded-md transition-colors ${item.id === 'orders' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : 'hover:text-yellow-400'}`}
+              className={`flex items-center gap-2 px-3 py-1 rounded-md transition-colors ${item.id === 'orders' ? 'bg-blue-100 text-blue-600 border border-blue-200' : 'hover:text-blue-600'}`}
               onClick={() => handleNavigation(item.id)}
             >
               {item.icon}
@@ -153,7 +152,7 @@ export default function AdminOrders() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleLogout}
-            className="flex items-center space-x-1 px-3 py-1 rounded-md bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-500/20"
+            className="flex items-center space-x-1 px-3 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-600 border border-red-200"
           >
             <LogOut className="w-4 h-4" />
             <span>Logout</span>
@@ -163,7 +162,7 @@ export default function AdminOrders() {
 
       {/* Orders Section */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent mb-6">Orders Management</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent mb-6">Orders Management</h2>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
@@ -172,14 +171,14 @@ export default function AdminOrders() {
             placeholder="Search by Order ID or Customer"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 p-2 rounded bg-gray-800 border border-gray-700"
+            className="flex-1 p-2 rounded bg-gray-50 border border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
           />
 
           <div className="flex gap-2">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-gray-800 border border-gray-700 text-sm rounded px-3 py-2 text-yellow-400"
+              className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-2 text-blue-600 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
             >
               <option value="">All Status</option>
               <option value="Pending">Pending</option>
@@ -192,7 +191,7 @@ export default function AdminOrders() {
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="bg-gray-800 border border-gray-700 text-sm rounded px-3 py-2 text-yellow-400"
+              className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-2 text-blue-600 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
             >
               <option value="all">All Time</option>
               <option value="7days">Last 7 Days</option>
@@ -205,47 +204,47 @@ export default function AdminOrders() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-800 text-sm text-gray-300">
-                <th className="p-3 border-b border-gray-700">Sr No</th>
-                <th className="p-3 border-b border-gray-700">Order ID</th>
-                <th className="p-3 border-b border-gray-700">Customer</th>
-                <th className="p-3 border-b border-gray-700">Address</th>
-                <th className="p-3 border-b border-gray-700">Payment Method</th>
-                <th className="p-3 border-b border-gray-700">Amount</th>
-                <th className="p-3 border-b border-gray-700">Delivery Date</th>
-                <th className="p-3 border-b border-gray-700">Status</th>
-                <th className="p-3 border-b border-gray-700">Order Date</th>
-                <th className="p-3 border-b border-gray-700">Expand</th>
+              <tr className="bg-blue-50 text-sm text-blue-800">
+                <th className="p-3 border-b border-blue-100">Sr No</th>
+                <th className="p-3 border-b border-blue-100">Order ID</th>
+                <th className="p-3 border-b border-blue-100">Customer</th>
+                <th className="p-3 border-b border-blue-100">Address</th>
+                <th className="p-3 border-b border-blue-100">Payment Method</th>
+                <th className="p-3 border-b border-blue-100">Amount</th>
+                <th className="p-3 border-b border-blue-100">Delivery Date</th>
+                <th className="p-3 border-b border-blue-100">Status</th>
+                <th className="p-3 border-b border-blue-100">Order Date</th>
+                <th className="p-3 border-b border-blue-100">Expand</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={10} className="text-center text-gray-400 p-6">Loading...</td></tr>
+                <tr><td colSpan={10} className="text-center text-gray-500 p-6">Loading...</td></tr>
               ) : filteredOrders.length === 0 ? (
-                <tr><td colSpan={10} className="text-center text-gray-400 p-6">No orders found</td></tr>
+                <tr><td colSpan={10} className="text-center text-gray-500 p-6">No orders found</td></tr>
               ) : (
                 filteredOrders.map((order, index) => (
                   <>
-                    <tr key={order.id} className="hover:bg-gray-800">
-                      <td className="p-3 border-b border-gray-700">{index + 1}</td>
-                      <td className="p-3 border-b border-gray-700">{order.id}</td>
-                      <td className="p-3 border-b border-gray-700">{order.customer}</td>
-                      <td className="p-3 border-b border-gray-700">{order.address}</td>
-                      <td className="p-3 border-b border-gray-700">{order.paymentMethod}</td>
-                      <td className="p-3 border-b border-gray-700">₹{order.amount.toFixed(2)}</td>
-                      <td className="p-3 border-b border-gray-700">
+                    <tr key={order.id} className="hover:bg-blue-50">
+                      <td className="p-3 border-b border-blue-100">{index + 1}</td>
+                      <td className="p-3 border-b border-blue-100">{order.id}</td>
+                      <td className="p-3 border-b border-blue-100">{order.customer}</td>
+                      <td className="p-3 border-b border-blue-100">{order.address}</td>
+                      <td className="p-3 border-b border-blue-100">{order.paymentMethod}</td>
+                      <td className="p-3 border-b border-blue-100">₹{order.amount.toFixed(2)}</td>
+                      <td className="p-3 border-b border-blue-100">
                         <input
                           type="date"
                           value={order.deliveryDate.toISOString().split('T')[0]}
                           onChange={(e) => handleDeliveryDateChange(order.id, e.target.value)}
-                          className="bg-gray-900 border border-gray-700 text-yellow-400 text-sm rounded px-2 py-1"
+                          className="bg-white border border-blue-200 text-blue-600 text-sm rounded px-2 py-1 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
                         />
                       </td>
-                      <td className="p-3 border-b border-gray-700">
+                      <td className="p-3 border-b border-blue-100">
                         <select
                           value={order.status}
                           onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                          className="bg-gray-900 border border-gray-700 text-yellow-400 text-sm rounded px-2 py-1"
+                          className="bg-white border border-blue-200 text-blue-600 text-sm rounded px-2 py-1 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
                         >
                           <option value="Pending">Pending</option>
                           <option value="Processing">Processing</option>
@@ -254,24 +253,24 @@ export default function AdminOrders() {
                           <option value="Cancelled">Cancelled</option>
                         </select>
                       </td>
-                      <td className="p-3 border-b border-gray-700">{order.date}</td>
-                      <td className="p-3 border-b border-gray-700">
-                        <button onClick={() => toggleOrderExpand(order.id)}>
+                      <td className="p-3 border-b border-blue-100">{order.date}</td>
+                      <td className="p-3 border-b border-blue-100">
+                        <button onClick={() => toggleOrderExpand(order.id)} className="text-blue-600 hover:text-blue-800">
                           {expandedOrder === order.id ? <ChevronUp /> : <ChevronDown />}
                         </button>
                       </td>
                     </tr>
                     {expandedOrder === order.id && (
                       <tr>
-                        <td colSpan={10} className="bg-gray-900 p-4">
-                          <p className="font-semibold text-yellow-400 mb-2">Order Items:</p>
+                        <td colSpan={10} className="bg-blue-50 p-4">
+                          <p className="font-semibold text-blue-600 mb-2">Order Items:</p>
                           {order.items.map((item, idx) => (
-                            <div key={idx} className="flex justify-between text-sm text-gray-300">
+                            <div key={idx} className="flex justify-between text-sm text-gray-700">
                               <span>{item.name} x{item.quantity}</span>
                               <span>₹{Number(item.price || 0).toFixed(2)}</span>
                             </div>
                           ))}
-                          <div className="mt-3 text-right text-yellow-400 font-semibold">
+                          <div className="mt-3 text-right text-blue-600 font-semibold">
                             Total: ₹{order.amount.toFixed(2)}
                           </div>
                         </td>

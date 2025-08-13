@@ -243,17 +243,17 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-white text-gray-800">
       {/* Navbar */}
       <motion.nav
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3 }}
-        className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 bg-gray-900/80 backdrop-blur-md border-b border-yellow-500/30"
+        className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 bg-blue-50 backdrop-blur-md border-b border-blue-200"
       >
         <motion.div
           whileHover={{ scale: 1.05 }}
-          className="text-xl font-bold tracking-tight bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent"
+          className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent"
         >
           EASY2 Admin
         </motion.div>
@@ -270,8 +270,8 @@ export default function CategoriesPage() {
                 whileTap={{ scale: 0.95 }}
                 className={`flex items-center gap-2 px-3 py-1 rounded-md transition-colors ${
                   activeTab === item.id
-                    ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                    : 'hover:text-yellow-400'
+                    ? 'bg-blue-100 text-blue-600 border border-blue-200'
+                    : 'hover:text-blue-600'
                 }`}
                 onClick={() => handleNavigation(item.id)}
               >
@@ -283,7 +283,7 @@ export default function CategoriesPage() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleLogout}
-            className="flex items-center space-x-1 px-3 py-1 rounded-md bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-500/20"
+            className="flex items-center space-x-1 px-3 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-600 border border-red-200"
           >
             <LogOut className="w-4 h-4" />
             <span>Logout</span>
@@ -293,7 +293,7 @@ export default function CategoriesPage() {
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          className="md:hidden p-2 text-yellow-400"
+          className="md:hidden p-2 text-blue-600"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         >
           {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -308,7 +308,7 @@ export default function CategoriesPage() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="md:hidden bg-gray-800/95 backdrop-blur-lg border-b border-yellow-500/20 overflow-hidden"
+            className="md:hidden bg-blue-50 backdrop-blur-lg border-b border-blue-200 overflow-hidden"
           >
             <div className="flex flex-col space-y-2 p-4">
               {['dashboard', 'products', 'orders', 'users'].map((item) => (
@@ -317,8 +317,8 @@ export default function CategoriesPage() {
                   whileTap={{ scale: 0.95 }}
                   className={`px-4 py-3 text-left rounded-md ${
                     activeTab === item
-                      ? 'bg-yellow-500/10 text-yellow-400'
-                      : 'hover:bg-gray-700/50'
+                      ? 'bg-blue-100 text-blue-600'
+                      : 'hover:bg-blue-100'
                   }`}
                   onClick={() => handleNavigation(item)}
                 >
@@ -328,7 +328,7 @@ export default function CategoriesPage() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={handleLogout}
-                className="flex items-center space-x-2 px-4 py-3 text-left rounded-md bg-red-900/30 hover:bg-red-900/50 text-red-400"
+                className="flex items-center space-x-2 px-4 py-3 text-left rounded-md bg-red-100 hover:bg-red-200 text-red-600"
               >
                 <LogOut className="w-5 h-5" />
                 <span>Logout</span>
@@ -341,18 +341,18 @@ export default function CategoriesPage() {
       {/* Main Content */}
       <div className="p-6 space-y-8">
         {/* Add Category Form */}
-        <div className="bg-gray-900/50 p-6 rounded-lg border border-yellow-500/20">
-          <h2 className="text-2xl font-bold mb-4 text-yellow-400">Add New Category</h2>
+        <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
+          <h2 className="text-2xl font-bold mb-4 text-blue-600">Add New Category</h2>
           
           {uploadError && (
-            <div className="mb-4 p-3 bg-red-900/50 text-red-300 rounded border border-red-500/30">
+            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded border border-red-200">
               {uploadError}
             </div>
           )}
 
           <div className="grid md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <label className="block text-sm font-medium">Category Name</label>
+              <label className="block text-sm font-medium text-gray-700">Category Name</label>
               <input
                 type="text"
                 placeholder="Enter category name"
@@ -361,12 +361,12 @@ export default function CategoriesPage() {
                   setCategoriesname(e.target.value);
                   setUploadError('');
                 }}
-                className="w-full p-2 rounded bg-gray-800 border border-yellow-500/20 text-white focus:outline-none focus:ring-1 focus:ring-yellow-500/50"
+                className="w-full p-2 rounded bg-white border border-blue-200 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium">Category Image</label>
+              <label className="block text-sm font-medium text-gray-700">Category Image</label>
               <input
                 type="file"
                 accept="image/jpeg, image/png, image/webp"
@@ -377,7 +377,7 @@ export default function CategoriesPage() {
                     setUploadError('');
                   }
                 }}
-                className="w-full p-2 rounded bg-gray-800 border border-yellow-500/20 text-white file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-yellow-500/20 file:text-yellow-400 hover:file:bg-yellow-500/30"
+                className="w-full p-2 rounded bg-white border border-blue-200 text-gray-800 file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-100 file:text-blue-600 hover:file:bg-blue-200"
               />
             </div>
 
@@ -385,7 +385,7 @@ export default function CategoriesPage() {
               <button
                 disabled={isLoading}
                 onClick={handleAddCategory}
-                className="w-full px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Adding...' : 'Add Category'}
               </button>
@@ -394,8 +394,8 @@ export default function CategoriesPage() {
 
           {previewUrl && (
             <div className="mt-4">
-              <p className="text-sm font-medium mb-2">Image Preview:</p>
-              <div className="relative w-40 h-40 border-2 border-yellow-500/30 rounded overflow-hidden">
+              <p className="text-sm font-medium mb-2 text-gray-700">Image Preview:</p>
+              <div className="relative w-40 h-40 border-2 border-blue-200 rounded overflow-hidden">
                 <Image
                   src={previewUrl}
                   alt="Category preview"
@@ -408,18 +408,18 @@ export default function CategoriesPage() {
         </div>
 
         {/* Categories List */}
-        <div className="bg-gray-900/50 p-6 rounded-lg border border-yellow-500/20">
-          <h2 className="text-2xl font-bold mb-6 text-yellow-400">Categories List</h2>
+        <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
+          <h2 className="text-2xl font-bold mb-6 text-blue-600">Categories List</h2>
           
           {categories.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
+            <div className="text-center py-8 text-gray-500">
               No categories found. Add your first category above.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="bg-gray-800 text-yellow-400">
+                  <tr className="bg-blue-50 text-blue-600">
                     <th className="p-3 text-left">#</th>
                     <th className="p-3 text-left">ID</th>
                     <th className="p-3 text-left">Name</th>
@@ -429,16 +429,16 @@ export default function CategoriesPage() {
                 </thead>
                 <tbody>
                   {categories.map((cat, index) => (
-                    <tr key={cat.id} className="border-b border-gray-700 hover:bg-gray-800/50 transition-colors">
+                    <tr key={cat.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
                       <td className="p-3">{index + 1}</td>
-                      <td className="p-3 text-sm text-gray-400 font-mono">{cat.categoriesid}</td>
+                      <td className="p-3 text-sm text-gray-600 font-mono">{cat.categoriesid}</td>
                       <td className="p-3">
                         {editingId === cat.id ? (
                           <input
                             type="text"
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
-                            className="w-full p-2 rounded bg-gray-700 border border-yellow-500/20 focus:outline-none focus:ring-1 focus:ring-yellow-500/50"
+                            className="w-full p-2 rounded bg-white border border-blue-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         ) : (
                           <span>{cat.categoriesname}</span>
@@ -457,9 +457,9 @@ export default function CategoriesPage() {
                                   setUploadError('');
                                 }
                               }}
-                              className="text-white text-sm"
+                              className="text-gray-800 text-sm"
                             />
-                            <div className="relative w-20 h-20 border border-yellow-500/30 rounded overflow-hidden">
+                            <div className="relative w-20 h-20 border border-blue-200 rounded overflow-hidden">
                               <Image
                                 src={editPreviewUrl}
                                 alt="Preview"
@@ -469,7 +469,7 @@ export default function CategoriesPage() {
                             </div>
                           </div>
                         ) : (
-                          <div className="relative w-20 h-20 border border-yellow-500/30 rounded overflow-hidden">
+                          <div className="relative w-20 h-20 border border-blue-200 rounded overflow-hidden">
                             <Image
                               src={cat.categoriesimage}
                               alt={cat.categoriesname}
@@ -485,14 +485,14 @@ export default function CategoriesPage() {
                             <button
                               onClick={handleUpdateCategory}
                               disabled={isLoading}
-                              className="p-2 bg-green-600 hover:bg-green-700 rounded transition-colors disabled:opacity-50"
+                              className="p-2 bg-green-600 hover:bg-green-700 rounded transition-colors disabled:opacity-50 text-white"
                               title="Save"
                             >
                               <Save size={18} />
                             </button>
                             <button
                               onClick={cancelEdit}
-                              className="p-2 bg-red-600 hover:bg-red-700 rounded transition-colors"
+                              className="p-2 bg-red-600 hover:bg-red-700 rounded transition-colors text-white"
                               title="Cancel"
                             >
                               <XCircle size={18} />
@@ -505,8 +505,8 @@ export default function CategoriesPage() {
                               disabled={index === 0}
                               className={`p-2 rounded transition-colors ${
                                 index === 0 
-                                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                  : 'bg-blue-600 hover:bg-blue-700'
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : 'bg-blue-600 hover:bg-blue-700 text-white'
                               }`}
                               title="Move Up"
                             >
@@ -517,8 +517,8 @@ export default function CategoriesPage() {
                               disabled={index === categories.length - 1}
                               className={`p-2 rounded transition-colors ${
                                 index === categories.length - 1
-                                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                  : 'bg-blue-600 hover:bg-blue-700'
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : 'bg-blue-600 hover:bg-blue-700 text-white'
                               }`}
                               title="Move Down"
                             >
@@ -526,14 +526,14 @@ export default function CategoriesPage() {
                             </button>
                             <button
                               onClick={() => handleEditCategory(cat)}
-                              className="p-2 bg-yellow-600 hover:bg-yellow-700 rounded transition-colors"
+                              className="p-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors text-white"
                               title="Edit"
                             >
                               <Edit size={18} />
                             </button>
                             <button
                               onClick={() => handleDeleteCategory(cat.id)}
-                              className="p-2 bg-red-600 hover:bg-red-700 rounded transition-colors"
+                              className="p-2 bg-red-600 hover:bg-red-700 rounded transition-colors text-white"
                               title="Delete"
                             >
                               <Trash2 size={18} />

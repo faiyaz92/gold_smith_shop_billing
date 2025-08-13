@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 import { auth, db, RecaptchaVerifier } from '@/app/firebase';
-import { signInWithPhoneNumber } from 'firebase/auth';
+import { 
+  signInWithPhoneNumber, 
+  signInWithPopup, 
+  GoogleAuthProvider 
+} from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/app/Componenets/Navbar';
@@ -14,6 +18,9 @@ export default function UserLogin() {
   const [confirmResult, setConfirmResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  // Google Auth Provider
+  const googleProvider = new GoogleAuthProvider();
 
   const setupCaptcha = () => {
     if (!window.recaptchaVerifier) {
@@ -78,6 +85,32 @@ export default function UserLogin() {
     }
   };
 
+  // Google Sign In
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      // Save user data to Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: user.email,
+        name: user.displayName,
+        photoURL: user.photoURL,
+        createdAt: new Date(),
+      });
+
+      alert('✅ Google login successful!');
+      router.push('/');
+    } catch (error) {
+      console.error('Google sign in error:', error);
+      alert('❌ Google login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <Navbar />
@@ -105,6 +138,24 @@ export default function UserLogin() {
                   }`}
               >
                 {loading ? 'Sending OTP...' : 'VERIFY OTP'}
+              </button>
+
+              <div className="flex items-center my-4">
+                <div className="flex-grow border-t border-gray-300"></div>
+                <span className="mx-4 text-gray-500">OR</span>
+                <div className="flex-grow border-t border-gray-300"></div>
+              </div>
+
+              <button
+                onClick={signInWithGoogle}
+                disabled={loading}
+                className={`w-full py-2 px-4 rounded-md font-medium text-white bg-red-600 hover:bg-red-500 transition-all duration-300 group flex items-center justify-center ${loading ? 'opacity-70' : ''
+                  }`}
+              >
+                <svg className="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                  <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"/>
+                </svg>
+                {loading ? 'Signing in...' : 'Continue with Google'}
               </button>
             </div>
           )}

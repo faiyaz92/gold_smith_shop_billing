@@ -109,17 +109,17 @@ export default function AdminDashboard() {
     if (!isClient) return null;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-gray-100">
+        <div className="min-h-screen bg-white text-gray-800">
             {/* Navbar */}
             <motion.nav
                 initial={{ y: -20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.3 }}
-                className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 bg-gray-900/80 backdrop-blur-md border-b border-yellow-500/30"
+                className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 bg-white backdrop-blur-md border-b border-blue-500/30 shadow-sm"
             >
                 <motion.div
                     whileHover={{ scale: 1.05 }}
-                    className="text-xl font-bold tracking-tight bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent"
+                    className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-500 to-blue-600 bg-clip-text text-transparent"
                 >
                     EASY2 Admin
                 </motion.div>
@@ -137,8 +137,8 @@ export default function AdminDashboard() {
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             className={`flex items-center gap-2 px-3 py-1 rounded-md transition-colors ${activeTab === item.id
-                                ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                                : 'hover:text-yellow-400'
+                                ? 'bg-blue-500/20 text-blue-700 border border-blue-500/30'
+                                : 'hover:text-blue-600'
                                 }`}
                             onClick={() => handleNavigation(item.id)}
                         >
@@ -150,7 +150,7 @@ export default function AdminDashboard() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={handleLogout}
-                        className="flex items-center space-x-1 px-3 py-1 rounded-md bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-500/20"
+                        className="flex items-center space-x-1 px-3 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-600 border border-red-200"
                     >
                         <LogOut className="w-4 h-4" />
                         <span>Logout</span>
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
                 <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    className="md:hidden p-2 text-yellow-400"
+                    className="md:hidden p-2 text-blue-600"
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 >
                     {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.3 }}
-                        className="md:hidden bg-gray-800/95 backdrop-blur-lg border-b border-yellow-500/20 overflow-hidden"
+                        className="md:hidden bg-white backdrop-blur-lg border-b border-blue-500/20 overflow-hidden shadow-md"
                     >
                         <div className="flex flex-col space-y-2 p-4">
                             {[
@@ -188,7 +188,7 @@ export default function AdminDashboard() {
                                 <motion.button
                                     key={item.id}
                                     whileTap={{ scale: 0.95 }}
-                                    className={`px-4 py-3 text-left rounded-md ${activeTab === item.id ? 'bg-yellow-500/10 text-yellow-400' : 'hover:bg-gray-700/50'
+                                    className={`px-4 py-3 text-left rounded-md ${activeTab === item.id ? 'bg-blue-500/20 text-blue-700' : 'hover:bg-gray-100'
                                         }`}
                                     onClick={() => handleNavigation(item.id)}
                                 >
@@ -198,7 +198,7 @@ export default function AdminDashboard() {
                             <motion.button
                                 whileTap={{ scale: 0.95 }}
                                 onClick={handleLogout}
-                                className="flex items-center space-x-2 px-4 py-3 text-left rounded-md bg-red-900/30 hover:bg-red-900/50 text-red-400"
+                                className="flex items-center space-x-2 px-4 py-3 text-left rounded-md bg-red-100 hover:bg-red-200 text-red-600"
                             >
                                 <LogOut className="w-5 h-5" />
                                 <span>Logout</span>
@@ -224,7 +224,7 @@ export default function AdminDashboard() {
                                 initial={{ opacity: 0.5 }}
                                 animate={{ opacity: 0.8 }}
                                 transition={{ repeat: Infinity, repeatType: 'reverse', duration: 1 }}
-                                className="h-32 bg-gray-800/50 rounded-xl"
+                                className="h-32 bg-gray-200/50 rounded-xl"
                             />
                         ) : (
                             <motion.div
@@ -233,23 +233,59 @@ export default function AdminDashboard() {
                                 animate={{ y: 0, opacity: 1 }}
                                 transition={{ delay: index * 0.1, duration: 0.5 }}
                                 whileHover={{ y: -5 }}
-                                className="relative overflow-hidden bg-gray-800/50 border border-gray-700 rounded-xl p-5 backdrop-blur-sm hover:border-yellow-500/30 transition-all duration-300"
+                                className="relative overflow-hidden bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:border-blue-400 transition-all duration-300"
                             >
-                                <div className="absolute -right-5 -top-5 w-20 h-20 bg-yellow-500/10 rounded-full blur-xl"></div>
+                                <div className="absolute -right-5 -top-5 w-20 h-20 bg-blue-400/10 rounded-full blur-xl"></div>
                                 <div className="flex items-start justify-between">
                                     <div className="flex flex-col">
-                                        <span className="text-sm text-gray-400">{stat.label}</span>
-                                        <span className="text-2xl sm:text-3xl font-bold mt-2">{stat.value}</span>
-                                        <span className="text-xs mt-2 text-green-400">{stat.change}</span>
+                                        <span className="text-sm text-gray-600">{stat.label}</span>
+                                        <span className="text-2xl sm:text-3xl font-bold mt-2 text-gray-800">{stat.value}</span>
+                                        <span className="text-xs mt-2 text-green-600">{stat.change}</span>
                                     </div>
-                                    <div className="p-3 bg-yellow-500/10 rounded-lg">{stat.icon}</div>
+                                    <div className="p-3 bg-blue-400/10 rounded-lg text-blue-600">{stat.icon}</div>
                                 </div>
                             </motion.div>
                         )
                     )}
                 </motion.div>
 
-                {/* Chart section can go here */}
+                {/* Chart Section */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3, duration: 0.5 }}
+                    className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200"
+                >
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Analytics</h3>
+                    <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                                data={ordersData}
+                                margin={{
+                                    top: 5,
+                                    right: 30,
+                                    left: 20,
+                                    bottom: 5,
+                                }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                                <XAxis dataKey="name" stroke="#666" />
+                                <YAxis stroke="#666" />
+                                <Tooltip 
+                                    contentStyle={{
+                                        backgroundColor: 'white',
+                                        border: '1px solid #ddd',
+                                        borderRadius: '0.5rem',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                    }}
+                                />
+                                <Legend />
+                                <Bar dataKey="orders" fill="#3b82f6" name="Orders" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="returns" fill="#ef4444" name="Returns" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </motion.div>
             </div>
         </div>
     );

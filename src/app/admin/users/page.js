@@ -85,18 +85,18 @@ export default function AdminUsers() {
   if (!isClient) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-gray-100">
+    <div className="min-h-screen bg-white text-gray-800">
       {/* Navbar */}
       <motion.nav
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3 }}
-        className="sticky top-0 z-50 flex flex-col md:flex-row md:items-center md:justify-between px-4 py-3 sm:px-6 bg-gray-900/80 backdrop-blur-md border-b border-yellow-500/30"
+        className="sticky top-0 z-50 flex flex-col md:flex-row md:items-center md:justify-between px-4 py-3 sm:px-6 bg-white shadow-md border-b border-blue-200"
       >
         <div className="flex items-center justify-between w-full md:w-auto">
           <motion.div
             whileHover={{ scale: 1.05 }}
-            className="text-xl font-bold tracking-tight bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent"
+            className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent"
           >
             SAF Admin
           </motion.div>
@@ -104,7 +104,7 @@ export default function AdminUsers() {
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            className="md:hidden p-2 text-yellow-400"
+            className="md:hidden p-2 text-blue-600"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -113,19 +113,19 @@ export default function AdminUsers() {
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-6 text-sm">
-          <button onClick={() => handleNavigation('dashboard')} className="flex items-center gap-2 hover:text-yellow-400">
+          <button onClick={() => handleNavigation('dashboard')} className="flex items-center gap-2 hover:text-blue-600">
             <LayoutDashboard size={16} /> Dashboard
           </button>
-          <button onClick={() => handleNavigation('products')} className="flex items-center gap-2 hover:text-yellow-400">
+          <button onClick={() => handleNavigation('products')} className="flex items-center gap-2 hover:text-blue-600">
             <Package size={16} /> Products
           </button>
-          <button onClick={() => handleNavigation('orders')} className="flex items-center gap-2 hover:text-yellow-400">
+          <button onClick={() => handleNavigation('orders')} className="flex items-center gap-2 hover:text-blue-600">
             <ShoppingCart size={16} /> Orders
           </button>
-          <button className="flex items-center gap-2 bg-yellow-500/10 text-yellow-400 px-3 py-1 rounded-md border border-yellow-500/20">
+          <button className="flex items-center gap-2 bg-blue-100 text-blue-700 px-3 py-1 rounded-md border border-blue-200">
             <Users size={16} /> Users
           </button>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-1 rounded-md bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-500/20">
+          <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-700 border border-red-200">
             <LogOut size={16} /> Logout
           </button>
         </div>
@@ -133,19 +133,19 @@ export default function AdminUsers() {
         {/* Mobile Navigation */}
         {isMobileMenuOpen && (
           <div className="mt-3 flex flex-col space-y-2 md:hidden text-sm">
-            <button onClick={() => handleNavigation('dashboard')} className="flex items-center gap-2 px-3 py-2 hover:text-yellow-400">
+            <button onClick={() => handleNavigation('dashboard')} className="flex items-center gap-2 px-3 py-2 hover:text-blue-600">
               <LayoutDashboard size={16} /> Dashboard
             </button>
-            <button onClick={() => handleNavigation('products')} className="flex items-center gap-2 px-3 py-2 hover:text-yellow-400">
+            <button onClick={() => handleNavigation('products')} className="flex items-center gap-2 px-3 py-2 hover:text-blue-600">
               <Package size={16} /> Products
             </button>
-            <button onClick={() => handleNavigation('orders')} className="flex items-center gap-2 px-3 py-2 hover:text-yellow-400">
+            <button onClick={() => handleNavigation('orders')} className="flex items-center gap-2 px-3 py-2 hover:text-blue-600">
               <ShoppingCart size={16} /> Orders
             </button>
-            <button className="flex items-center gap-2 px-3 py-2 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-md">
+            <button className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-md">
               <Users size={16} /> Users
             </button>
-            <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-500/20 rounded-md">
+            <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 rounded-md">
               <LogOut size={16} /> Logout
             </button>
           </div>
@@ -160,24 +160,24 @@ export default function AdminUsers() {
             <input
               type="text"
               placeholder="Search users..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/30 focus:border-yellow-500/50"
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
 
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
           {isLoading ? (
             <div className="p-8 flex justify-center items-center">
-              <Loader2 className="h-8 w-8 text-yellow-500 animate-spin" />
+              <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">No users found</div>
+            <div className="p-8 text-center text-gray-500">No users found</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-700/50 text-sm">
-                <thead className="bg-gray-700/30 text-gray-300 uppercase text-xs tracking-wider">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-100 text-gray-700 uppercase text-xs tracking-wider">
                   <tr>
                     <th className="px-4 py-3 text-left">SR No</th>
                     <th className="px-6 py-3 text-left">Name</th>
@@ -188,30 +188,30 @@ export default function AdminUsers() {
                     <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-700/30">
+                <tbody className="divide-y divide-gray-200">
                   {filteredUsers.map((user, index) => (
-                    <tr key={user.id} className="hover:bg-gray-700/20 transition">
-                      <td className="px-4 py-4 text-gray-400">{index + 1}</td>
+                    <tr key={user.id} className="hover:bg-gray-50 transition">
+                      <td className="px-4 py-4 text-gray-500">{index + 1}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-white">{user.name || 'No name'}</div>
-                        <div className="text-xs text-gray-400">ID: {user.id.slice(0, 8)}...</div>
+                        <div className="font-medium text-gray-900">{user.name || 'No name'}</div>
+                        <div className="text-xs text-gray-500">ID: {user.id.slice(0, 8)}...</div>
                       </td>
-                      <td className="px-6 py-4 text-gray-300">{user.email}</td>
+                      <td className="px-6 py-4 text-gray-700">{user.email}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs ${user.role === 'Admin' ? 'bg-purple-500/10 text-purple-400' : 'bg-gray-500/10 text-gray-300'}`}>
+                        <span className={`px-2 py-1 rounded-full text-xs ${user.role === 'Admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
                           {user.role || 'User'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs ${user.status === 'Active' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                        <span className={`px-2 py-1 rounded-full text-xs ${user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {user.status || 'Unknown'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-gray-400">{user.lastLogin}</td>
+                      <td className="px-6 py-4 text-gray-500">{user.lastLogin}</td>
                       <td className="px-6 py-4 text-right">
                         <div className="space-x-2">
-                          <button className="text-yellow-400 hover:text-yellow-300">Edit</button>
-                          <button className="text-red-400 hover:text-red-300">Delete</button>
+                          <button className="text-blue-600 hover:text-blue-800">Edit</button>
+                          <button className="text-red-600 hover:text-red-800">Delete</button>
                         </div>
                       </td>
                     </tr>
