@@ -7,7 +7,7 @@ import { getAuth } from 'firebase/auth';
 import { motion } from 'framer-motion';
 import Navbar from '@/app/Componenets/Navbar';
 
-export default function CheckoutPage() {
+export default function CheckoutPageContent() {
     const [cart, setCart] = useState([]);
     const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
@@ -24,18 +24,15 @@ export default function CheckoutPage() {
 
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-    // Load cart from localStorage
     useEffect(() => {
         const savedCart = JSON.parse(localStorage.getItem('checkoutCart')) || [];
         setCart(savedCart);
     }, []);
 
-    // Handle input change
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    // Place order (COD)
     const placeOrder = async () => {
         if (!form.name || !form.userPhone || !form.city || !form.zip || !form.email) {
             alert('Please fill all delivery details');
@@ -64,12 +61,12 @@ export default function CheckoutPage() {
                 paymentMethod: method === 'cod' ? 'COD' : 'razorpay',
                 status: method === 'cod' ? 'Pending' : 'Completed',
                 timestamp: serverTimestamp(),
-                ...(method !== 'cod' && { deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) }) // Add delivery date 3 days from now for online payments
+                ...(method !== 'cod' && {
+                    deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+                }),
             });
 
-            // Clear cart
             localStorage.removeItem('checkoutCart');
-
             router.push('/User/Account/');
         } catch (error) {
             console.error('Error placing order:', error);
