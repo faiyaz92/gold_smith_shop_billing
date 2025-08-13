@@ -12,11 +12,10 @@ export default function CheckoutPage() {
     const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
         name: '',
-        phone: '',
-        address: '',
+        email: '',
+        userPhone: '',
         city: '',
-        pincode: '',
-        state: ''
+        zip: '',
     });
 
     const router = useRouter();
@@ -38,13 +37,8 @@ export default function CheckoutPage() {
 
     // Place order (COD)
     const placeOrder = async () => {
-        if (!form.name || !form.phone || !form.address || !form.city || !form.pincode || !form.state) {
+        if (!form.name || !form.userPhone || !form.city || !form.zip || !form.email) {
             alert('Please fill all delivery details');
-            return;
-        }
-
-        if (cart.length === 0) {
-            alert('Your cart is empty');
             return;
         }
 
@@ -58,35 +52,19 @@ export default function CheckoutPage() {
                 return;
             }
 
-            // Prepare items array to save only necessary fields
-            const itemsToSave = cart.map(item => ({
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                total: item.price * item.quantity
-            }));
-
-            // Save order in Firebase
             await addDoc(collection(db, 'orders'), {
                 userId: user.uid,
-                items: itemsToSave,
+                items: cart,
                 total: total,
-                deliveryDetails: {
-                    name: form.name,
-                    phone: form.phone,
-                    address: form.address,
-                    city: form.city,
-                    pincode: form.pincode,
-                    state: form.state
-                },
-                paymentMethod: method.toUpperCase(),
-                status: 'Pending',
-                shippingInfo: {
-                    method: 'Standard Shipping',
-                    cost: 0,
-                    estimatedDelivery: '3-7 days'
-                },
-                createdAt: serverTimestamp()
+                name: form.name,
+                email: form.email,
+                userPhone: form.userPhone,
+                city: form.city,
+                zip: form.zip,
+                paymentMethod: method === 'cod' ? 'COD' : 'razorpay',
+                status: method === 'cod' ? 'Pending' : 'Completed',
+                timestamp: serverTimestamp(),
+                ...(method !== 'cod' && { deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) }) // Add delivery date 3 days from now for online payments
             });
 
             // Clear cart
@@ -116,11 +94,10 @@ export default function CheckoutPage() {
                         <h2 className="text-lg font-semibold mb-4">Delivery Details</h2>
                         <div className="space-y-4">
                             <input name="name" placeholder="Full Name" value={form.name} onChange={handleChange} className="w-full border p-2 rounded" />
-                            <input name="phone" placeholder="Phone Number" value={form.phone} onChange={handleChange} className="w-full border p-2 rounded" />
-                            <textarea name="address" placeholder="Full Address" value={form.address} onChange={handleChange} className="w-full border p-2 rounded" rows="3" />
+                            <input name="email" type="email" placeholder="Email Address" value={form.email} onChange={handleChange} className="w-full border p-2 rounded" />
+                            <input name="userPhone" placeholder="Phone Number" value={form.userPhone} onChange={handleChange} className="w-full border p-2 rounded" />
                             <input name="city" placeholder="City" value={form.city} onChange={handleChange} className="w-full border p-2 rounded" />
-                            <input name="pincode" placeholder="Pincode" value={form.pincode} onChange={handleChange} className="w-full border p-2 rounded" />
-                            <input name="state" placeholder="State" value={form.state} onChange={handleChange} className="w-full border p-2 rounded" />
+                            <input name="zip" placeholder="Zip Code" value={form.zip} onChange={handleChange} className="w-full border p-2 rounded" />
                         </div>
                     </motion.div>
 
@@ -169,10 +146,9 @@ export default function CheckoutPage() {
                             onClick={placeOrder}
                             className="w-full py-3 mt-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 font-medium"
                         >
-                            {loading ? 'Placing Order...' : `Place Order (${method.toUpperCase()})`}
+                            {loading ? 'Placing Order...' : `Place Order (${method === 'cod' ? 'COD' : 'Online Payment'})`}
                         </motion.button>
                     </motion.div>
-
                 </div>
             </div>
         </>
