@@ -98,7 +98,7 @@ export default function AdminUsers() {
             whileHover={{ scale: 1.05 }}
             className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent"
           >
-            EASY2  Admin
+            EASY2 Admin
           </motion.div>
 
           <motion.button

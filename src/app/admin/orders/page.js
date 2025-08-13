@@ -25,34 +25,42 @@ export default function AdminOrders() {
     } else {
       const fetchOrders = async () => {
         try {
-          const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+          const q = query(collection(db, 'orders'), orderBy('timestamp', 'desc'));
           const snapshot = await getDocs(q);
           const fetchedOrders = snapshot.docs.map(docSnap => {
             const data = docSnap.data();
-            const orderDate = data.createdAt?.toDate();
-            const deliveryDetails = data.deliveryDetails || {};
+            const orderDate = data.timestamp?.toDate();
             const items = data.items || [];
-            
+
             // Calculate total if not provided
-            const calculatedTotal = items.reduce((sum, item) => 
+            // Calculate total if not provided
+            const calculatedTotal = items.reduce((sum, item) =>
               sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
-            
+
             const total = data.total || calculatedTotal;
-            
+
             return {
               id: docSnap.id,
-              customer: deliveryDetails.name || "No Name",
-              email: deliveryDetails.email || "N/A",
-              phone: deliveryDetails.phone || "N/A",
-              address: `${deliveryDetails.address || ''}, ${deliveryDetails.city || ''}, ${deliveryDetails.state || ''} - ${deliveryDetails.pincode || ''}`,
+              customer: data.name || "No Name",
+              email: data.email || "N/A",
+              phone: data.userPhone || "N/A",
+              address: `${data.address || ''}, ${data.city || ''}, ${data.state || ''} - ${data.zip || ''}`,
               items: items,
               amount: Number(total) || 0,
               paymentMethod: data.paymentMethod || "N/A",
               status: data.status || "Pending",
               date: orderDate?.toLocaleDateString() || 'Invalid/Missing Date',
-              rawTimestamp: data.createdAt,
+              rawTimestamp: data.timestamp,
               userId: data.userId || "N/A",
-              deliveryDetails: deliveryDetails
+              deliveryDetails: {
+                name: data.name,
+                phone: data.userPhone,
+                address: data.address,
+                city: data.city,
+                state: data.state,
+                pincode: data.zip,
+                email: data.email
+              }
             };
           });
           setOrders(fetchedOrders);
@@ -273,6 +281,7 @@ export default function AdminOrders() {
                               <div className="text-sm text-gray-700 space-y-1">
                                 <p><span className="font-medium">Name:</span> {order.deliveryDetails.name || 'N/A'}</p>
                                 <p><span className="font-medium">Phone:</span> {order.deliveryDetails.phone || 'N/A'}</p>
+                                <p><span className="font-medium">Email:</span> {order.deliveryDetails.email || 'N/A'}</p>
                                 <p><span className="font-medium">Address:</span> {order.deliveryDetails.address || 'N/A'}</p>
                                 <p><span className="font-medium">City:</span> {order.deliveryDetails.city || 'N/A'}</p>
                                 <p><span className="font-medium">State:</span> {order.deliveryDetails.state || 'N/A'}</p>
