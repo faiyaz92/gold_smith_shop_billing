@@ -79,58 +79,89 @@ export default function CheckoutPage() {
     };
 
     return (
-        <>
+        <div className="min-h-screen bg-white">
             <Navbar />
             <div className="max-w-6xl mx-auto p-4 md:p-8">
-                <h1 className="text-2xl font-bold mb-6">Checkout</h1>
+                <h1 className="text-2xl font-bold mb-6 text-blue-700">Checkout</h1>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <motion.div
-                        className="bg-white p-6 rounded-lg shadow-md border"
+                        className="bg-white p-6 rounded-lg shadow-md border border-blue-100"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                     >
-                        <h2 className="text-lg font-semibold mb-4">Delivery Details</h2>
+                        <h2 className="text-lg font-semibold mb-4 text-blue-800">Delivery Details</h2>
                         <div className="space-y-4">
-                            <input name="name" placeholder="Full Name" value={form.name} onChange={handleChange} className="w-full border p-2 rounded" />
-                            <input name="email" type="email" placeholder="Email Address" value={form.email} onChange={handleChange} className="w-full border p-2 rounded" />
-                            <input name="userPhone" placeholder="Phone Number" value={form.userPhone} onChange={handleChange} className="w-full border p-2 rounded" />
-                            <input name="city" placeholder="City" value={form.city} onChange={handleChange} className="w-full border p-2 rounded" />
-                            <input name="zip" placeholder="Zip Code" value={form.zip} onChange={handleChange} className="w-full border p-2 rounded" />
+                            <input 
+                                name="name" 
+                                placeholder="Full Name" 
+                                value={form.name} 
+                                onChange={handleChange} 
+                                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                            />
+                            <input 
+                                name="email" 
+                                type="email" 
+                                placeholder="Email Address" 
+                                value={form.email} 
+                                onChange={handleChange} 
+                                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                            />
+                            <input 
+                                name="userPhone" 
+                                placeholder="Phone Number" 
+                                value={form.userPhone} 
+                                onChange={handleChange} 
+                                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                            />
+                            <input 
+                                name="city" 
+                                placeholder="City" 
+                                value={form.city} 
+                                onChange={handleChange} 
+                                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                            />
+                            <input 
+                                name="zip" 
+                                placeholder="Zip Code" 
+                                value={form.zip} 
+                                onChange={handleChange} 
+                                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                            />
                         </div>
                     </motion.div>
 
                     <motion.div
-                        className="bg-white p-6 rounded-lg shadow-md border flex flex-col"
+                        className="bg-white p-6 rounded-lg shadow-md border border-blue-100 flex flex-col"
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                     >
-                        <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
+                        <h2 className="text-lg font-semibold mb-4 text-blue-800">Order Summary</h2>
                         <div className="flex-1 overflow-y-auto space-y-3 mb-4">
                             {cart.length === 0 ? (
                                 <p className="text-gray-500">Your cart is empty</p>
                             ) : (
                                 cart.map((item, index) => (
-                                    <div key={index} className="flex justify-between text-sm border-b pb-2">
+                                    <div key={index} className="flex justify-between text-sm border-b border-blue-100 pb-2">
                                         <div>
-                                            <p className="font-medium">{item.name}</p>
-                                            <p className="text-gray-500 text-xs">Qty: {item.quantity} × ₹{item.price}</p>
+                                            <p className="font-medium text-blue-900">{item.name}</p>
+                                            <p className="text-blue-500 text-xs">Qty: {item.quantity} × ₹{item.price}</p>
                                         </div>
-                                        <span className="font-medium">₹{item.price * item.quantity}</span>
+                                        <span className="font-medium text-blue-700">₹{item.price * item.quantity}</span>
                                     </div>
                                 ))
                             )}
                         </div>
 
-                        <div className="mt-4 border-t pt-4">
-                            <div className="flex justify-between mb-2">
+                        <div className="mt-4 border-t border-blue-100 pt-4">
+                            <div className="flex justify-between mb-2 text-blue-900">
                                 <span>Subtotal</span>
                                 <span>₹{total}</span>
                             </div>
-                            <div className="flex justify-between mb-2 text-gray-500 text-sm">
+                            <div className="flex justify-between mb-2 text-blue-500 text-sm">
                                 <span>Shipping</span>
                                 <span>Free</span>
                             </div>
-                            <div className="flex justify-between font-semibold text-lg">
+                            <div className="flex justify-between font-semibold text-lg text-blue-700">
                                 <span>Total</span>
                                 <span>₹{total}</span>
                             </div>
@@ -141,13 +172,13 @@ export default function CheckoutPage() {
                             whileHover={{ scale: 1.02 }}
                             disabled={cart.length === 0 || loading}
                             onClick={placeOrder}
-                            className="w-full py-3 mt-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 font-medium"
+                            className="w-full py-3 mt-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-medium"
                         >
                             {loading ? 'Placing Order...' : `Place Order (${method === 'cod' ? 'COD' : 'Online Payment'})`}
                         </motion.button>
                     </motion.div>
                 </div>
             </div>
-        </>
+        </div>
     );
 }
