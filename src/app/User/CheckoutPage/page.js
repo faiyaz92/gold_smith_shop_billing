@@ -7,7 +7,7 @@ import { getAuth } from 'firebase/auth';
 import { motion } from 'framer-motion';
 import Navbar from '@/app/Componenets/Navbar';
 
-export default function CheckoutPageContent() {
+export default function CheckoutPageInner() {
     const [cart, setCart] = useState([]);
     const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
