@@ -22,28 +22,36 @@ export default function CheckoutPage() {
   const searchParams = useSearchParams();
   const method = searchParams.get('method') || 'cod';
 
-  const total = cart.reduce(
-    (sum, item) => sum + (item?.price || 0) * (item?.quantity || 0),
-    0
-  );
+  // 🛒 Safe total calculation
+  const total = Array.isArray(cart)
+    ? cart.reduce(
+        (sum, item) => sum + (item?.price || 0) * (item?.quantity || 0),
+        0
+      )
+    : 0;
 
-  // Load cart from localStorage
+  // ✅ Load cart safely
   useEffect(() => {
     try {
-      const savedCart = JSON.parse(localStorage.getItem('checkoutCart')) || [];
-      setCart(savedCart);
+      const saved = localStorage.getItem('checkoutCart');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setCart(Array.isArray(parsed) ? parsed : []);
+      } else {
+        setCart([]);
+      }
     } catch (err) {
       console.error('Error loading cart:', err);
       setCart([]);
     }
   }, []);
 
-  // Handle input change
+  // 📝 Form input handler
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // Place order
+  // 🛍️ Place order
   const placeOrder = async () => {
     if (!form.name || !form.userPhone || !form.city || !form.zip || !form.email) {
       alert('Please fill all delivery details');
@@ -60,13 +68,18 @@ export default function CheckoutPage() {
         return;
       }
 
+      // ✅ Ensure cart is array before saving
+      const orderItems = Array.isArray(cart)
+        ? cart.map((item) => ({
+            name: item?.name || '',
+            price: item?.price || 0,
+            quantity: item?.quantity || 1,
+          }))
+        : [];
+
       await addDoc(collection(db, 'orders'), {
         userId: user.uid,
-        items: cart.map((item) => ({
-          name: item?.name || '',
-          price: item?.price || 0,
-          quantity: item?.quantity || 1,
-        })),
+        items: orderItems,
         total: total || 0,
         name: form.name,
         email: form.email,
@@ -81,15 +94,17 @@ export default function CheckoutPage() {
         }),
       });
 
-      // Clear cart
+      // 🧹 Clear cart
       localStorage.removeItem('checkoutCart');
+      setCart([]);
 
       router.push('/User/Account/');
     } catch (error) {
       console.error('Error placing order:', error);
       alert('Error placing order');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -104,7 +119,9 @@ export default function CheckoutPage() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <h2 className="text-lg font-semibold mb-4 text-blue-800">Delivery Details</h2>
+            <h2 className="text-lg font-semibold mb-4 text-blue-800">
+              Delivery Details
+            </h2>
             <div className="space-y-4">
               {['name', 'email', 'userPhone', 'city', 'zip'].map((field) => (
                 <input
@@ -136,9 +153,11 @@ export default function CheckoutPage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <h2 className="text-lg font-semibold mb-4 text-blue-800">Order Summary</h2>
+            <h2 className="text-lg font-semibold mb-4 text-blue-800">
+              Order Summary
+            </h2>
             <div className="flex-1 overflow-y-auto space-y-3 mb-4">
-              {cart.length === 0 ? (
+              {!Array.isArray(cart) || cart.length === 0 ? (
                 <p className="text-gray-500">Your cart is empty</p>
               ) : (
                 cart.map((item, index) => (
@@ -147,7 +166,9 @@ export default function CheckoutPage() {
                     className="flex justify-between text-sm border-b border-blue-100 pb-2"
                   >
                     <div>
-                      <p className="font-medium text-blue-900">{item?.name || 'Unnamed'}</p>
+                      <p className="font-medium text-blue-900">
+                        {item?.name || 'Unnamed'}
+                      </p>
                       <p className="text-blue-500 text-xs">
                         Qty: {item?.quantity || 1} × ₹{item?.price || 0}
                       </p>
@@ -178,7 +199,7 @@ export default function CheckoutPage() {
             <motion.button
               whileTap={{ scale: 0.98 }}
               whileHover={{ scale: 1.02 }}
-              disabled={cart.length === 0 || loading}
+              disabled={!Array.isArray(cart) || cart.length === 0 || loading}
               onClick={placeOrder}
               className="w-full py-3 mt-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-medium"
             >
