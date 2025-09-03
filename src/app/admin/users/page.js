@@ -9,12 +9,15 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { collection, getDocs } from 'firebase/firestore';
-import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import { db } from '@/app/firebase';
 import AdminHeader from '../Componenets/AdminHeader'; // Adjust the path to match your project structure
 
 export default function AdminUsers() {
-  const paths = useFirestorePaths();
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
+  const basePath = 'Easy2Solutions/companyDirectory';
+  const tenantCompaniesPath = `${basePath}/tenantCompanies`;
+  const usersPath = `${tenantCompaniesPath}/${companyId}/users`;
+
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,7 +38,7 @@ export default function AdminUsers() {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      const usersCollection = collection(db, paths.getTenantUsersPath());
+      const usersCollection = collection(db, usersPath);
       const usersSnapshot = await getDocs(usersCollection);
       const usersData = usersSnapshot.docs.map((doc) => ({
         id: doc.id,

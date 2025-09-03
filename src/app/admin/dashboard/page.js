@@ -22,7 +22,6 @@ import { motion } from 'framer-motion';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import AdminHeader from '../Componenets/AdminHeader';
-import { getCompanyId } from '@/app/utils/firestorePaths';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -36,9 +35,13 @@ export default function AdminDashboard() {
   const [inquiryCount, setInquiryCount] = useState(0);
   const [ordersData, setOrdersData] = useState([]);
 
-  const companyId = getCompanyId();
-  const contactPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/contactUs`;
-  const ordersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/orders`;
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
+  const basePath = 'Easy2Solutions/companyDirectory';
+  const tenantCompaniesPath = `${basePath}/tenantCompanies`;
+  const usersPath = `${tenantCompaniesPath}/${companyId}/users`;
+  const productsPath = `${tenantCompaniesPath}/${companyId}/products`;
+  const ordersPath = `${tenantCompaniesPath}/${companyId}/orders`;
+  const contactPath = `${tenantCompaniesPath}/${companyId}/contactUs`;
 
   useEffect(() => {
     setIsClient(true);
@@ -48,8 +51,8 @@ export default function AdminDashboard() {
     } else {
       const fetchCounts = async () => {
         try {
-          const usersSnapshot = await getDocs(collection(db, 'users'));
-          const productsSnapshot = await getDocs(collection(db, 'products'));
+          const usersSnapshot = await getDocs(collection(db, usersPath));
+          const productsSnapshot = await getDocs(collection(db, productsPath));
           const ordersQuery = query(collection(db, ordersPath), orderBy('timestamp', 'desc'));
           const ordersSnapshot = await getDocs(ordersQuery);
           const inquiriesSnapshot = await getDocs(collection(db, contactPath));

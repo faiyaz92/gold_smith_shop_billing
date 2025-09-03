@@ -8,12 +8,15 @@ import {
   GoogleAuthProvider 
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/app/Componenets/Navbar';
 
 export default function UserLogin() {
-  const paths = useFirestorePaths();
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
+  const basePath = 'Easy2Solutions/companyDirectory';
+  const tenantCompaniesPath = `${basePath}/tenantCompanies`;
+  const userPath = (userId) => `${tenantCompaniesPath}/${companyId}/users/${userId}`;
+
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState(1);
@@ -71,7 +74,7 @@ export default function UserLogin() {
       const res = await confirmResult.confirm(otp);
       const user = res.user;
 
-      await setDoc(doc(db, paths.getTenantUserPath(user.uid)), {
+      await setDoc(doc(db, userPath(user.uid)), {
         uid: user.uid,
         phone: user.phoneNumber,
         userType: 'Customer',
@@ -96,9 +99,7 @@ export default function UserLogin() {
       const user = result.user;
 
       // Save user data to Firestore
-      // Get companyId from env
-      const companyId = process.env.NEXT_PUBLIC_COMPANY_ID;
-      await setDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users/${user.uid}`), {
+      await setDoc(doc(db, userPath(user.uid)), {
         uid: user.uid,
         email: user.email,
         name: user.displayName,

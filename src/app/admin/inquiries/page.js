@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
-import { getCompanyId } from '@/app/utils/firestorePaths';
 import AdminHeader from '../Componenets/AdminHeader'; // Adjust the path to match your project structure
 
 const STATUS_OPTIONS = [
@@ -20,8 +19,10 @@ export default function AdminInquiriesPage() {
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('inquiries'); // Set default active tab to 'inquiries'
-  const companyId = getCompanyId();
-  const contactPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/contactUs`;
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
+  const basePath = 'Easy2Solutions/companyDirectory';
+  const tenantCompaniesPath = `${basePath}/tenantCompanies`;
+  const contactPath = `${tenantCompaniesPath}/${companyId}/contactUs`;
 
   useEffect(() => {
     const fetchInquiries = async () => {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -11,14 +12,18 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { db } from '@/app/firebase';
-import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import Image from 'next/image';
 import { Trash2, Edit, Home, Package, ShoppingBag, Users, LogOut, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadToCloudinary } from '@/app/cloudinary';
 
 export default function ProductPage() {
-  const paths = useFirestorePaths();
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
+  const basePath = 'Easy2Solutions/companyDirectory';
+  const tenantCompaniesPath = `${basePath}/tenantCompanies`;
+  const productPath = `${tenantCompaniesPath}/${companyId}/products`;
+  const categoryPath = `${tenantCompaniesPath}/${companyId}/categories`;
+
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
@@ -34,25 +39,25 @@ export default function ProductPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const fetchProducts = async () => {
-      const snapshot = await getDocs(collection(db, paths.getProductPath()));
-      const data = await Promise.all(
-        snapshot.docs.map(async docSnap => {
-          const data = docSnap.data();
-          const categoryDoc = await getDoc(doc(db, paths.getCategoryPath(), data.categoryId));
-          return {
-            id: docSnap.id,
-            ...data,
-            categoryName: categoryDoc.exists() ? categoryDoc.data().categoriesname : 'Unknown'
-          };
-        })
-      );
-      setProducts(data);
+    const snapshot = await getDocs(collection(db, productPath));
+    const data = await Promise.all(
+      snapshot.docs.map(async docSnap => {
+        const data = docSnap.data();
+        const categoryDoc = await getDoc(doc(db, categoryPath, data.categoryId));
+        return {
+          id: docSnap.id,
+          ...data,
+          categoryName: categoryDoc.exists() ? categoryDoc.data().categoriesname : 'Unknown'
+        };
+      })
+    );
+    setProducts(data);
   };
 
   const fetchCategories = async () => {
-      const snapshot = await getDocs(collection(db, paths.getCategoryPath()));
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCategories(data);
+    const snapshot = await getDocs(collection(db, categoryPath));
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setCategories(data);
   };
 
   useEffect(() => {
@@ -82,14 +87,14 @@ export default function ProductPage() {
     }
 
     try {
-        if (editingId) {
-          await updateDoc(doc(db, paths.getProductPath(), editingId), form);
-          setEditingId(null);
-        } else {
-          await addDoc(collection(db, paths.getProductPath()), form);
-        }
-        setForm({ name: '', price: '', discountedPrice: '', image: '', categoryId: '' });
-        await fetchProducts();
+      if (editingId) {
+        await updateDoc(doc(db, productPath, editingId), form);
+        setEditingId(null);
+      } else {
+        await addDoc(collection(db, productPath), form);
+      }
+      setForm({ name: '', price: '', discountedPrice: '', image: '', categoryId: '' });
+      await fetchProducts();
     } catch (error) {
       console.error('Error saving product:', error);
       alert('Failed to save product');
@@ -111,8 +116,8 @@ export default function ProductPage() {
     if (!confirm('Are you sure you want to delete this product?')) return;
 
     try {
-        await deleteDoc(doc(db, paths.getProductPath(), id));
-        await fetchProducts();
+      await deleteDoc(doc(db, productPath, id));
+      await fetchProducts();
     } catch (error) {
       console.error('Error deleting product:', error);
       alert('Failed to delete product');
@@ -127,7 +132,6 @@ export default function ProductPage() {
     // TODO: implement logout
     console.log('Logout clicked');
   };
-
 
   return (
     <div className="min-h-screen bg-white text-gray-800">
@@ -222,7 +226,6 @@ export default function ProductPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
 
       <div className="p-4 sm:p-6">
         <h2 className="text-xl font-bold mb-4 text-blue-600">Manage Products</h2>

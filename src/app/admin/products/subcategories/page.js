@@ -1,6 +1,4 @@
-
 'use client';
-import { useFirestorePaths } from '@/app/utils/firestorePaths';
 
 import { useState, useEffect } from 'react';
 import { db } from '@/app/firebase';
@@ -18,10 +16,16 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Menu, X, Home, Package, ShoppingBag, Users,
-  Edit, Trash2, Save, XCircle, ArrowUp, ArrowDown, ChevronDown
+  Edit, Trash2, Save, XCircle, ChevronDown
 } from 'lucide-react';
 
 export default function SubcategoriesPage() {
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
+  const basePath = 'Easy2Solutions/companyDirectory';
+  const tenantCompaniesPath = `${basePath}/tenantCompanies`;
+  const subcategoryPath = `${tenantCompaniesPath}/${companyId}/subcategories`;
+  const categoryPath = `${tenantCompaniesPath}/${companyId}/categories`;
+
   // Form states
   const [subcategoryName, setSubcategoryName] = useState('');
   const [subcategoryImage, setSubcategoryImage] = useState(null);
@@ -44,9 +48,8 @@ export default function SubcategoriesPage() {
   // UI states
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const paths = useFirestorePaths();
-  const subcategoriesRef = collection(db, paths.getSubcategoryPath());
-  const categoriesRef = collection(db, paths.getCategoryPath());
+  const subcategoriesRef = collection(db, subcategoryPath);
+  const categoriesRef = collection(db, categoryPath);
 
   const handleImageUpload = async (imageFile) => {
     try {
@@ -101,8 +104,7 @@ export default function SubcategoriesPage() {
       // Join with category data
       const joinedData = await Promise.all(data.map(async subcat => {
         try {
-          const paths = useFirestorePaths();
-          const categoryDoc = await getDoc(doc(db, paths.getCategoryPath(), subcat.categoryId));
+          const categoryDoc = await getDoc(doc(db, categoryPath, subcat.categoryId));
           return {
             ...subcat,
             categoryName: categoryDoc.exists() ? categoryDoc.data().categoriesname : 'Unknown Category'
@@ -168,7 +170,7 @@ export default function SubcategoriesPage() {
     if (!window.confirm('Are you sure you want to delete this subcategory?')) return;
 
     try {
-      await deleteDoc(doc(db, paths.getSubcategoryPath(), id));
+      await deleteDoc(doc(db, subcategoryPath, id));
       fetchSubcategories();
     } catch (error) {
       console.error('Delete Error:', error);
@@ -208,7 +210,7 @@ export default function SubcategoriesPage() {
         updateData.image = imageUrl;
       }
 
-      await updateDoc(doc(db, paths.getSubcategoryPath(), editingId), updateData);
+      await updateDoc(doc(db, subcategoryPath, editingId), updateData);
       setEditingId(null);
       fetchSubcategories();
     } catch (error) {

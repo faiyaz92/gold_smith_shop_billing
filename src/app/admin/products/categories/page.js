@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/app/firebase';
 import { addDoc, collection, getDocs, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
-import { useFirestorePaths } from '@/app/utils/firestorePaths';
+// import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import { uploadToCloudinary } from '@/app/cloudinary';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,8 +29,8 @@ export default function CategoriesPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
 
-  const paths = useFirestorePaths();
-  const categoriesRef = collection(db, paths.getCategoryPath());
+  // Use raw Firestore path for categories
+  const categoriesRef = collection(db, 'Easy2Solutions/companyDirectory/tenantCompanies/YOUR_COMPANY_ID/categories');
 
   // Initialize sort orders for existing categories (run once)
   const initializeSortOrders = async () => {
