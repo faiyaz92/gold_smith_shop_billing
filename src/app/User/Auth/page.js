@@ -8,10 +8,12 @@ import {
   GoogleAuthProvider 
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
+import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/app/Componenets/Navbar';
 
 export default function UserLogin() {
+  const paths = useFirestorePaths();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState(1);
@@ -69,9 +71,10 @@ export default function UserLogin() {
       const res = await confirmResult.confirm(otp);
       const user = res.user;
 
-      await setDoc(doc(db, 'users', user.uid), {
+      await setDoc(doc(db, paths.getTenantUserPath(user.uid)), {
         uid: user.uid,
         phone: user.phoneNumber,
+        userType: 'Customer',
         createdAt: new Date(),
       });
 
@@ -93,11 +96,14 @@ export default function UserLogin() {
       const user = result.user;
 
       // Save user data to Firestore
-      await setDoc(doc(db, 'users', user.uid), {
+      // Get companyId from env
+      const companyId = process.env.NEXT_PUBLIC_COMPANY_ID;
+      await setDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users/${user.uid}`), {
         uid: user.uid,
         email: user.email,
         name: user.displayName,
         photoURL: user.photoURL,
+        userType: 'Customer',
         createdAt: new Date(),
       });
 

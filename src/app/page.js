@@ -12,6 +12,7 @@ export default function Home() {
   const [cart, setCart] = useState([]);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const addToCart = (name, price) => {
     setCart(prev => {
@@ -37,6 +38,11 @@ export default function Home() {
     }
   }, []);
 
+  // Memoize onSearch to prevent unnecessary re-renders
+  const onSearch = useCallback((query) => {
+    setSearchQuery(query);
+  }, []);
+
   return (
     <div className="bg-gray-50 text-gray-900 leading-relaxed min-h-screen">
       <Head>
@@ -44,21 +50,27 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <Navbar />
+      <Navbar onSearch={onSearch} />
 
       <Categories isMobile={true} onCategoryClick={handleCategoryClick} activeCategory={activeCategory} />
 
       <main className="max-w-7xl mx-auto lg:flex lg:space-x-6 px-4 lg:px-8 py-6">
         <Categories isMobile={false} onCategoryClick={handleCategoryClick} activeCategory={activeCategory} />
 
-        <Products cart={cart} addToCart={addToCart} removeFromCart={removeFromCart} onActiveCategoryChange={setActiveCategory} />
+        <Products
+          cart={cart}
+          addToCart={addToCart}
+          removeFromCart={removeFromCart}
+          onActiveCategoryChange={setActiveCategory}
+          searchQuery={searchQuery}
+        />
 
         <Cart cart={cart} total={total} isMobile={false} addToCart={addToCart} removeFromCart={removeFromCart} />
       </main>
 
       <Footer />
 
-      <MobileNav cart={cart} openCart={() => setMobileCartOpen(true)} />
+      <MobileNav cart={cart} openCart={() => setMobileCartOpen(true)} onSearch={onSearch} />
 
       {mobileCartOpen && (
         <Cart cart={cart} total={total} isMobile={true} onClose={() => setMobileCartOpen(false)} addToCart={addToCart} removeFromCart={removeFromCart} />

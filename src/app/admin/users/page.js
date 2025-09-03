@@ -4,27 +4,23 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   Users,
-  LogOut,
-  Menu,
-  X,
-  ChevronDown,
   Search,
   Loader2,
-  LayoutDashboard,
-  Package,
-  ShoppingCart
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { collection, getDocs } from 'firebase/firestore';
+import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import { db } from '@/app/firebase';
+import AdminHeader from '../Componenets/AdminHeader'; // Adjust the path to match your project structure
 
 export default function AdminUsers() {
+  const paths = useFirestorePaths();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState([]);
+  const [activeTab, setActiveTab] = useState('users'); // Set default active tab to 'users'
 
   useEffect(() => {
     setIsClient(true);
@@ -39,7 +35,7 @@ export default function AdminUsers() {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      const usersCollection = collection(db, 'users');
+      const usersCollection = collection(db, paths.getTenantUsersPath());
       const usersSnapshot = await getDocs(usersCollection);
       const usersData = usersSnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -66,16 +62,6 @@ export default function AdminUsers() {
     return loginDate.toLocaleDateString();
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminAuth');
-    router.push('/admin/login');
-  };
-
-  const handleNavigation = (path) => {
-    setIsMobileMenuOpen(false);
-    router.push(`/admin/${path}`);
-  };
-
   const filteredUsers = users.filter(
     (user) =>
       user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -86,73 +72,7 @@ export default function AdminUsers() {
 
   return (
     <div className="min-h-screen bg-white text-gray-800">
-      {/* Navbar */}
-      <motion.nav
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.3 }}
-        className="sticky top-0 z-50 flex flex-col md:flex-row md:items-center md:justify-between px-4 py-3 sm:px-6 bg-white shadow-md border-b border-blue-200"
-      >
-        <div className="flex items-center justify-between w-full md:w-auto">
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent"
-          >
-            EASY2 Admin
-          </motion.div>
-
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            className="md:hidden p-2 text-blue-600"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </motion.button>
-        </div>
-
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center space-x-6 text-sm">
-          <button onClick={() => handleNavigation('dashboard')} className="flex items-center gap-2 hover:text-blue-600">
-            <LayoutDashboard size={16} /> Dashboard
-          </button>
-          <button onClick={() => handleNavigation('products')} className="flex items-center gap-2 hover:text-blue-600">
-            <Package size={16} /> Products
-          </button>
-          <button onClick={() => handleNavigation('orders')} className="flex items-center gap-2 hover:text-blue-600">
-            <ShoppingCart size={16} /> Orders
-          </button>
-          <button className="flex items-center gap-2 bg-blue-100 text-blue-700 px-3 py-1 rounded-md border border-blue-200">
-            <Users size={16} /> Users
-          </button>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-700 border border-red-200">
-            <LogOut size={16} /> Logout
-          </button>
-        </div>
-
-        {/* Mobile Navigation */}
-        {isMobileMenuOpen && (
-          <div className="mt-3 flex flex-col space-y-2 md:hidden text-sm">
-            <button onClick={() => handleNavigation('dashboard')} className="flex items-center gap-2 px-3 py-2 hover:text-blue-600">
-              <LayoutDashboard size={16} /> Dashboard
-            </button>
-            <button onClick={() => handleNavigation('products')} className="flex items-center gap-2 px-3 py-2 hover:text-blue-600">
-              <Package size={16} /> Products
-            </button>
-            <button onClick={() => handleNavigation('orders')} className="flex items-center gap-2 px-3 py-2 hover:text-blue-600">
-              <ShoppingCart size={16} /> Orders
-            </button>
-            <button className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 border border-blue-200 rounded-md">
-              <Users size={16} /> Users
-            </button>
-            <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 rounded-md">
-              <LogOut size={16} /> Logout
-            </button>
-          </div>
-        )}
-      </motion.nav>
-
-      {/* Main Content */}
+      <AdminHeader activeTab={activeTab} setActiveTab={setActiveTab} showTabContent={true} />
       <div className="p-4 sm:p-6 max-w-7xl mx-auto">
         <div className="mb-6 flex flex-col sm:flex-row justify-between gap-4">
           <div className="relative w-full sm:w-96">

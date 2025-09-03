@@ -4,8 +4,18 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { LogOut, ChevronDown, ChevronUp, Package, ShoppingBag, Users, Home } from 'lucide-react';
 import { motion } from 'framer-motion';
+import AdminHeader from '../Componenets/AdminHeader';
 import { collection, getDocs, query, orderBy, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
+
+// Status color mapping
+const statusColors = {
+  Pending: 'bg-orange-100 text-orange-800',
+  Processing: 'bg-blue-100 text-blue-800',
+  Shipped: 'bg-purple-100 text-purple-800',
+  Completed: 'bg-green-100 text-green-800',
+  Cancelled: 'bg-red-100 text-red-800',
+};
 
 export default function AdminOrders() {
   const router = useRouter();
@@ -17,6 +27,12 @@ export default function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
 
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
+  const basePath = 'Easy2Solutions/companyDirectory';
+  const tenantCompaniesPath = `${basePath}/tenantCompanies`;
+  const ordersPath = `${tenantCompaniesPath}/${companyId}/orders`;
+  const getSingleOrderPath = (orderId) => `${tenantCompaniesPath}/${companyId}/orders/${orderId}`;
+
   useEffect(() => {
     setIsClient(true);
     const authStatus = localStorage.getItem('adminAuth');
@@ -25,14 +41,13 @@ export default function AdminOrders() {
     } else {
       const fetchOrders = async () => {
         try {
-          const q = query(collection(db, 'orders'), orderBy('timestamp', 'desc'));
+          const q = query(collection(db, ordersPath), orderBy('timestamp', 'desc'));
           const snapshot = await getDocs(q);
           const fetchedOrders = snapshot.docs.map(docSnap => {
             const data = docSnap.data();
             const orderDate = data.timestamp?.toDate();
             const items = data.items || [];
 
-            // Calculate total if not provided
             // Calculate total if not provided
             const calculatedTotal = items.reduce((sum, item) =>
               sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
@@ -89,7 +104,7 @@ export default function AdminOrders() {
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
-      const orderRef = doc(db, 'orders', orderId);
+      const orderRef = doc(db, getSingleOrderPath(orderId));
       await updateDoc(orderRef, { status: newStatus });
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     } catch (err) {
@@ -125,47 +140,8 @@ export default function AdminOrders() {
 
   return (
     <div className="min-h-screen bg-white text-gray-800">
-      {/* Navbar */}
-      <motion.nav
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.3 }}
-        className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 sm:px-6 bg-white shadow-md border-b border-blue-200"
-      >
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent"
-        >
-          EASY2 Admin
-        </motion.div>
-
-        <div className="hidden md:flex items-center space-x-6 text-sm">
-          {[{ id: 'dashboard', label: 'Dashboard', icon: <Home className="w-4 h-4" /> },
-          { id: 'products', label: 'Products', icon: <Package className="w-4 h-4" /> },
-          { id: 'orders', label: 'Orders', icon: <ShoppingBag className="w-4 h-4" /> },
-          { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> }].map((item) => (
-            <motion.button
-              key={item.id}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={`flex items-center gap-2 px-3 py-1 rounded-md transition-colors ${item.id === 'orders' ? 'bg-blue-100 text-blue-600 border border-blue-200' : 'hover:text-blue-600'}`}
-              onClick={() => handleNavigation(item.id)}
-            >
-              {item.icon}
-              {item.label}
-            </motion.button>
-          ))}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleLogout}
-            className="flex items-center space-x-1 px-3 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-600 border border-red-200"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </motion.button>
-        </div>
-      </motion.nav>
+      {/* Common Admin Header for navigation only */}
+      <AdminHeader />
 
       {/* Orders Section */}
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -244,13 +220,13 @@ export default function AdminOrders() {
                         <select
                           value={order.status}
                           onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                          className="bg-white border border-blue-200 text-blue-600 text-sm rounded px-2 py-1 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+                          className={`border-none text-sm rounded px-2 py-1 focus:ring-1 focus:ring-blue-200 ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}
                         >
-                          <option value="Pending">Pending</option>
-                          <option value="Processing">Processing</option>
-                          <option value="Shipped">Shipped</option>
-                          <option value="Completed">Completed</option>
-                          <option value="Cancelled">Cancelled</option>
+                          <option value="Pending" className="bg-orange-100 text-orange-800">Pending</option>
+                          <option value="Processing" className="bg-blue-100 text-blue-800">Processing</option>
+                          <option value="Shipped" className="bg-purple-100 text-purple-800">Shipped</option>
+                          <option value="Completed" className="bg-green-100 text-green-800">Completed</option>
+                          <option value="Cancelled" className="bg-red-100 text-red-800">Cancelled</option>
                         </select>
                       </td>
                       <td className="p-3 border-b border-blue-100">{order.date}</td>

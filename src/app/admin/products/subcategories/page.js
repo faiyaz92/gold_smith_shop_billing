@@ -1,4 +1,6 @@
+
 'use client';
+import { useFirestorePaths } from '@/app/utils/firestorePaths';
 
 import { useState, useEffect } from 'react';
 import { db } from '@/app/firebase';
@@ -41,10 +43,10 @@ export default function SubcategoriesPage() {
 
   // UI states
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('products');
 
-  const subcategoriesRef = collection(db, 'subcategories');
-  const categoriesRef = collection(db, 'categories');
+  const paths = useFirestorePaths();
+  const subcategoriesRef = collection(db, paths.getSubcategoryPath());
+  const categoriesRef = collection(db, paths.getCategoryPath());
 
   const handleImageUpload = async (imageFile) => {
     try {
@@ -99,7 +101,8 @@ export default function SubcategoriesPage() {
       // Join with category data
       const joinedData = await Promise.all(data.map(async subcat => {
         try {
-          const categoryDoc = await getDoc(doc(db, 'categories', subcat.categoryId));
+          const paths = useFirestorePaths();
+          const categoryDoc = await getDoc(doc(db, paths.getCategoryPath(), subcat.categoryId));
           return {
             ...subcat,
             categoryName: categoryDoc.exists() ? categoryDoc.data().categoriesname : 'Unknown Category'
@@ -123,10 +126,6 @@ export default function SubcategoriesPage() {
   const handleAddSubcategory = async () => {
     if (!subcategoryName) {
       setUploadError('Subcategory name is required');
-      return;
-    }
-    if (!subcategoryImage) {
-      setUploadError('Subcategory image is required');
       return;
     }
     if (!selectedCategory) {
@@ -169,7 +168,7 @@ export default function SubcategoriesPage() {
     if (!window.confirm('Are you sure you want to delete this subcategory?')) return;
 
     try {
-      await deleteDoc(doc(db, 'subcategories', id));
+      await deleteDoc(doc(db, paths.getSubcategoryPath(), id));
       fetchSubcategories();
     } catch (error) {
       console.error('Delete Error:', error);
@@ -209,7 +208,7 @@ export default function SubcategoriesPage() {
         updateData.image = imageUrl;
       }
 
-      await updateDoc(doc(db, 'subcategories', editingId), updateData);
+      await updateDoc(doc(db, paths.getSubcategoryPath(), editingId), updateData);
       setEditingId(null);
       fetchSubcategories();
     } catch (error) {
@@ -269,11 +268,7 @@ export default function SubcategoriesPage() {
                 key={item.id}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className={`flex items-center gap-2 px-3 py-1 rounded-md transition-colors ${
-                  activeTab === item.id
-                    ? 'bg-blue-100 text-blue-600 border border-blue-200'
-                    : 'hover:text-blue-600'
-                }`}
+                className={`flex items-center gap-2 px-3 py-1 rounded-md transition-colors hover:text-blue-600`}
                 onClick={() => handleNavigation(item.id)}
               >
                 {item.icon}
@@ -316,11 +311,7 @@ export default function SubcategoriesPage() {
                 <motion.button
                   key={item}
                   whileTap={{ scale: 0.95 }}
-                  className={`px-4 py-3 text-left rounded-md ${
-                    activeTab === item
-                      ? 'bg-blue-100 text-blue-600'
-                      : 'hover:bg-blue-100'
-                  }`}
+                  className={`px-4 py-3 text-left rounded-md hover:bg-blue-100`}
                   onClick={() => handleNavigation(item)}
                 >
                   {item.charAt(0).toUpperCase() + item.slice(1)}

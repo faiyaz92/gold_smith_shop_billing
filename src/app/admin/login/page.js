@@ -1,9 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+
+import { useState } from 'react';
 import { Lock, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/app/firebase';
 
 export default function AdminLogin() {
     const router = useRouter();
@@ -12,20 +16,35 @@ export default function AdminLogin() {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
         setIsLoading(true);
-
-        // Simulate API call delay
-        setTimeout(() => {
-            if (email === 'easy2solutions25@gmail.com' && password === 'Easy@123456') {
-                localStorage.setItem('adminAuth', 'true');
-                router.push('/admin/dashboard');
+        setError('');
+        try {
+            // Sign in with Firebase Auth
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const user = userCredential.user;
+            // Get companyId from env
+            const companyId = process.env.NEXT_PUBLIC_COMPANY_ID;
+            // Get user doc from Firestore
+            const userDocRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users/${user.uid}`);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                if (userData.userType === 'Employee') {
+                    localStorage.setItem('adminAuth', 'true');
+                    router.push('/admin/dashboard');
+                } else {
+                    setError('Not authorized as admin/employee.');
+                }
             } else {
-                setError('Invalid credentials');
-                setIsLoading(false);
+                setError('User not found in admin records.');
             }
-        }, 1000);
+        } catch (err) {
+            setError('Invalid credentials');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (

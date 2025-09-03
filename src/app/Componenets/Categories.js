@@ -4,9 +4,11 @@ import { Shirt, Bed, Waves, Home } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { db } from '@/app/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import Image from 'next/image';
 
 function Categories({ isMobile, onCategoryClick, activeCategory }) {
+  const paths = useFirestorePaths();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,8 +22,8 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const categoriesSnapshot = await getDocs(collection(db, 'categories'));
-        const productsSnapshot = await getDocs(collection(db, 'products'));
+        const categoriesSnapshot = await getDocs(collection(db, paths.getCategoryPath()));
+        const productsSnapshot = await getDocs(collection(db, paths.getProductPath()));
         const products = productsSnapshot.docs.map(doc => doc.data());
 
         const categoriesData = categoriesSnapshot.docs.map((doc) => {

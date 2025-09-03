@@ -11,12 +11,14 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { db } from '@/app/firebase';
+import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import Image from 'next/image';
 import { Trash2, Edit, Home, Package, ShoppingBag, Users, LogOut, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadToCloudinary } from '@/app/cloudinary';
 
 export default function ProductPage() {
+  const paths = useFirestorePaths();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
@@ -32,25 +34,25 @@ export default function ProductPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const fetchProducts = async () => {
-    const snapshot = await getDocs(collection(db, 'products'));
-    const data = await Promise.all(
-      snapshot.docs.map(async docSnap => {
-        const data = docSnap.data();
-        const categoryDoc = await getDoc(doc(db, 'categories', data.categoryId));
-        return {
-          id: docSnap.id,
-          ...data,
-          categoryName: categoryDoc.exists() ? categoryDoc.data().categoriesname : 'Unknown'
-        };
-      })
-    );
-    setProducts(data);
+      const snapshot = await getDocs(collection(db, paths.getProductPath()));
+      const data = await Promise.all(
+        snapshot.docs.map(async docSnap => {
+          const data = docSnap.data();
+          const categoryDoc = await getDoc(doc(db, paths.getCategoryPath(), data.categoryId));
+          return {
+            id: docSnap.id,
+            ...data,
+            categoryName: categoryDoc.exists() ? categoryDoc.data().categoriesname : 'Unknown'
+          };
+        })
+      );
+      setProducts(data);
   };
 
   const fetchCategories = async () => {
-    const snapshot = await getDocs(collection(db, 'categories'));
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setCategories(data);
+      const snapshot = await getDocs(collection(db, paths.getCategoryPath()));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCategories(data);
   };
 
   useEffect(() => {
@@ -80,14 +82,14 @@ export default function ProductPage() {
     }
 
     try {
-      if (editingId) {
-        await updateDoc(doc(db, 'products', editingId), form);
-        setEditingId(null);
-      } else {
-        await addDoc(collection(db, 'products'), form);
-      }
-      setForm({ name: '', price: '', discountedPrice: '', image: '', categoryId: '' });
-      await fetchProducts();
+        if (editingId) {
+          await updateDoc(doc(db, paths.getProductPath(), editingId), form);
+          setEditingId(null);
+        } else {
+          await addDoc(collection(db, paths.getProductPath()), form);
+        }
+        setForm({ name: '', price: '', discountedPrice: '', image: '', categoryId: '' });
+        await fetchProducts();
     } catch (error) {
       console.error('Error saving product:', error);
       alert('Failed to save product');
@@ -109,8 +111,8 @@ export default function ProductPage() {
     if (!confirm('Are you sure you want to delete this product?')) return;
 
     try {
-      await deleteDoc(doc(db, 'products', id));
-      await fetchProducts();
+        await deleteDoc(doc(db, paths.getProductPath(), id));
+        await fetchProducts();
     } catch (error) {
       console.error('Error deleting product:', error);
       alert('Failed to delete product');

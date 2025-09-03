@@ -26,6 +26,11 @@ const Page = () => {
     address: ''
   });
 
+  // Define Firestore paths
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'abc_pvt_ltd'; // Fallback for testing
+  const tenantUsersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users`;
+  const tenantOrdersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/orders`;
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
@@ -34,11 +39,13 @@ const Page = () => {
       }
 
       try {
-        const userRef = doc(db, "users", currentUser.uid);
+        console.log('Fetching user data for UID:', currentUser.uid);
+        const userRef = doc(db, `${tenantUsersPath}/${currentUser.uid}`);
         const userDoc = await getDoc(userRef);
 
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          console.log('User data found:', userData);
           const formattedUser = {
             uid: userDoc.id,
             name: userData.name || currentUser.displayName || 'User',
@@ -62,6 +69,7 @@ const Page = () => {
 
           await fetchUserOrders(currentUser.uid);
         } else {
+          console.log('No user document found, creating new one');
           const newUser = {
             uid: currentUser.uid,
             name: currentUser.displayName || 'User',
@@ -71,7 +79,8 @@ const Page = () => {
             zip: '',
             address: '',
             photoURL: currentUser.photoURL || null,
-            createdAt: new Date()
+            createdAt: new Date(),
+            userType: 'Customer'
           };
 
           await setDoc(userRef, newUser);
@@ -87,7 +96,7 @@ const Page = () => {
           setOrders([]);
         }
       } catch (error) {
-        console.error("Error fetching user data:", error);
+        console.error('Error fetching user data:', error.message, error.code);
       } finally {
         setLoading(false);
       }
@@ -97,52 +106,61 @@ const Page = () => {
   }, [router]);
 
   const fetchUserOrders = async (uid) => {
-    try {
-      const ordersRef = collection(db, "orders");
-      const q = query(ordersRef, where("userId", "==", uid));
-      const querySnapshot = await getDocs(q);
+  try {
+    console.log('Fetching orders for user:', uid);
+    const ordersRef = collection(db, tenantOrdersPath);
+    const q = query(ordersRef, where('userId', '==', uid));
+    const querySnapshot = await getDocs(q);
 
-      const userOrders = querySnapshot.docs.map((doc, index) => {
-        const data = doc.data();
-        
-        // Convert all prices to numbers and ensure items exist
-        const items = (data.items || []).map(item => ({
-          ...item,
-          price: Number(item.price || 0),
-          quantity: Number(item.quantity || 1)
-        }));
+    console.log('Number of orders found:', querySnapshot.size);
+    querySnapshot.forEach((doc) => {
+      console.log('Order ID:', doc.id, 'Data:', doc.data());
+    });
 
-        return {
-          id: doc.id,
-          srNo: index + 1,
-          ...data,
-          items,
-          total: Number(data.total || 0),
-          date: data.timestamp?.toDate() || new Date(),
-          estimatedDelivery: data.deliveryDate?.toDate() || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          status: data.status || 'Pending',
-          paymentMethod: data.paymentMethod || 'COD',
-          city: data.city || '',
-          zip: data.zip || '',
-          email: data.email || '',
-          paymentStatus: data.paymentStatus || 'Paid',
-          paymentId: data.paymentId || ''
-        };
-      });
+    const userOrders = querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      const items = (data.items || []).map(item => ({
+        ...item,
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 1)
+      }));
 
-      userOrders.sort((a, b) => b.date - a.date);
-      setOrders(userOrders);
-    } catch (error) {
-      console.error("Error fetching user orders:", error);
-    }
-  };
+      return {
+        id: doc.id,
+        ...data,
+        items,
+        total: Number(data.total || 0),
+        date: data.timestamp?.toDate() || new Date(),
+        estimatedDelivery: data.deliveryDate?.toDate() || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        status: data.status || 'Pending',
+        paymentMethod: data.paymentMethod || 'COD',
+        city: data.city || '',
+        zip: data.zip || '',
+        email: data.email || '',
+        paymentStatus: data.paymentStatus || 'Paid',
+        paymentId: data.paymentId || ''
+      };
+    });
+
+    console.log('Processed orders before sorting:', userOrders);
+    userOrders.sort((a, b) => b.date - a.date); // Sort by newest first
+    const sortedOrders = userOrders.map((order, index, array) => ({
+      ...order,
+      srNo: array.length - index // Assign highest srNo to newest order
+    }));
+    console.log('Processed orders after sorting:', sortedOrders);
+    setOrders(sortedOrders);
+  } catch (error) {
+    console.error('Error fetching user orders:', error.message, error.code);
+  }
+};
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
       router.push('/');
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error('Error signing out:', error);
     }
   };
 
@@ -164,7 +182,7 @@ const Page = () => {
     if (!user) return;
 
     try {
-      const userRef = doc(db, "users", user.uid);
+      const userRef = doc(db, `${tenantUsersPath}/${user.uid}`);
       const updates = {};
 
       if (editMode === 'info') {
@@ -175,6 +193,7 @@ const Page = () => {
         updates.city = formData.city;
         updates.zip = formData.zip;
         updates.address = formData.address;
+        updates.phone = formData.phone; // Added phone to address updates
       }
 
       await updateDoc(userRef, updates);
@@ -186,7 +205,7 @@ const Page = () => {
 
       setShowEditModal(false);
     } catch (error) {
-      console.error("Error updating user data:", error);
+      console.error('Error updating user data:', error);
     }
   };
 
@@ -301,6 +320,10 @@ const Page = () => {
                     <div>
                       <p className="text-gray-500">ZIP Code</p>
                       <p className="text-gray-800">{user.zip}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Phone</p>
+                      <p className="text-gray-800">{user.phone || 'Not provided'}</p>
                     </div>
                   </div>
                 ) : (
@@ -455,7 +478,7 @@ const Page = () => {
                     <p className="text-gray-800 mb-1">
                       {user.city}, {user.zip}
                     </p>
-                    <p className="text-gray-800">Phone: {user.phone}</p>
+                    <p className="text-gray-800">Phone: {user.phone || 'Not provided'}</p>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -523,7 +546,6 @@ const Page = () => {
         <h1 className="text-2xl sm:text-3xl font-semibold mb-6 sm:mb-8 text-blue-600">My Account</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 sm:gap-8">
-          {/* Sidebar Navigation */}
           <div className="md:col-span-1 bg-white border border-blue-200 rounded-lg p-4 sm:p-6 h-fit transition-all duration-300 hover:border-blue-300">
             <div className="space-y-4">
               <div
@@ -586,14 +608,12 @@ const Page = () => {
             </div>
           </div>
 
-          {/* Main Content */}
           <div className="md:col-span-3">
             {renderContent()}
           </div>
         </div>
       </div>
 
-      {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white border border-blue-200 rounded-lg p-6 w-full max-w-md animate-scaleIn">
@@ -683,6 +703,17 @@ const Page = () => {
                         required
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all duration-200"
+                      required
+                    />
                   </div>
                 </div>
               )}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '@/app/firebase';
 import { addDoc, collection, getDocs, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import { uploadToCloudinary } from '@/app/cloudinary';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,7 +29,8 @@ export default function CategoriesPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
 
-  const categoriesRef = collection(db, 'categories');
+  const paths = useFirestorePaths();
+  const categoriesRef = collection(db, paths.getCategoryPath());
 
   // Initialize sort orders for existing categories (run once)
   const initializeSortOrders = async () => {
