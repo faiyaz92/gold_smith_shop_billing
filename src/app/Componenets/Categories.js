@@ -4,11 +4,15 @@ import { Shirt, Bed, Waves, Home } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { db } from '@/app/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { useFirestorePaths } from '@/app/utils/firestorePaths';
 import Image from 'next/image';
 
 function Categories({ isMobile, onCategoryClick, activeCategory }) {
-  const paths = useFirestorePaths();
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
+  const basePath = 'Easy2Solutions/companyDirectory';
+  const tenantCompaniesPath = `${basePath}/tenantCompanies`;
+  const categoryPath = `${tenantCompaniesPath}/${companyId}/categories`;
+  const productPath = `${tenantCompaniesPath}/${companyId}/products`;
+
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,8 +26,8 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const categoriesSnapshot = await getDocs(collection(db, paths.getCategoryPath()));
-        const productsSnapshot = await getDocs(collection(db, paths.getProductPath()));
+        const categoriesSnapshot = await getDocs(collection(db, categoryPath));
+        const productsSnapshot = await getDocs(collection(db, productPath));
         const products = productsSnapshot.docs.map(doc => doc.data());
 
         const categoriesData = categoriesSnapshot.docs.map((doc) => {
