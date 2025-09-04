@@ -28,9 +28,10 @@ export default function CategoriesPage() {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
 
   // Use raw Firestore path for categories
-  const categoriesRef = collection(db, 'Easy2Solutions/companyDirectory/tenantCompanies/YOUR_COMPANY_ID/categories');
+  const categoriesRef = collection(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`);
 
   // Initialize sort orders for existing categories (run once)
   const initializeSortOrders = async () => {

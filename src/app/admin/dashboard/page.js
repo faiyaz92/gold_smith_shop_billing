@@ -22,6 +22,7 @@ import { motion } from 'framer-motion';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import AdminHeader from '../Componenets/AdminHeader';
+import Footer from '@/app/Componenets/Footer';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -141,9 +142,9 @@ export default function AdminDashboard() {
   if (!isClient) return null;
 
   return (
-    <div className="min-h-screen bg-white text-gray-800">
+    <div className="min-h-screen bg-white text-gray-800 flex flex-col">
       <AdminHeader activeTab={activeTab} setActiveTab={setActiveTab} showTabContent={false} />
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+      <div className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full">
         {/* Stats Cards */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -225,6 +226,7 @@ export default function AdminDashboard() {
           </div>
         </motion.div>
       </div>
+      <Footer />
     </div>
   );
 }
