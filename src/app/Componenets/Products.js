@@ -98,7 +98,10 @@ export default function Products({ addToCart, removeFromCart, cart, onActiveCate
     <section className="w-full px-4 py-6">
       <h2 className="text-xl font-semibold mb-6">Services</h2>
       {loading ? (
-        <div>Loading products...</div>
+        <div className="flex flex-col items-center justify-center min-h-[200px]">
+          <div className="laundry-loader"></div>
+          <p className="mt-4 text-gray-600">Washing your services, please wait...</p>
+        </div>
       ) : error ? (
         <div className="text-red-500">Error: {error}</div>
       ) : filteredProducts.length === 0 ? (
@@ -184,6 +187,35 @@ export default function Products({ addToCart, removeFromCart, cart, onActiveCate
           })}
         </div>
       )}
+      <style jsx>{`
+        .laundry-loader {
+          border: 8px solid #e0e7ff;
+          border-top: 8px solid #3b82f6;
+          border-radius: 50%;
+          width: 50px;
+          height: 50px;
+          animation: spin 1.5s linear infinite;
+          position: relative;
+          background: radial-gradient(circle, #ffffff 10%, #e0e7ff 20%, transparent 60%);
+        }
+
+        .laundry-loader::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 10px;
+          height: 10px;
+          background: #3b82f6;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </section>
   );
 }

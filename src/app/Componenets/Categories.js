@@ -15,6 +15,7 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
 
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [localActiveCategory, setLocalActiveCategory] = useState(activeCategory); // Local state for UI
 
   const defaultIcons = {
     "Shirts": <Shirt className="w-5 h-5 stroke-[1.5] text-blue-600" />,
@@ -22,6 +23,11 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
     "Towels": <Waves className="w-5 h-5 stroke-[1.5] text-blue-600" />,
     "Curtains": <Home className="w-5 h-5 stroke-[1.5] text-blue-600" />
   };
+
+  // Sync localActiveCategory with activeCategory prop
+  useEffect(() => {
+    setLocalActiveCategory(activeCategory);
+  }, [activeCategory]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,6 +52,12 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
 
         const sorted = categoriesData.sort((a, b) => a.sortOrder - b.sortOrder);
         setCategories(sorted);
+
+        // Set the first category as active by default if no activeCategory is provided
+        if (sorted.length > 0 && !activeCategory && !localActiveCategory) {
+          setLocalActiveCategory(sorted[0].id);
+          onCategoryClick(sorted[0].id);
+        }
       } catch (error) {
         console.error('Error fetching categories/products:', error);
       } finally {
@@ -54,7 +66,13 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
     };
 
     fetchData();
-  }, []);
+  }, [activeCategory, onCategoryClick]); // Dependencies include activeCategory and onCategoryClick
+
+  // Handle category click
+  const handleCategoryClick = (categoryId) => {
+    setLocalActiveCategory(categoryId); // Update local state for immediate UI feedback
+    onCategoryClick(categoryId); // Notify parent for filtering/scrolling
+  };
 
   if (loading) {
     return (
@@ -81,9 +99,9 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
             {categories.map((category) => (
               <button
                 key={category.id}
-                onClick={() => onCategoryClick(category.id)}
+                onClick={() => handleCategoryClick(category.id)}
                 className={`flex-shrink-0 w-28 flex flex-col items-center gap-2 p-3 rounded-lg border transition-all duration-300 transform hover:-translate-y-1 ${
-                  activeCategory === category.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100'
+                  localActiveCategory === category.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100'
                 }`}
               >
                 {category.categoriesimage ? (
@@ -107,9 +125,9 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
           {categories.map((category) => (
             <button
               key={category.id}
-              onClick={() => onCategoryClick(category.id)}
+              onClick={() => handleCategoryClick(category.id)}
               className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 transform hover:-translate-y-1 ${
-                activeCategory === category.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100'
+                localActiveCategory === category.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100'
               }`}
             >
               {category.categoriesimage ? (
