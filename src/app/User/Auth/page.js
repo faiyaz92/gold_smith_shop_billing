@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { auth, db, RecaptchaVerifier } from '@/app/firebase';
 import { 
   signInWithPhoneNumber, 
   signInWithPopup, 
-  GoogleAuthProvider 
+  GoogleAuthProvider,
+  onAuthStateChanged
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -26,6 +27,19 @@ export default function UserLogin() {
 
   // Google Auth Provider
   const googleProvider = new GoogleAuthProvider();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is already logged in, redirect to homepage
+        router.push('/');
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [router]);
 
   const setupCaptcha = () => {
     if (!window.recaptchaVerifier) {
@@ -141,8 +155,7 @@ export default function UserLogin() {
               <button
                 onClick={sendOTP}
                 disabled={loading}
-                className={`w-full py-2 px-4 rounded-md font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all duration-300 group ${loading ? 'opacity-70' : ''
-                  }`}
+                className={`w-full py-2 px-4 rounded-md font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all duration-300 group ${loading ? 'opacity-70' : ''}`}
               >
                 {loading ? 'Sending OTP...' : 'VERIFY OTP'}
               </button>
@@ -156,8 +169,7 @@ export default function UserLogin() {
               <button
                 onClick={signInWithGoogle}
                 disabled={loading}
-                className={`w-full py-2 px-4 rounded-md font-medium text-white bg-red-600 hover:bg-red-500 transition-all duration-300 group flex items-center justify-center ${loading ? 'opacity-70' : ''
-                  }`}
+                className={`w-full py-2 px-4 rounded-md font-medium text-white bg-red-600 hover:bg-red-500 transition-all duration-300 group flex items-center justify-center ${loading ? 'opacity-70' : ''}`}
               >
                 <svg className="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
                   <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"/>
@@ -181,8 +193,7 @@ export default function UserLogin() {
               <button
                 onClick={verifyOTP}
                 disabled={loading}
-                className={`w-full py-2 px-4 rounded-md font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all duration-300 group ${loading ? 'opacity-70' : ''
-                  }`}
+                className={`w-full py-2 px-4 rounded-md font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all duration-300 group ${loading ? 'opacity-70' : ''}`}
               >
                 {loading ? 'Verifying...' : 'SUBMIT'}
               </button>

@@ -160,35 +160,36 @@ export default function CategoriesPage() {
 };
 
   const handleMoveCategory = async (id, direction) => {
-    try {
-      const index = categories.findIndex(cat => cat.id === id);
-      if (index === -1) throw new Error('Category not found');
+  try {
+    const index = categories.findIndex(cat => cat.id === id);
+    if (index === -1) throw new Error('Category not found');
 
-      const newIndex = direction === 'up' ? index - 1 : index + 1;
-      if (newIndex < 0 || newIndex >= categories.length) {
-        throw new Error('Cannot move category further in this direction');
-      }
-
-      const batch = writeBatch(db);
-      
-      // Get current sort orders with fallbacks
-      const currentSortOrder = categories[index].sortOrder ?? index;
-      const targetSortOrder = categories[newIndex].sortOrder ?? newIndex;
-
-      batch.update(doc(db, 'categories', id), { 
-        sortOrder: targetSortOrder 
-      });
-      batch.update(doc(db, 'categories', categories[newIndex].id), { 
-        sortOrder: currentSortOrder 
-      });
-
-      await batch.commit();
-      fetchCategories();
-    } catch (error) {
-      console.error('Move Error:', error);
-      setUploadError(`Failed to move category: ${error.message}`);
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= categories.length) {
+      throw new Error('Cannot move category further in this direction');
     }
-  };
+
+    const batch = writeBatch(db);
+    
+    // Get current sort orders with fallbacks
+    const currentSortOrder = categories[index].sortOrder ?? index;
+    const targetSortOrder = categories[newIndex].sortOrder ?? newIndex;
+
+    // Use the correct Firestore path
+    batch.update(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, id), { 
+      sortOrder: targetSortOrder 
+    });
+    batch.update(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, categories[newIndex].id), { 
+      sortOrder: currentSortOrder 
+    });
+
+    await batch.commit();
+    fetchCategories();
+  } catch (error) {
+    console.error('Move Error:', error);
+    setUploadError(`Failed to move category: ${error.message}`);
+  }
+};
 
   const handleEditCategory = (category) => {
     setEditingId(category.id);
@@ -197,33 +198,34 @@ export default function CategoriesPage() {
     setEditImage(null);
   };
 
-  const handleUpdateCategory = async () => {
-    if (!editName) {
-      setUploadError('Category name cannot be empty');
-      return;
+const handleUpdateCategory = async () => {
+  if (!editName) {
+    setUploadError('Category name cannot be empty');
+    return;
+  }
+
+  setIsLoading(true);
+  setUploadError('');
+
+  try {
+    const updateData = { categoriesname: editName };
+
+    if (editImage) {
+      const imageUrl = await handleImageUpload(editImage);
+      updateData.categoriesimage = imageUrl;
     }
 
-    setIsLoading(true);
-    setUploadError('');
-
-    try {
-      const updateData = { categoriesname: editName };
-
-      if (editImage) {
-        const imageUrl = await handleImageUpload(editImage);
-        updateData.categoriesimage = imageUrl;
-      }
-
-      await updateDoc(doc(db, 'categories', editingId), updateData);
-      setEditingId(null);
-      fetchCategories();
-    } catch (error) {
-      console.error('Update Error:', error);
-      setUploadError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    // Use the correct Firestore path
+    await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, editingId), updateData);
+    setEditingId(null);
+    fetchCategories();
+  } catch (error) {
+    console.error('Update Error:', error);
+    setUploadError(error.message);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const cancelEdit = () => {
     setEditingId(null);
