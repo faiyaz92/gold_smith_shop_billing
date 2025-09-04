@@ -134,27 +134,30 @@ export default function CategoriesPage() {
     }
   };
 
-  const handleDeleteCategory = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this category?')) return;
+ const handleDeleteCategory = async (id) => {
+  if (!window.confirm('Are you sure you want to delete this category?')) return;
 
-    try {
-      await deleteDoc(doc(db, 'categories', id));
-      const updatedCategories = categories.filter(cat => cat.id !== id);
-      const batch = writeBatch(db);
-      
-      updatedCategories.forEach((cat, index) => {
-        batch.update(doc(db, 'categories', cat.id), { 
-          sortOrder: index 
-        });
+  try {
+    // Use the correct Firestore path for deletion
+    await deleteDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, id));
+
+    // Update sort orders for remaining categories
+    const updatedCategories = categories.filter(cat => cat.id !== id);
+    const batch = writeBatch(db);
+
+    updatedCategories.forEach((cat, index) => {
+      batch.update(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, cat.id), { 
+        sortOrder: index 
       });
+    });
 
-      await batch.commit();
-      fetchCategories();
-    } catch (error) {
-      console.error('Delete Error:', error);
-      setUploadError('Failed to delete category: ' + error.message);
-    }
-  };
+    await batch.commit();
+    fetchCategories();
+  } catch (error) {
+    console.error('Delete Error:', error);
+    setUploadError('Failed to delete category: ' + error.message);
+  }
+};
 
   const handleMoveCategory = async (id, direction) => {
     try {
