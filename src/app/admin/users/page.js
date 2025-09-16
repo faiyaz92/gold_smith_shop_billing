@@ -78,66 +78,68 @@ export default function AdminUsers() {
             <input
               type="text"
               placeholder="Search users..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300"
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 text-xs sm:text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
 
-        <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          {isLoading ? (
-            <div className="p-8 flex justify-center items-center">
-              <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">No users found</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-100 text-gray-700 uppercase text-xs tracking-wider">
-                  <tr>
-                    <th className="px-4 py-3 text-left">SR No</th>
-                    <th className="px-6 py-3 text-left">Name</th>
-                    <th className="px-6 py-3 text-left">Email</th>
-                    <th className="px-6 py-3 text-left">Role</th>
-                    <th className="px-6 py-3 text-left">Status</th>
-                    <th className="px-6 py-3 text-left">Last Login</th>
-                    <th className="px-6 py-3 text-right">Actions</th>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border border-gray-200 rounded-lg">
+            <thead className="bg-blue-50 text-blue-800 text-xs sm:text-sm">
+              <tr>
+                <th className="p-3 text-left border-b border-gray-200">SR No</th>
+                <th className="p-3 text-left border-b border-gray-200">Name</th>
+                <th className="p-3 text-left border-b border-gray-200 hidden sm:table-cell">Email</th>
+                <th className="p-3 text-left border-b border-gray-200 hidden md:table-cell">Role</th>
+                <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Status</th>
+                <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Last Login</th>
+                <th className="p-3 text-right border-b border-gray-200">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-gray-500 text-sm sm:text-base">
+                    <Loader2 className="h-8 w-8 text-blue-500 animate-spin mx-auto" />
+                  </td>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-gray-500 text-sm sm:text-base">No users found</td>
+                </tr>
+              ) : (
+                filteredUsers.map((user, index) => (
+                  <tr key={user.id} className="hover:bg-blue-50 transition text-xs sm:text-sm">
+                    <td className="p-3 text-gray-500">{index + 1}</td>
+                    <td className="p-3 whitespace-nowrap">
+                      <div className="font-medium text-gray-900">{user.name || 'No name'}</div>
+                      <div className="text-xs text-gray-500">ID: {user.id.slice(0, 8)}...</div>
+                    </td>
+                    <td className="p-3 text-gray-700 hidden sm:table-cell">{user.email}</td>
+                    <td className="p-3 hidden md:table-cell">
+                      <span className={`px-2 py-1 rounded-full text-xs ${user.role === 'Admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                        {user.role || 'User'}
+                      </span>
+                    </td>
+                    <td className="p-3 hidden lg:table-cell">
+                      <span className={`px-2 py-1 rounded-full text-xs ${user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {user.status || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-gray-500 hidden lg:table-cell">{user.lastLogin}</td>
+                    <td className="p-3 text-right">
+                      <div className="space-x-2">
+                        <button className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm">Edit</button>
+                        <button className="text-red-600 hover:text-red-800 text-xs sm:text-sm">Delete</button>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredUsers.map((user, index) => (
-                    <tr key={user.id} className="hover:bg-gray-50 transition">
-                      <td className="px-4 py-4 text-gray-500">{index + 1}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-gray-900">{user.name || 'No name'}</div>
-                        <div className="text-xs text-gray-500">ID: {user.id.slice(0, 8)}...</div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-700">{user.email}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs ${user.role === 'Admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                          {user.role || 'User'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs ${user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {user.status || 'Unknown'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-500">{user.lastLogin}</td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="space-x-2">
-                          <button className="text-blue-600 hover:text-blue-800">Edit</button>
-                          <button className="text-red-600 hover:text-red-800">Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </AdminLayout>

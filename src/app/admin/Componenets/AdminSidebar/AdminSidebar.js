@@ -12,15 +12,15 @@ import {
 } from 'lucide-react';
 
 const menu = [
-  { id: 'dashboard', label: 'Dashboard', icon: <Home />, href: '/admin/dashboard' },
-  { id: 'orders', label: 'Orders', icon: <ShoppingBag />, href: '/admin/orders' },
-  { id: 'products', label: 'Products', icon: <Package />, href: '/admin/products' },
-  { id: 'inquiries', label: 'Inquiries', icon: <MessageSquare />, href: '/admin/inquiries' },
-  { id: 'users', label: 'Users', icon: <Users />, href: '/admin/users' },
-  { id: 'billing', label: 'Billing', icon: <CreditCard />, href: '/admin/billing' },
+  { id: 'dashboard', label: 'Dashboard', icon: <Home className="w-4 h-4" />, href: '/admin/dashboard' },
+  { id: 'orders', label: 'Orders', icon: <ShoppingBag className="w-4 h-4" />, href: '/admin/orders' },
+  { id: 'products', label: 'Products', icon: <Package className="w-4 h-4" />, href: '/admin/products' },
+  { id: 'inquiries', label: 'Inquiries', icon: <MessageSquare className="w-4 h-4" />, href: '/admin/inquiries' },
+  { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" />, href: '/admin/users' },
+  { id: 'billing', label: 'Billing', icon: <CreditCard className="w-4 h-4" />, href: '/admin/billing' },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ toggleSidebar }) {
   const pathname = usePathname();
 
   return (
@@ -33,6 +33,7 @@ export default function AdminSidebar() {
           <Link
             key={item.id}
             href={item.href}
+            onClick={() => toggleSidebar()} // Close sidebar after navigation
             className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
               pathname.startsWith(item.href)
                 ? 'bg-blue-600 text-white'

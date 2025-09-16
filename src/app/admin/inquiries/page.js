@@ -49,36 +49,36 @@ export default function AdminInquiriesPage() {
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-7xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6 text-blue-700">Customer Inquiries</h1>
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-blue-700">Customer Inquiries</h1>
         {loading ? (
-          <div>Loading...</div>
+          <div className="text-center text-gray-500 p-6">Loading...</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full border border-gray-200 rounded-lg">
-              <thead className="bg-blue-50">
+              <thead className="bg-blue-50 text-blue-800 text-xs sm:text-sm">
                 <tr>
-                  <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Email</th>
-                  <th className="p-3 text-left">Purpose</th>
-                  <th className="p-3 text-left">Message</th>
-                  <th className="p-3 text-left">Status</th>
-                  <th className="p-3 text-left">Timestamp</th>
+                  <th className="p-3 text-left border-b border-gray-200">Name</th>
+                  <th className="p-3 text-left border-b border-gray-200">Email</th>
+                  <th className="p-3 text-left border-b border-gray-200 hidden sm:table-cell">Purpose</th>
+                  <th className="p-3 text-left border-b border-gray-200 hidden md:table-cell">Message</th>
+                  <th className="p-3 text-left border-b border-gray-200">Status</th>
+                  <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Timestamp</th>
                 </tr>
               </thead>
               <tbody>
                 {inquiries.length === 0 ? (
-                  <tr><td colSpan="6" className="p-4 text-center text-gray-500">No inquiries found</td></tr>
+                  <tr><td colSpan={6} className="p-4 text-center text-gray-500 text-sm sm:text-base">No inquiries found</td></tr>
                 ) : (
                   inquiries.map(inq => (
-                    <tr key={inq.id} className="border-b">
+                    <tr key={inq.id} className="border-b hover:bg-blue-50 text-xs sm:text-sm">
                       <td className="p-3">{inq.name}</td>
                       <td className="p-3">{inq.email}</td>
-                      <td className="p-3">{inq.purpose}</td>
-                      <td className="p-3">{inq.message}</td>
+                      <td className="p-3 hidden sm:table-cell">{inq.purpose}</td>
+                      <td className="p-3 hidden md:table-cell">{inq.message}</td>
                       <td className="p-3">
                         <select
-                          className="border rounded px-2 py-1"
+                          className="border border-gray-200 rounded px-2 py-1 text-xs sm:text-sm focus:ring-1 focus:ring-blue-200"
                           value={inq.status || 'pending'}
                           onChange={e => handleStatusChange(inq.id, e.target.value)}
                         >
@@ -87,7 +87,7 @@ export default function AdminInquiriesPage() {
                           ))}
                         </select>
                       </td>
-                      <td className="p-3 text-xs text-gray-500">{inq.timestamp?.toDate ? inq.timestamp.toDate().toLocaleString() : ''}</td>
+                      <td className="p-3 hidden lg:table-cell text-xs">{inq.timestamp?.toDate ? inq.timestamp.toDate().toLocaleString() : ''}</td>
                     </tr>
                   ))
                 )}
