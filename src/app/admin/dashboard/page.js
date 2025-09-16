@@ -19,18 +19,17 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { motion } from 'framer-motion';
-import { collection, getDocs, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/app/firebase';
-import AdminHeader from '../Componenets/AdminHeader';
 import Footer from '@/app/Componenets/Footer';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import AdminLayout from '../AdminLayout';
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
 
   const [userCount, setUserCount] = useState(0);
   const [productCount, setProductCount] = useState(0);
@@ -197,156 +196,153 @@ export default function AdminDashboard() {
   if (!isClient) return null;
 
   return (
-    <div className="min-h-screen bg-white text-gray-800 flex flex-col">
-      <AdminHeader activeTab={activeTab} setActiveTab={setActiveTab} showTabContent={false} />
-      <div className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full">
-        {/* Stats Cards */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-8"
-        >
-          {stats.map((stat, index) =>
-            isLoading ? (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0.5 }}
-                animate={{ opacity: 0.8 }}
-                transition={{ repeat: Infinity, repeatType: 'reverse', duration: 1 }}
-                className="h-32 bg-gray-200/50 rounded-xl"
-              />
-            ) : (
-              <motion.div
-                key={index}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: index * 0.1, duration: 0.5 }}
-                whileHover={{ y: -5 }}
-                className="relative overflow-hidden bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:border-blue-400 transition-all duration-300 cursor-pointer"
-                onClick={stat.onClick}
-              >
-                <div className="absolute -right-5 -top-5 w-20 h-20 bg-blue-400/10 rounded-full blur-xl"></div>
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-sm text-gray-600">{stat.label}</span>
-                    <span className="text-2xl sm:text-3xl font-bold mt-2 text-gray-800">{stat.value}</span>
-                    <span className="text-xs mt-2 text-green-600">{stat.change}</span>
-                  </div>
-                  <div className="p-3 bg-blue-400/10 rounded-lg text-blue-600">{stat.icon}</div>
+    <AdminLayout>
+      {/* Dashboard Content */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-8"
+      >
+        {stats.map((stat, index) =>
+          isLoading ? (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0.5 }}
+              animate={{ opacity: 0.8 }}
+              transition={{ repeat: Infinity, repeatType: 'reverse', duration: 1 }}
+              className="h-32 bg-gray-200/50 rounded-xl"
+            />
+          ) : (
+            <motion.div
+              key={index}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: index * 0.1, duration: 0.5 }}
+              whileHover={{ y: -5 }}
+              className="relative overflow-hidden bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:border-blue-400 transition-all duration-300 cursor-pointer"
+              onClick={stat.onClick}
+            >
+              <div className="absolute -right-5 -top-5 w-20 h-20 bg-blue-400/10 rounded-full blur-xl"></div>
+              <div className="flex items-start justify-between">
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-600">{stat.label}</span>
+                  <span className="text-2xl sm:text-3xl font-bold mt-2 text-gray-800">{stat.value}</span>
+                  <span className="text-xs mt-2 text-green-600">{stat.change}</span>
                 </div>
-              </motion.div>
-            )
-          )}
-        </motion.div>
+                <div className="p-3 bg-blue-400/10 rounded-lg text-blue-600">{stat.icon}</div>
+              </div>
+            </motion.div>
+          )
+        )}
+      </motion.div>
 
-        {/* Date Range Picker */}
-        <div className="flex flex-col sm:flex-row items-center gap-4 mb-8">
-          <label className="font-medium text-gray-700">Filter Orders By Date:</label>
-          <DatePicker
-            selected={startDate}
-            onChange={date => setStartDate(date)}
-            selectsStart
-            startDate={startDate}
-            endDate={endDate}
-            maxDate={endDate}
-            className="border px-3 py-2 rounded mr-2"
-            dateFormat="yyyy-MM-dd"
-          />
-          <span className="mx-2">to</span>
-          <DatePicker
-            selected={endDate}
-            onChange={date => setEndDate(date)}
-            selectsEnd
-            startDate={startDate}
-            endDate={endDate}
-            minDate={startDate}
-            maxDate={new Date()}
-            className="border px-3 py-2 rounded"
-            dateFormat="yyyy-MM-dd"
-          />
-        </div>
-
-        {/* Sales Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-8"
-        >
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Sales Chart</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={salesChartData}
-                margin={{
-                  top: 5,
-                  right: 30,
-                  left: 20,
-                  bottom: 5,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                <XAxis dataKey="date" stroke="#666" />
-                <YAxis stroke="#666" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'white',
-                    border: '1px solid #ddd',
-                    borderRadius: '0.5rem',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  }}
-                  formatter={(value) => `₹${value}`}
-                />
-                <Legend />
-                <Bar dataKey="Sales" fill="#3b82f6" name="Sales" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-
-        {/* Order Status Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-          className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200"
-        >
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Status Analytics</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={ordersData}
-                margin={{
-                  top: 5,
-                  right: 30,
-                  left: 20,
-                  bottom: 5,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                <XAxis dataKey="name" stroke="#666" />
-                <YAxis stroke="#666" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'white',
-                    border: '1px solid #ddd',
-                    borderRadius: '0.5rem',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="Pending" fill="#3b82f6" name="Pending" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Processing" fill="#f59e0b" name="Processing" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Shipped" fill="#10b981" name="Shipped" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Completed" fill="#6366f1" name="Completed" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Cancelled" fill="#ef4444" name="Cancelled" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
+      {/* Date Range Picker */}
+      <div className="flex flex-col sm:flex-row items-center gap-4 mb-8">
+        <label className="font-medium text-gray-700">Filter Orders By Date:</label>
+        <DatePicker
+          selected={startDate}
+          onChange={date => setStartDate(date)}
+          selectsStart
+          startDate={startDate}
+          endDate={endDate}
+          maxDate={endDate}
+          className="border px-3 py-2 rounded mr-2"
+          dateFormat="yyyy-MM-dd"
+        />
+        <span className="mx-2">to</span>
+        <DatePicker
+          selected={endDate}
+          onChange={date => setEndDate(date)}
+          selectsEnd
+          startDate={startDate}
+          endDate={endDate}
+          minDate={startDate}
+          maxDate={new Date()}
+          className="border px-3 py-2 rounded"
+          dateFormat="yyyy-MM-dd"
+        />
       </div>
+
+      {/* Sales Chart */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.5 }}
+        className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-8"
+      >
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Sales Chart</h3>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={salesChartData}
+              margin={{
+                top: 5,
+                right: 30,
+                left: 20,
+                bottom: 5,
+              }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+              <XAxis dataKey="date" stroke="#666" />
+              <YAxis stroke="#666" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #ddd',
+                  borderRadius: '0.5rem',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                }}
+                formatter={(value) => `₹${value}`}
+              />
+              <Legend />
+              <Bar dataKey="Sales" fill="#3b82f6" name="Sales" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </motion.div>
+
+      {/* Order Status Chart */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+        className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200"
+      >
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Status Analytics</h3>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={ordersData}
+              margin={{
+                top: 5,
+                right: 30,
+                left: 20,
+                bottom: 5,
+              }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+              <XAxis dataKey="name" stroke="#666" />
+              <YAxis stroke="#666" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #ddd',
+                  borderRadius: '0.5rem',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                }}
+              />
+              <Legend />
+              <Bar dataKey="Pending" fill="#3b82f6" name="Pending" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Processing" fill="#f59e0b" name="Processing" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Shipped" fill="#10b981" name="Shipped" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Completed" fill="#6366f1" name="Completed" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Cancelled" fill="#ef4444" name="Cancelled" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </motion.div>
       <Footer />
-    </div>
+    </AdminLayout>
   );
 }

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
-import AdminHeader from '../Componenets/AdminHeader';
+import AdminLayout from '../AdminLayout';
 
 const STATUS_OPTIONS = [
   'pending',
@@ -18,26 +18,24 @@ const STATUS_OPTIONS = [
 export default function AdminInquiriesPage() {
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('inquiries');
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
   const tenantCompaniesPath = `${basePath}/tenantCompanies`;
   const contactPath = `${tenantCompaniesPath}/${companyId}/contactUs`;
 
   useEffect(() => {
-    setLoading(true);
-    const unsub = onSnapshot(
-      collection(db, contactPath),
-      (snapshot) => {
+    const fetchInquiries = async () => {
+      setLoading(true);
+      try {
+        const snapshot = await getDocs(collection(db, contactPath));
         setInquiries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        setLoading(false);
-      },
-      (error) => {
+      } catch (error) {
         console.error('Error fetching inquiries:', error);
+      } finally {
         setLoading(false);
       }
-    );
-    return () => unsub();
+    };
+    fetchInquiries();
   }, [contactPath]);
 
   const handleStatusChange = async (id, status) => {
@@ -50,8 +48,7 @@ export default function AdminInquiriesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-gray-800">
-      <AdminHeader activeTab={activeTab} setActiveTab={setActiveTab} showTabContent={true} />
+    <AdminLayout>
       <div className="p-6 max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold mb-6 text-blue-700">Customer Inquiries</h1>
         {loading ? (
@@ -99,6 +96,6 @@ export default function AdminInquiriesPage() {
           </div>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 }

@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import AdminHeader from '../Componenets/AdminHeader';
 import { onSnapshot, query, collection, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
+import AdminLayout from '../AdminLayout';
 
 // Status color mapping
 const statusColors = {
@@ -136,12 +137,8 @@ export default function AdminOrders() {
   if (!isClient) return null;
 
   return (
-    <div className="min-h-screen bg-white text-gray-800">
-      {/* Common Admin Header for navigation only */}
-      <AdminHeader />
-
-      {/* Orders Section */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+    <AdminLayout>
+      <div className="max-w-7xl mx-auto px-4 py-0">
         <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent mb-6">Orders Management</h2>
 
         {/* Filters */}
@@ -225,53 +222,53 @@ export default function AdminOrders() {
                           <option value="Completed" className="bg-green-100 text-green-800">Completed</option>
                           <option value="Cancelled" className="bg-red-100 text-red-800">Cancelled</option>
                         </select>
-                      </td>
-                      <td className="p-3 border-b border-blue-100">{order.date}</td>
-                      <td className="p-3 border-b border-blue-100">
-                        <button onClick={() => toggleOrderExpand(order.id)} className="text-blue-600 hover:text-blue-800">
-                          {expandedOrder === order.id ? <ChevronUp /> : <ChevronDown />}
-                        </button>
-                      </td>
-                    </tr>
-                    {expandedOrder === order.id && (
-                      <tr>
-                        <td colSpan={10} className="bg-blue-50 p-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <p className="font-semibold text-blue-600 mb-2">Order Items:</p>
-                              {order.items.map((item, idx) => (
-                                <div key={idx} className="flex justify-between text-sm text-gray-700 mb-1">
-                                  <span>{item.name} x{item.quantity}</span>
-                                  <span>₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
-                                </div>
-                              ))}
-                              <div className="mt-3 text-right text-blue-600 font-semibold">
-                                Total: ₹{order.amount.toFixed(2)}
-                              </div>
-                            </div>
-                            <div>
-                              <p className="font-semibold text-blue-600 mb-2">Delivery Details:</p>
-                              <div className="text-sm text-gray-700 space-y-1">
-                                <p><span className="font-medium">Name:</span> {order.deliveryDetails.name || 'N/A'}</p>
-                                <p><span className="font-medium">Phone:</span> {order.deliveryDetails.phone || 'N/A'}</p>
-                                <p><span className="font-medium">Email:</span> {order.deliveryDetails.email || 'N/A'}</p>
-                                <p><span className="font-medium">Address:</span> {order.deliveryDetails.address || 'N/A'}</p>
-                                <p><span className="font-medium">City:</span> {order.deliveryDetails.city || 'N/A'}</p>
-                                <p><span className="font-medium">State:</span> {order.deliveryDetails.state || 'N/A'}</p>
-                                <p><span className="font-medium">Pincode:</span> {order.deliveryDetails.pincode || 'N/A'}</p>
-                              </div>
-                            </div>
-                          </div>
+                        </td>
+                        <td className="p-3 border-b border-blue-100">{order.date}</td>
+                        <td className="p-3 border-b border-blue-100">
+                          <button onClick={() => toggleOrderExpand(order.id)} className="text-blue-600 hover:text-blue-800">
+                            {expandedOrder === order.id ? <ChevronUp /> : <ChevronDown />}
+                          </button>
                         </td>
                       </tr>
-                    )}
-                  </>
-                ))
-              )}
+                      {expandedOrder === order.id && (
+                        <tr>
+                          <td colSpan={10} className="bg-blue-50 p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <p className="font-semibold text-blue-600 mb-2">Order Items:</p>
+                                {order.items.map((item, idx) => (
+                                  <div key={idx} className="flex justify-between text-sm text-gray-700 mb-1">
+                                    <span>{item.name} x{item.quantity}</span>
+                                    <span>₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
+                                  </div>
+                                ))}
+                                <div className="mt-3 text-right text-blue-600 font-semibold">
+                                  Total: ₹{order.amount.toFixed(2)}
+                                </div>
+                              </div>
+                              <div>
+                                <p className="font-semibold text-blue-600 mb-2">Delivery Details:</p>
+                                <div className="text-sm text-gray-700 space-y-1">
+                                  <p><span className="font-medium">Name:</span> {order.deliveryDetails.name || 'N/A'}</p>
+                                  <p><span className="font-medium">Phone:</span> {order.deliveryDetails.phone || 'N/A'}</p>
+                                  <p><span className="font-medium">Email:</span> {order.deliveryDetails.email || 'N/A'}</p>
+                                  <p><span className="font-medium">Address:</span> {order.deliveryDetails.address || 'N/A'}</p>
+                                  <p><span className="font-medium">City:</span> {order.deliveryDetails.city || 'N/A'}</p>
+                                  <p><span className="font-medium">State:</span> {order.deliveryDetails.state || 'N/A'}</p>
+                                  <p><span className="font-medium">Pincode:</span> {order.deliveryDetails.pincode || 'N/A'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ))
+                )}
             </tbody>
           </table>
         </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }

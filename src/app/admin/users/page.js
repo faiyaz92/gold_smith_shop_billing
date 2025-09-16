@@ -10,7 +10,7 @@ import {
 import { motion } from 'framer-motion';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/app/firebase';
-import AdminHeader from '../Componenets/AdminHeader';
+import AdminLayout from '../AdminLayout';
 
 export default function AdminUsers() {
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
@@ -23,7 +23,6 @@ export default function AdminUsers() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState([]);
-  const [activeTab, setActiveTab] = useState('users');
 
   useEffect(() => {
     setIsClient(true);
@@ -71,9 +70,8 @@ export default function AdminUsers() {
   if (!isClient) return null;
 
   return (
-    <div className="min-h-screen bg-white text-gray-800">
-      <AdminHeader activeTab={activeTab} setActiveTab={setActiveTab} showTabContent={true} />
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+    <AdminLayout>
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto mt-4">
         <div className="mb-6 flex flex-col sm:flex-row justify-between gap-4">
           <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -142,6 +140,6 @@ export default function AdminUsers() {
           )}
         </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Package, Boxes, ListTree } from 'lucide-react';
-import AdminHeader from '../Componenets/AdminHeader';
+import AdminLayout from '../AdminLayout';
 
 export default function ProductsPage() {
     const router = useRouter();
@@ -40,8 +40,7 @@ export default function ProductsPage() {
     };
 
     return (
-        <div className="min-h-screen bg-white text-gray-800">
-            <AdminHeader />
+        <AdminLayout>
             <div className="p-4 sm:p-6 max-w-7xl mx-auto">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -84,6 +83,6 @@ export default function ProductsPage() {
                     ))}
                 </div>
             </div>
-        </div>
+        </AdminLayout>
     );
 }
