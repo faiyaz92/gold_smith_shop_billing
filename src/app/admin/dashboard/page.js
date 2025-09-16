@@ -187,7 +187,7 @@ export default function AdminDashboard() {
     {
       label: 'Total Sales',
       value: `₹${totalSales.toLocaleString()}`,
-      icon: <BarChart className="w-5 h-5 sm:w-6 sm:h-6" />,
+      icon: <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '', // Placeholder
       onClick: () => {},
     },
@@ -202,7 +202,7 @@ export default function AdminDashboard() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-8"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8"
       >
         {stats.map((stat, index) =>
           isLoading ? (
