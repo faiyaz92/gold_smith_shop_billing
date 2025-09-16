@@ -1,13 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AdminLayout from '../AdminLayout';
 import Products from '@/app/Componenets/Products';
 
 const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
 
-export default function BillingPage() {
+export default function BillingPageWrapper() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <BillingPage />
+    </Suspense>
+  );
+}
+
+function BillingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId');
