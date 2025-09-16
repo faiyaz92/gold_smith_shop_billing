@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { LogOut, ChevronDown, ChevronUp, Package, ShoppingBag, Users, Home } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AdminHeader from '../Componenets/AdminHeader';
-import { collection, getDocs, query, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { onSnapshot, query, collection, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 
 // Status color mapping
@@ -39,53 +39,50 @@ export default function AdminOrders() {
     if (authStatus !== 'true') {
       router.push('/admin/login');
     } else {
-      const fetchOrders = async () => {
-        try {
-          const q = query(collection(db, ordersPath), orderBy('timestamp', 'desc'));
-          const snapshot = await getDocs(q);
-          const fetchedOrders = snapshot.docs.map(docSnap => {
-            const data = docSnap.data();
-            const orderDate = data.timestamp?.toDate();
-            const items = data.items || [];
+      const q = query(collection(db, ordersPath), orderBy('timestamp', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const fetchedOrders = snapshot.docs.map(docSnap => {
+          const data = docSnap.data();
+          const orderDate = data.timestamp?.toDate();
+          const items = data.items || [];
 
-            // Calculate total if not provided
-            const calculatedTotal = items.reduce((sum, item) =>
-              sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
+          // Calculate total if not provided
+          const calculatedTotal = items.reduce((sum, item) =>
+            sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
 
-            const total = data.total || calculatedTotal;
+          const total = data.total || calculatedTotal;
 
-            return {
-              id: docSnap.id,
-              customer: data.name || "No Name",
-              email: data.email || "N/A",
-              phone: data.userPhone || "N/A",
-              address: `${data.address || ''}, ${data.city || ''}, ${data.state || ''} - ${data.zip || ''}`,
-              items: items,
-              amount: Number(total) || 0,
-              paymentMethod: data.paymentMethod || "N/A",
-              status: data.status || "Pending",
-              date: orderDate?.toLocaleDateString() || 'Invalid/Missing Date',
-              rawTimestamp: data.timestamp,
-              userId: data.userId || "N/A",
-              deliveryDetails: {
-                name: data.name,
-                phone: data.userPhone,
-                address: data.address,
-                city: data.city,
-                state: data.state,
-                pincode: data.zip,
-                email: data.email
-              }
-            };
-          });
-          setOrders(fetchedOrders);
-        } catch (err) {
-          console.error('Error fetching orders from Firestore:', err);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchOrders();
+          return {
+            id: docSnap.id,
+            customer: data.name || "No Name",
+            email: data.email || "N/A",
+            phone: data.phone || "N/A",
+            address: `${data.address || ''}, ${data.city || ''}, ${data.state || ''} - ${data.zip || ''}`,
+            items: items,
+            amount: Number(total) || 0,
+            paymentMethod: data.paymentMethod || "N/A",
+            status: data.status || "Pending",
+            date: orderDate?.toLocaleDateString() || 'Invalid/Missing Date',
+            rawTimestamp: data.timestamp,
+            userId: data.userId || "N/A",
+            deliveryDetails: {
+              name: data.name,
+              phone: data.phone,
+              address: data.address,
+              city: data.city,
+              state: data.state,
+              pincode: data.zip,
+              email: data.email
+            }
+          };
+        });
+        setOrders(fetchedOrders);
+        setIsLoading(false);
+      }, (err) => {
+        console.error('Error fetching orders from Firestore:', err);
+        setIsLoading(false);
+      });
+      return () => unsubscribe();
     }
   }, [router]);
 

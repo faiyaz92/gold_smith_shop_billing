@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Shirt, Bed, Waves, Home } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { db } from '@/app/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
 
 function Categories({ isMobile, onCategoryClick, activeCategory }) {
@@ -14,6 +14,7 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
   const productPath = `${tenantCompaniesPath}/${companyId}/products`;
 
   const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [localActiveCategory, setLocalActiveCategory] = useState(activeCategory); // Local state for UI
 
@@ -29,50 +30,54 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
     setLocalActiveCategory(activeCategory);
   }, [activeCategory]);
 
+  // Real-time sync for categories and products
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const categoriesSnapshot = await getDocs(collection(db, categoryPath));
-        const productsSnapshot = await getDocs(collection(db, productPath));
-        const products = productsSnapshot.docs.map(doc => doc.data());
+    setLoading(true);
+    const unsubCategories = onSnapshot(collection(db, categoryPath), (categoriesSnapshot) => {
+      const categoriesData = categoriesSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        const { categoriesname, categoriesimage, sortOrder } = data;
+        return {
+          id: doc.id,
+          categoriesname,
+          categoriesimage,
+          sortOrder: sortOrder ?? 999,
+        };
+      });
+      setCategories(categoriesData);
+      setLoading(false);
+    });
 
-        const categoriesData = categoriesSnapshot.docs.map((doc) => {
-          const data = doc.data();
-          const { categoriesname, categoriesimage, sortOrder } = data;
-          const count = products.filter((product) => product.categoryId === doc.id).length;
+    const unsubProducts = onSnapshot(collection(db, productPath), (productsSnapshot) => {
+      setProducts(productsSnapshot.docs.map(doc => doc.data()));
+    });
 
-          return {
-            id: doc.id,
-            categoriesname,
-            categoriesimage,
-            sortOrder: sortOrder ?? 999,
-            count,
-          };
-        });
-
-        const sorted = categoriesData.sort((a, b) => a.sortOrder - b.sortOrder);
-        setCategories(sorted);
-
-        // Set the first category as active by default if no activeCategory is provided
-        if (sorted.length > 0 && !activeCategory && !localActiveCategory) {
-          setLocalActiveCategory(sorted[0].id);
-          onCategoryClick(sorted[0].id);
-        }
-      } catch (error) {
-        console.error('Error fetching categories/products:', error);
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      unsubCategories();
+      unsubProducts();
     };
+  }, [categoryPath, productPath]);
 
-    fetchData();
-  }, [activeCategory, onCategoryClick]); // Dependencies include activeCategory and onCategoryClick
+  // Set the first category as active by default if no activeCategory is provided
+  useEffect(() => {
+    if (categories.length > 0 && !activeCategory && !localActiveCategory) {
+      setLocalActiveCategory(categories[0].id);
+      onCategoryClick(categories[0].id);
+    }
+    // eslint-disable-next-line
+  }, [categories, activeCategory, onCategoryClick]);
 
   // Handle category click
   const handleCategoryClick = (categoryId) => {
     setLocalActiveCategory(categoryId); // Update local state for immediate UI feedback
     onCategoryClick(categoryId); // Notify parent for filtering/scrolling
   };
+
+  // Count products per category
+  const categoriesWithCount = categories.map((cat) => ({
+    ...cat,
+    count: products.filter((product) => product.categoryId === cat.id).length,
+  }));
 
   if (loading) {
     return (
@@ -91,12 +96,12 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
     <section className={isMobile ? "lg:hidden w-full px-4 py-2" : "hidden lg:block basis-[20%] max-w-xs"}>
       <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">Categories</h2>
 
-      {categories.length === 0 ? (
+      {categoriesWithCount.length === 0 ? (
         <p className="text-sm text-gray-500">No categories found.</p>
       ) : isMobile ? (
         <div className="relative">
           <div className="flex space-x-3 pb-2 overflow-x-auto scrollbar-hide">
-            {categories.map((category) => (
+            {categoriesWithCount.map((category) => (
               <button
                 key={category.id}
                 onClick={() => handleCategoryClick(category.id)}
@@ -122,7 +127,7 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {categories.map((category) => (
+          {categoriesWithCount.map((category) => (
             <button
               key={category.id}
               onClick={() => handleCategoryClick(category.id)}

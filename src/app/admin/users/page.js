@@ -8,9 +8,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/app/firebase';
-import AdminHeader from '../Componenets/AdminHeader'; // Adjust the path to match your project structure
+import AdminHeader from '../Componenets/AdminHeader';
 
 export default function AdminUsers() {
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
@@ -23,35 +23,32 @@ export default function AdminUsers() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState([]);
-  const [activeTab, setActiveTab] = useState('users'); // Set default active tab to 'users'
+  const [activeTab, setActiveTab] = useState('users');
 
   useEffect(() => {
     setIsClient(true);
     const authStatus = localStorage.getItem('adminAuth');
     if (authStatus !== 'true') {
       router.push('/admin/login');
-    } else {
-      fetchUsers();
+      return;
     }
-  }, [router]);
-
-  const fetchUsers = async () => {
-    try {
-      setIsLoading(true);
-      const usersCollection = collection(db, usersPath);
-      const usersSnapshot = await getDocs(usersCollection);
+    setIsLoading(true);
+    const usersCollection = collection(db, usersPath);
+    const unsubscribe = onSnapshot(usersCollection, (usersSnapshot) => {
       const usersData = usersSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
         lastLogin: formatLastLogin(doc.data().lastLogin),
       }));
       setUsers(usersData);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    } finally {
       setIsLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error('Error fetching users:', error);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+    // eslint-disable-next-line
+  }, [router]);
 
   const formatLastLogin = (timestamp) => {
     if (!timestamp) return 'Never logged in';

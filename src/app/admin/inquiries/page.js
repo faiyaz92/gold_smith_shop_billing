@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
-import AdminHeader from '../Componenets/AdminHeader'; // Adjust the path to match your project structure
+import AdminHeader from '../Componenets/AdminHeader';
 
 const STATUS_OPTIONS = [
   'pending',
@@ -18,25 +18,26 @@ const STATUS_OPTIONS = [
 export default function AdminInquiriesPage() {
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('inquiries'); // Set default active tab to 'inquiries'
+  const [activeTab, setActiveTab] = useState('inquiries');
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
   const tenantCompaniesPath = `${basePath}/tenantCompanies`;
   const contactPath = `${tenantCompaniesPath}/${companyId}/contactUs`;
 
   useEffect(() => {
-    const fetchInquiries = async () => {
-      setLoading(true);
-      try {
-        const snapshot = await getDocs(collection(db, contactPath));
+    setLoading(true);
+    const unsub = onSnapshot(
+      collection(db, contactPath),
+      (snapshot) => {
         setInquiries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (error) {
+        setLoading(false);
+      },
+      (error) => {
         console.error('Error fetching inquiries:', error);
-      } finally {
         setLoading(false);
       }
-    };
-    fetchInquiries();
+    );
+    return () => unsub();
   }, [contactPath]);
 
   const handleStatusChange = async (id, status) => {

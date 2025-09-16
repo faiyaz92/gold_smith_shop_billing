@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
 import { db } from '@/app/firebase';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import Image from 'next/image';
 
 export default function Products({ addToCart, removeFromCart, cart, onActiveCategoryChange, searchQuery = '' }) {
@@ -17,40 +17,49 @@ export default function Products({ addToCart, removeFromCart, cart, onActiveCate
   const categoryPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`;
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        if (!companyId) {
-          throw new Error('NEXT_PUBLIC_COMPANY_ID is not defined');
-        }
-        const productsSnapshot = await getDocs(collection(db, productPath));
-        const productsData = await Promise.all(
-          productsSnapshot.docs.map(async (docSnap) => {
-            const data = docSnap.data();
-            let categoryName = 'Uncategorized';
-            if (data.categoryId) {
-              const categoryDoc = await getDoc(doc(db, categoryPath, data.categoryId));
-              if (categoryDoc.exists()) {
-                categoryName = categoryDoc.data().categoriesname;
-              }
+    if (!companyId) {
+      setError('NEXT_PUBLIC_COMPANY_ID is not defined');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    // Real-time sync for products
+    const unsubProducts = onSnapshot(collection(db, productPath), async (productsSnapshot) => {
+      const productsData = await Promise.all(
+        productsSnapshot.docs.map(async (docSnap) => {
+          const data = docSnap.data();
+          let categoryName = 'Uncategorized';
+          if (data.categoryId) {
+            const categoryDoc = await getDoc(doc(db, categoryPath, data.categoryId));
+            if (categoryDoc.exists()) {
+              categoryName = categoryDoc.data().categoriesname;
             }
-            return { id: docSnap.id, ...data, categoryName };
-          })
-        );
-        setProducts(productsData);
+          }
+          return { id: docSnap.id, ...data, categoryName };
+        })
+      );
+      setProducts(productsData);
+      setLoading(false);
+    }, (err) => {
+      setError(err.message);
+      setLoading(false);
+    });
 
-        const categoriesSnapshot = await getDocs(collection(db, categoryPath));
-        const categoriesData = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setCategories(categoriesData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError(error.message);
-      } finally {
-        setLoading(false);
-      }
+    // Real-time sync for categories
+    const unsubCategories = onSnapshot(collection(db, categoryPath), (categoriesSnapshot) => {
+      const categoriesData = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCategories(categoriesData);
+    }, (err) => {
+      setError(err.message);
+    });
+
+    return () => {
+      unsubProducts();
+      unsubCategories();
     };
-
-    fetchData();
-  }, []);
+  }, [companyId, productPath, categoryPath]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(

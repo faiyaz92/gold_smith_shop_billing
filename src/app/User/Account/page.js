@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { auth, db } from '@/app/firebase';
-import { doc, getDoc, collection, query, where, getDocs, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import Navbar from '@/app/Componenets/Navbar';
 import MobileNav from '@/app/Componenets/MobileNav';
@@ -32,20 +32,17 @@ const Page = () => {
   const tenantOrdersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/orders`;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/User/Auth');
         return;
       }
 
-      try {
-        console.log('Fetching user data for UID:', currentUser.uid);
-        const userRef = doc(db, `${tenantUsersPath}/${currentUser.uid}`);
-        const userDoc = await getDoc(userRef);
-
+      // Real-time sync for user profile
+      const userRef = doc(db, `${tenantUsersPath}/${currentUser.uid}`);
+      const unsubscribeUser = onSnapshot(userRef, (userDoc) => {
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          console.log('User data found:', userData);
           const formattedUser = {
             uid: userDoc.id,
             name: userData.name || currentUser.displayName || 'User',
@@ -56,7 +53,6 @@ const Page = () => {
             address: userData.address || '',
             photoURL: userData.photoURL || currentUser.photoURL || null
           };
-
           setUser(formattedUser);
           setFormData({
             name: formattedUser.name,
@@ -66,43 +62,57 @@ const Page = () => {
             zip: formattedUser.zip,
             address: formattedUser.address
           });
-
-          await fetchUserOrders(currentUser.uid);
-        } else {
-          console.log('No user document found, creating new one');
-          const newUser = {
-            uid: currentUser.uid,
-            name: currentUser.displayName || 'User',
-            email: currentUser.email || '',
-            phone: currentUser.phoneNumber || '',
-            city: '',
-            zip: '',
-            address: '',
-            photoURL: currentUser.photoURL || null,
-            createdAt: new Date(),
-            userType: 'Customer'
-          };
-
-          await setDoc(userRef, newUser);
-          setUser(newUser);
-          setFormData({
-            name: newUser.name,
-            email: newUser.email,
-            phone: newUser.phone,
-            city: '',
-            zip: '',
-            address: ''
-          });
-          setOrders([]);
         }
-      } catch (error) {
-        console.error('Error fetching user data:', error.message, error.code);
-      } finally {
+      });
+
+      // Real-time sync for orders
+      const ordersRef = collection(db, tenantOrdersPath);
+      const q = query(ordersRef, where('userId', '==', currentUser.uid));
+      const unsubscribeOrders = onSnapshot(q, (querySnapshot) => {
+        const userOrders = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          const items = (data.items || []).map(item => ({
+            ...item,
+            price: Number(item.price || 0),
+            quantity: Number(item.quantity || 1)
+          }));
+
+          return {
+            id: doc.id,
+            ...data,
+            items,
+            total: Number(data.total || 0),
+            date: data.timestamp?.toDate() || new Date(),
+            estimatedDelivery: data.deliveryDate?.toDate() || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            status: data.status || 'Pending',
+            paymentMethod: data.paymentMethod || 'COD',
+            city: data.city || '',
+            zip: data.zip || '',
+            email: data.email || '',
+            paymentStatus: data.paymentStatus || 'Paid',
+            paymentId: data.paymentId || ''
+          };
+        });
+
+        userOrders.sort((a, b) => b.date - a.date);
+        const sortedOrders = userOrders.map((order, index, array) => ({
+          ...order,
+          srNo: array.length - index
+        }));
+        setOrders(sortedOrders);
         setLoading(false);
-      }
+      });
+
+      setLoading(false);
+
+      // Cleanup
+      return () => {
+        unsubscribeUser();
+        unsubscribeOrders();
+      };
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, [router]);
 
   const fetchUserOrders = async (uid) => {
@@ -230,15 +240,15 @@ const Page = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'Completed':
-        return 'bg-green-600/20 text-green-400';
+        return 'bg-green-600 text-white';
       case 'Processing':
-        return 'bg-yellow-600/20 text-yellow-400';
+        return 'bg-yellow-500 text-white';
       case 'Shipped':
-        return 'bg-blue-600/20 text-blue-400';
+        return 'bg-blue-600 text-white';
       case 'Cancelled':
-        return 'bg-red-600/20 text-red-400';
+        return 'bg-red-600 text-white';
       default:
-        return 'bg-gray-600/20 text-gray-400';
+        return 'bg-gray-500 text-white';
     }
   };
 
