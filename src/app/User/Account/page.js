@@ -252,6 +252,16 @@ const Page = () => {
     }
   };
 
+  function groupItemsByCategory(items) {
+    const groups = {};
+    items.forEach(item => {
+      const catName = item.categoryName || 'Other';
+      if (!groups[catName]) groups[catName] = [];
+      groups[catName].push(item);
+    });
+    return groups;
+  }
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-16 bg-white">
@@ -396,50 +406,75 @@ const Page = () => {
                   </div>
 
                   <div className="space-y-4">
-                    {order.items?.map((item, index) => (
-                      <div key={index} className="flex items-start gap-4">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                          {item.image ? (
-                            <img
-                              src={item.image}
-                              alt={item.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-8 w-8 text-gray-400"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={1.5}
-                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                />
-                              </svg>
-                            </div>
-                          )}
+                    {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
+                      // Try to get the category image from the first item in the group
+                      const catImage = items[0]?.categoryImage || null;
+                      return (
+                        <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50">
+                          <div className="flex items-center gap-3 px-4 py-2 border-b border-blue-200">
+                            {catImage ? (
+                              <div className="relative w-8 h-8 rounded-full overflow-hidden bg-white border border-blue-200">
+                                <img src={catImage} alt={catName} className="w-full h-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
+                                {/* fallback icon */}
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" />
+                                </svg>
+                              </div>
+                            )}
+                            <span className="font-semibold text-blue-700">{catName}</span>
+                          </div>
+                          <div className="p-4 space-y-2">
+                            {items.map((item, index) => (
+                              <div key={index} className="flex items-start gap-4">
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                                  {item.image ? (
+                                    <img
+                                      src={item.image}
+                                      alt={item.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-8 w-8 text-gray-400"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={1.5}
+                                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                        />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-grow">
+                                  <h5 className="font-medium text-blue-600">{item.name}</h5>
+                                  <p className="text-sm text-gray-600">
+                                    Quantity: {item.quantity}
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    Price: ₹{item.price.toFixed(2)}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-medium text-blue-600">
+                                    ₹{(item.price * item.quantity).toFixed(2)}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex-grow">
-                          <h5 className="font-medium text-blue-600">{item.name}</h5>
-                          <p className="text-sm text-gray-600">
-                            Quantity: {item.quantity}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Price: ₹{item.price.toFixed(2)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium text-blue-600">
-                            ₹{(item.price * item.quantity).toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-gray-200">

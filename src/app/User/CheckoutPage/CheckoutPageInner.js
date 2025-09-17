@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { db, auth } from '@/app/firebase';
+import { db } from '@/app/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { motion } from 'framer-motion';
 import Navbar from '@/app/Componenets/Navbar';
-
+import { groupItemsByCategory } from '@/app/utils/utils';
 export default function CheckoutPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -143,6 +143,20 @@ export default function CheckoutPage() {
     setLoading(false);
   };
 
+  // Group items by category
+  const groupItemsByCategory = (items) => {
+    return items.reduce((acc, item) => {
+      const category = item.category || 'Other';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(item);
+      return acc;
+    }, {});
+  };
+
+  const grouped = groupItemsByCategory(cart);
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
@@ -219,13 +233,17 @@ export default function CheckoutPage() {
               {cart.length === 0 ? (
                 <p className="text-gray-500">Your cart is empty</p>
               ) : (
-                cart.map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm border-b border-blue-100 pb-2">
-                    <div>
-                      <p className="font-medium text-blue-900">{item.name}</p>
-                      <p className="text-blue-500 text-xs">Qty: {item.quantity} × ₹{item.price}</p>
+                Object.entries(grouped).map(([catName, items]) => (
+                  <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50">
+                    <div className="px-4 py-2 font-semibold text-blue-700 border-b border-blue-200">{catName}</div>
+                    <div className="p-4 space-y-2">
+                      {items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <span>{item.name} x{item.quantity}</span>
+                          <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
                     </div>
-                    <span className="font-medium text-blue-700">₹{item.price * item.quantity}</span>
                   </div>
                 ))
             )  }

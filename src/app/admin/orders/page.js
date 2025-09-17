@@ -291,6 +291,16 @@ Thank you for your business!
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(billText)}`, '_blank');
   };
 
+  function groupItemsByCategory(items) {
+    const groups = {};
+    items.forEach(item => {
+      const catName = item.categoryName || 'Other';
+      if (!groups[catName]) groups[catName] = [];
+      groups[catName].push(item);
+    });
+    return groups;
+  }
+
   if (!isClient) return null;
 
   return (
@@ -390,29 +400,73 @@ Thank you for your business!
                     {expandedOrder === order.id && (
                       <tr>
                         <td colSpan={10} className="bg-blue-50 p-4">
-                          <div className="flex flex-col sm:grid sm:grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <p className="font-semibold text-blue-600 mb-2 text-sm sm:text-base">Order Items:</p>
-                              {order.items.map((item, idx) => (
-                                <div key={idx} className="flex justify-between text-xs sm:text-sm text-gray-700 mb-1">
-                                  <span>{item.name} x{item.quantity}</span>
-                                  <span>₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
+                          <div className="flex flex-col md:flex-row gap-6">
+                            {/* Delivery Address (Left) */}
+                            <div className="w-full md:w-96 flex-shrink-0">
+                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                                <h4 className="font-semibold mb-2 text-blue-700">Delivery Address</h4>
+                                <div className="text-sm text-gray-700">
+                                  <div><span className="font-medium">Name:</span> {order.name}</div>
+                                  <div><span className="font-medium">Phone:</span> {order.phone}</div>
+                                  <div><span className="font-medium">Email:</span> {order.email}</div>
+                                  <div><span className="font-medium">Address:</span> {order.address}</div>
+                                  <div><span className="font-medium">City:</span> {order.city}</div>
+                                  <div><span className="font-medium">Zip:</span> {order.zip}</div>
                                 </div>
-                              ))}
-                              <div className="mt-3 text-right text-blue-600 font-semibold text-sm sm:text-base">
-                                Total: ₹{order.amount.toFixed(2)}
                               </div>
                             </div>
-                            <div>
-                              <p className="font-semibold text-blue-600 mb-2 text-sm sm:text-base">Delivery Details:</p>
-                              <div className="text-xs sm:text-sm text-gray-700 space-y-1">
-                                <p><span className="font-medium">Name:</span> {order.deliveryDetails.name || 'N/A'}</p>
-                                <p><span className="font-medium">Phone:</span> {order.deliveryDetails.phone || 'N/A'}</p>
-                                <p><span className="font-medium">Email:</span> {order.deliveryDetails.email || 'N/A'}</p>
-                                <p><span className="font-medium">Address:</span> {order.deliveryDetails.address || 'N/A'}</p>
-                                <p><span className="font-medium">City:</span> {order.deliveryDetails.city || 'N/A'}</p>
-                                <p><span className="font-medium">State:</span> {order.deliveryDetails.state || 'N/A'}</p>
-                                <p><span className="font-medium">Pincode:</span> {order.deliveryDetails.pincode || 'N/A'}</p>
+
+                            {/* Order Items (Right) */}
+                            <div className="flex-1 flex flex-col justify-between">
+                              <div>
+                                {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
+                                  const catImage = items[0]?.categoriesimage || items[0]?.categoryImage || null;
+                                  return (
+                                    <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50">
+                                      <div className="flex items-center gap-3 px-4 py-2 border-b border-blue-200">
+                                        {catImage ? (
+                                          <div className="relative w-8 h-8 rounded-full overflow-hidden bg-white border border-blue-200">
+                                            <img src={catImage} alt={catName} className="w-full h-full object-cover" />
+                                          </div>
+                                        ) : (
+                                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200" />
+                                        )}
+                                        <span className="font-semibold text-blue-700">{catName}</span>
+                                      </div>
+                                      <div className="p-4 space-y-2">
+                                        {items.map((item, idx) => (
+                                          <div key={idx} className="flex items-start gap-4">
+                                            <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                                              {item.image ? (
+                                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                              ) : (
+                                                <div className="w-full h-full flex items-center justify-center bg-gray-200" />
+                                              )}
+                                            </div>
+                                            <div className="flex-grow">
+                                              <h5 className="font-medium text-blue-600">{item.name}</h5>
+                                              <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                                              <p className="text-sm text-gray-600">
+                                                Price: ₹{Number(item.price).toFixed(2)}
+                                              </p>
+                                            </div>
+                                            <div className="text-right">
+                                              <p className="font-medium text-blue-600">
+                                                ₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {/* Final total at bottom */}
+                              <div className="mt-4 flex justify-end">
+                                <div className="text-xl font-bold text-blue-700">
+                                  Total: ₹{order.items.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
+                                </div>
                               </div>
                             </div>
                           </div>
