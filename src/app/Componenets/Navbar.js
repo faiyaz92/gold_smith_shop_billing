@@ -9,7 +9,7 @@ import { useRef } from 'react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { getCompanyId } from '@/app/utils/firestorePaths';
 
-export default function Navbar({ onSearch }) {
+export default function Navbar({ onSearch, onOpenMobileCategory }) {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -81,7 +81,7 @@ export default function Navbar({ onSearch }) {
     <>
       <nav className={`sticky top-0 w-full bg-white z-40 transition-all duration-300 ${scrolled ? 'shadow-md' : 'shadow-sm'}`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 h-16">
-          <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center">
+          <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center hidden sm:block">
             <span className="mr-2">🧺</span>
             <span className="hidden sm:inline">Easy2 Laundry</span>
             <span className="sm:hidden">E2L</span>
@@ -121,76 +121,92 @@ export default function Navbar({ onSearch }) {
             </Link>
           </div>
 
-        <div className="flex items-center gap-2 sm:hidden">
-          <Link href="/" className="hover:text-blue-600 transition p-2">
-            <FiHome size={20} />
-          </Link>
-          <button
-            className="p-2 text-gray-600 hover:text-blue-600 transition"
-            onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-          >
-            {isMobileSearchOpen ? <FiX size={20} /> : <FiSearch size={20} />}
-          </button>
-          <button className="p-2 text-gray-600 hover:text-blue-600 transition" onClick={() => setShowAbout(true)}>
-            <span>About</span>
-          </button>
-          <button className="p-2 text-gray-600 hover:text-blue-600 transition" onClick={() => setShowContact(true)}>
-            <span>Contact</span>
-          </button>
-          <Link href="/User/Account">
+          <div className="flex items-center gap-2 sm:hidden">
+            {/* Hamburger menu - leftmost */}
             <button
-              className={`p-2 text-gray-600 hover:text-${isLoggedIn ? 'green-600' : 'blue-600'} transition`}
+              className="p-2 text-gray-600 hover:text-blue-600 transition"
+              onClick={onOpenMobileCategory}
+              aria-label="Open categories"
             >
-              {isLoggedIn ? (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm7.707 3.293a1 1 0 010 1.414L9.414 9H17a1 1 0 110 2H9.414l1.293 1.293a1 1 0 01-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              )}
+              <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
             </button>
-          </Link>
-        </div>
-      </div>
-
-      <div
-        className={`sm:hidden overflow-hidden transition-all duration-300 ease-in-out ${
-          isMobileSearchOpen ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
-        }`}
-      >
-        <div className="px-4 pb-3">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search clothes, services..."
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="w-full rounded-full border border-gray-300 bg-gray-100 py-2 px-4 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition"
-            />
-            <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
+            {/* Logo - only once */}
+            <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center">
+              <span className="mr-2">🧺</span>
+              <span className="sm:hidden">E2L</span>
+            </div>
+            {/* Home, search, about, contact, profile */}
+            <Link href="/" className="hover:text-blue-600 transition p-2">
+              <FiHome size={20} />
+            </Link>
+            <button
+              className="p-2 text-gray-600 hover:text-blue-600 transition"
+              onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+            >
+              {isMobileSearchOpen ? <FiX size={20} /> : <FiSearch size={20} />}
+            </button>
+            <button className="p-2 text-gray-600 hover:text-blue-600 transition" onClick={() => setShowAbout(true)}>
+              <span>About</span>
+            </button>
+            <button className="p-2 text-gray-600 hover:text-blue-600 transition" onClick={() => setShowContact(true)}>
+              <span>Contact</span>
+            </button>
+            <Link href="/User/Account">
+              <button
+                className={`p-2 text-gray-600 hover:text-${isLoggedIn ? 'green-600' : 'blue-600'} transition`}
+              >
+                {isLoggedIn ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm7.707 3.293a1 1 0 010 1.414L9.414 9H17a1 1 0 110 2H9.414l1.293 1.293a1 1 0 01-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+              </button>
+            </Link>
           </div>
         </div>
-      </div>
+
+        <div
+          className={`sm:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+            isMobileSearchOpen ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <div className="px-4 pb-3">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search clothes, services..."
+                value={searchQuery}
+                onChange={handleSearchChange}
+                className="w-full rounded-full border border-gray-300 bg-gray-100 py-2 px-4 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
+              <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
+            </div>
+          </div>
+        </div>
       </nav>
       {/* About Us Modal */}
       {showAbout && (

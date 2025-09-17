@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { ChevronDown } from 'lucide-react';
 
 export default function Products({
-  addToCart, // <-- get from props
+  addToCart,
   removeFromCart,
   cart,
   onActiveCategoryChange,
@@ -16,7 +16,6 @@ export default function Products({
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
   const [expandedCategories, setExpandedCategories] = useState({});
   const [viewMode, setViewMode] = useState('list');
@@ -180,24 +179,15 @@ export default function Products({
     return found ? found.quantity : 0;
   };
 
-  const handleCategoryFilterChange = (e) => {
-    const categoryId = e.target.value;
-    setSelectedCategory(categoryId);
-    setSelectedSubcategory('');
-  };
-
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory ? product.categoryId === selectedCategory : true;
     const matchesSubcategory = selectedSubcategory
       ? product.subcategoryId === selectedSubcategory
       : true;
-    return matchesSearch && matchesCategory && matchesSubcategory;
+    return matchesSearch && matchesSubcategory;
   });
 
-  const filteredSubcategories = subcategories.filter((subcat) =>
-    selectedCategory ? subcat.categoryId === selectedCategory : true
-  );
+  const filteredSubcategories = subcategories;
 
   // Group products by category and subcategory (sorted by sortOrder)
   const productsByCategory = {};
@@ -235,22 +225,6 @@ export default function Products({
 
   return (
     <section className="w-full">
-      <div className="mb-6 flex flex-col sm:flex-row gap-4">
-        <div className="max-w-xs w-full">
-          <select
-            value={selectedCategory}
-            onChange={handleCategoryFilterChange}
-            className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
-          >
-            <option value="">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.categoriesname}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
       <div className="space-y-8">
         {categories.map((category) => {
           const categorySubcats = getSortedSubcatsForCategory(category.id);

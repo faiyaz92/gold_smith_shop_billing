@@ -131,7 +131,7 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
       ref={sidebarRef}
       className={isMobile ? "lg:hidden w-full px-4 py-2" : "hidden lg:block basis-[20%] max-w-xs"}
     >
-      <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">Categories</h2>
+      <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">Services</h2>
       <div className="flex flex-col gap-3">
         {categoriesWithCount.map((category, index) => {
           const subcats = subcategories.filter(sub => sub.categoryId === category.id);

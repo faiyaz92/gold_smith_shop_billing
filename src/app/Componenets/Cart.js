@@ -5,6 +5,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
+function groupItemsByCategory(items) {
+  const groups = {};
+  items.forEach(item => {
+    const catName = item.categoryName || 'Other';
+    if (!groups[catName]) groups[catName] = [];
+    groups[catName].push(item);
+  });
+  return groups;
+}
+
 export default function Cart({ cart, isMobile, onClose }) {
   const [isVisible, setIsVisible] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -84,23 +94,32 @@ export default function Cart({ cart, isMobile, onClose }) {
                   </motion.div>
                 ) : (
                   <AnimatePresence>
-                    {cart.map((item, index) => (
-                      <motion.li 
-                        key={`${item.id}-${index}`}
-                        custom={index}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
-                        variants={itemVariants}
-                        className="text-sm flex justify-between items-center p-3 bg-gray-50 rounded-lg"
-                        layout
-                      >
-                        <div>
-                          <p className="font-medium">{item.name}</p>
-                          <p className="text-xs text-gray-500">Qty: {item.quantity} × ₹{item.price}</p>
+                    {Object.entries(groupItemsByCategory(cart)).map(([catName, items]) => (
+                      <div key={catName} className="mb-4">
+                        <div className="px-4 py-2 font-semibold text-blue-700 border-b border-blue-200 bg-blue-50 rounded-t-lg">
+                          {catName}
                         </div>
-                        <span className="font-medium">₹{item.price * item.quantity}</span>
-                      </motion.li>
+                        <div>
+                          {items.map((item, idx) => (
+                            <motion.li 
+                              key={`${item.id}-${idx}`}
+                              custom={idx}
+                              initial="hidden"
+                              animate="visible"
+                              exit="exit"
+                              variants={itemVariants}
+                              className="text-sm flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+                              layout
+                            >
+                              <div>
+                                <p className="font-medium">{item.name}</p>
+                                <p className="text-xs text-gray-500">Qty: {item.quantity} × ₹{item.price}</p>
+                              </div>
+                              <span className="font-medium">₹{item.price * item.quantity}</span>
+                            </motion.li>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </AnimatePresence>
                 )}
@@ -157,23 +176,32 @@ export default function Cart({ cart, isMobile, onClose }) {
               </motion.div>
             ) : (
               <AnimatePresence>
-                {cart.map((item, index) => (
-                  <motion.li 
-                    key={`${item.id}-${index}`}
-                    custom={index}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    variants={itemVariants}
-                    className="text-sm flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    layout
-                  >
-                    <div>
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-xs text-gray-500">Qty: {item.quantity} × ₹{item.price}</p>
+                {Object.entries(groupItemsByCategory(cart)).map(([catName, items]) => (
+                  <div key={catName} className="mb-4">
+                    <div className="px-4 py-2 font-semibold text-blue-700 border-b border-blue-200 bg-blue-50 rounded-t-lg">
+                      {catName}
                     </div>
-                    <span className="font-medium">₹{item.price * item.quantity}</span>
-                  </motion.li>
+                    <div>
+                      {items.map((item, idx) => (
+                        <motion.li 
+                          key={`${item.id}-${idx}`}
+                          custom={idx}
+                          initial="hidden"
+                          animate="visible"
+                          exit="exit"
+                          variants={itemVariants}
+                          className="text-sm flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                          layout
+                        >
+                          <div>
+                            <p className="font-medium">{item.name}</p>
+                            <p className="text-xs text-gray-500">Qty: {item.quantity} × ₹{item.price}</p>
+                          </div>
+                          <span className="font-medium">₹{item.price * item.quantity}</span>
+                        </motion.li>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </AnimatePresence>
             )}

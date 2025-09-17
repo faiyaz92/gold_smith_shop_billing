@@ -6,12 +6,15 @@ import Products from '@/app/Componenets/Products';
 import Cart from '@/app/Componenets/Cart';
 import Footer from '@/app/Componenets/Footer';
 import Categories from './Componenets/Categories';
+import MobileNav from '@/app/Componenets/MobileNav';
 
 export default function Home() {
   const [cart, setCart] = useState([]);
   const [activeCategory, setActiveCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isProgrammaticScroll, setIsProgrammaticScroll] = useState(false); // Track programmatic scrolls
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false); // Track mobile category drawer
 
   const addToCart = (product) => {
     setCart((prev) => {
@@ -45,6 +48,7 @@ export default function Home() {
       // Reset programmatic scroll flag after scroll completes
       setTimeout(() => setIsProgrammaticScroll(false), 1000); // Adjust timeout as needed
     }
+    setMobileCategoryOpen(false); // Close mobile category drawer after selection
   }, []);
 
   const onSearch = useCallback((query) => {
@@ -58,16 +62,21 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <Navbar onSearch={onSearch} />
+      <Navbar
+        onSearch={onSearch}
+        onOpenMobileCategory={() => setMobileCategoryOpen(true)} // Trigger mobile category drawer
+      />
 
-      <main className="max-w-7xl mx-auto flex px-4 lg:px-8 py-6 space-x-6">
-        <div className="w-56 flex-shrink-0">
+      <main className="max-w-7xl mx-auto flex flex-col lg:flex-row px-2 sm:px-4 lg:px-8 py-4 lg:py-6 gap-4 lg:gap-6">
+        {/* Desktop Categories */}
+        <div className="hidden lg:block w-56 flex-shrink-0">
           <Categories
             isMobile={false}
             onCategoryClick={handleCategoryClick}
             activeCategory={activeCategory}
           />
         </div>
+        {/* Products */}
         <div className="flex-1 min-w-0 h-[calc(100vh-120px)] overflow-y-auto">
           <Products
             cart={cart}
@@ -75,12 +84,13 @@ export default function Home() {
             removeFromCart={removeFromCart}
             onActiveCategoryChange={(categoryId) => {
               if (!isProgrammaticScroll) {
-                setActiveCategory(categoryId); // Only update if not programmatic
+                setActiveCategory(categoryId);
               }
             }}
             searchQuery={searchQuery}
           />
         </div>
+        {/* Desktop Cart */}
         <div className="hidden lg:block w-[350px] flex-shrink-0">
           <Cart
             cart={cart}
@@ -90,8 +100,47 @@ export default function Home() {
           />
         </div>
       </main>
-
+      <MobileNav
+        cart={cart}
+        openCart={() => setMobileCartOpen(true)}
+        onSearch={onSearch}
+      />
       <Footer />
+
+      {mobileCartOpen && (
+        <Cart
+          cart={cart}
+          isMobile={true}
+          onClose={() => setMobileCartOpen(false)}
+        />
+      )}
+
+      {mobileCategoryOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 bg-black/40"
+            onClick={() => setMobileCategoryOpen(false)}
+          />
+          {/* Drawer */}
+          <div className="relative w-72 max-w-full bg-white h-full shadow-lg z-10">
+            <button
+              className="absolute top-3 right-3 text-gray-500"
+              onClick={() => setMobileCategoryOpen(false)}
+            >
+              ✕
+            </button>
+            <Categories
+              isMobile={true}
+              onCategoryClick={(catId) => {
+                handleCategoryClick(catId);
+                setMobileCategoryOpen(false);
+              }}
+              activeCategory={activeCategory}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
