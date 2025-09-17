@@ -16,7 +16,6 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [localActiveCategory, setLocalActiveCategory] = useState(activeCategory); // Local state for UI
   const [subcategories, setSubcategories] = useState([]);
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [showAllSubcats, setShowAllSubcats] = useState({});
@@ -29,11 +28,6 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
     "Curtains": <Home className="w-5 h-5 stroke-[1.5] text-blue-600" />
   };
 
-  // Sync localActiveCategory with activeCategory prop
-  useEffect(() => {
-    setLocalActiveCategory(activeCategory);
-  }, [activeCategory]);
-
   // Real-time sync for categories and products
   useEffect(() => {
     setLoading(true);
@@ -45,15 +39,17 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
           id: doc.id,
           categoriesname,
           categoriesimage,
-          sortOrder: sortOrder ?? 999,
+          sortOrder: sortOrder ?? 999, // Fallback if no sortOrder
         };
-      });
+      }).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)); // Sort by sortOrder ascending
+      console.log('Sorted Categories:', categoriesData); // Debug: Log sorted categories
       setCategories(categoriesData);
       setLoading(false);
     });
 
     const unsubProducts = onSnapshot(collection(db, productPath), (productsSnapshot) => {
-      setProducts(productsSnapshot.docs.map(doc => doc.data()));
+      const productsData = productsSnapshot.docs.map(doc => doc.data());
+      setProducts(productsData);
     });
 
     return () => {
@@ -66,18 +62,26 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
   useEffect(() => {
     const subcategoryPath = `${tenantCompaniesPath}/${companyId}/subcategories`;
     const unsubSubcategories = onSnapshot(collection(db, subcategoryPath), (snapshot) => {
-      setSubcategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const subcategoriesData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: doc.id, 
+          ...data,
+          sortOrder: data.sortOrder ?? 999, // Fallback if no sortOrder
+        };
+      }).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)); // Sort by sortOrder ascending
+      console.log('Sorted Subcategories:', subcategoriesData); // Debug: Log sorted subcategories
+      setSubcategories(subcategoriesData);
     });
     return () => unsubSubcategories();
   }, [companyId, tenantCompaniesPath]);
 
   // Set the first category as active by default if no activeCategory is provided
   useEffect(() => {
-    if (categories.length > 0 && !activeCategory && !localActiveCategory) {
-      setLocalActiveCategory(categories[0].id);
+    if (categories.length > 0 && !activeCategory) {
+      console.log('Setting default active category:', categories[0].id); // Debug
       onCategoryClick(categories[0].id);
     }
-    // eslint-disable-next-line
   }, [categories, activeCategory, onCategoryClick]);
 
   // Click outside to collapse
@@ -100,8 +104,7 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
   // Handle category row click (select and scroll)
   const handleCategoryRowClick = (categoryId) => {
     setExpandedCategory(null);
-    setLocalActiveCategory(categoryId); // <-- update local state for immediate UI feedback
-    onCategoryClick(categoryId);        // <-- update parent
+    onCategoryClick(categoryId); // Update parent state and trigger scroll
   };
 
   // Count products per category
@@ -130,11 +133,12 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
     >
       <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">Categories</h2>
       <div className="flex flex-col gap-3">
-        {categoriesWithCount.map((category) => {
+        {categoriesWithCount.map((category, index) => {
           const subcats = subcategories.filter(sub => sub.categoryId === category.id);
           const showAll = showAllSubcats[category.id];
           const visibleSubcats = showAll ? subcats : subcats.slice(0, 2);
           const isExpanded = expandedCategory === category.id;
+          console.log(`Category ${category.categoriesname}: sortOrder=${category.sortOrder}, index=${index}`); // Debug
           return (
             <div key={category.id}>
               <div
@@ -144,7 +148,6 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
                 onClick={() => handleCategoryRowClick(category.id)}
                 style={{ minHeight: 48 }}
               >
-                {/* Icon */}
                 {category.categoriesimage ? (
                   <div className="relative w-8 h-8 rounded-full overflow-hidden">
                     <Image src={category.categoriesimage} alt={category.categoriesname} fill className="object-cover" />
@@ -154,11 +157,9 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
                     {defaultIcons[category.categoriesname] || <Shirt className="w-5 h-5 stroke-[1.5] text-blue-600" />}
                   </span>
                 )}
-                {/* Name */}
                 <span className="text-sm text-gray-700 font-medium flex-1">
                   {category.categoriesname} ({category.count})
                 </span>
-                {/* Chevron */}
                 {subcats.length > 0 && (
                   <button
                     className="ml-2 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-blue-200 transition"
@@ -174,7 +175,6 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
                   </button>
                 )}
               </div>
-              {/* Subcategories */}
               {isExpanded && (
                 <div className="ml-10 mt-2 flex flex-wrap gap-2">
                   {visibleSubcats.map(sub => (
@@ -182,7 +182,7 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
                       key={sub.id}
                       onClick={e => {
                         e.stopPropagation();
-                        onSubcategoryClick(sub.id);
+                        if (onSubcategoryClick) onSubcategoryClick(sub.id);
                       }}
                       className={`px-3 py-1 rounded-full text-xs border transition
                         ${activeSubcategory === sub.id
@@ -214,7 +214,6 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
   );
 }
 
-// Add new prop types:
 Categories.propTypes = {
   isMobile: PropTypes.bool,
   onCategoryClick: PropTypes.func,

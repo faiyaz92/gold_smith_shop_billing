@@ -13,18 +13,15 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isProgrammaticScroll, setIsProgrammaticScroll] = useState(false); // Track programmatic scrolls
 
-  const addToCart = (id, name, price, categoryName, subcategoryName) => {
+  const addToCart = (product) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.id === id);
+      const existing = prev.find((item) => item.id === product.id);
       if (existing) {
         return prev.map((item) =>
-          item.id === id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       } else {
-        return [
-          ...prev,
-          { id, name, price, categoryName, subcategoryName, quantity: 1 },
-        ];
+        return [...prev, { ...product, quantity: 1 }];
       }
     });
   };

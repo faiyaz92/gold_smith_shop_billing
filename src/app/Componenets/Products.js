@@ -6,11 +6,12 @@ import Image from 'next/image';
 import { ChevronDown } from 'lucide-react';
 
 export default function Products({
-  addToCart,
+  addToCart, // <-- get from props
   removeFromCart,
   cart,
   onActiveCategoryChange,
   searchQuery = '',
+  activeSubcategory,
 }) {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -18,11 +19,10 @@ export default function Products({
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
   const [expandedCategories, setExpandedCategories] = useState({});
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [viewMode, setViewMode] = useState('list');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const categoryRefs = useRef({});
-  const subcategoryRefs = useRef({});
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID;
 
@@ -80,10 +80,16 @@ export default function Products({
                 subcategoryId: data.subcategoryId || '',
                 categoryName,
                 subcategoryName,
+                sortOrder: data.sortOrder ?? 999, // Fallback for products
+                createdAt: data.createdAt || new Date().toISOString(), // Fallback
               };
             })
           );
-          setProducts(productsData);
+          // Sort products by sortOrder (or createdAt if sortOrder not available)
+          const sortedProductsData = productsData.sort((a, b) => 
+            (a.sortOrder ?? a.createdAt) < (b.sortOrder ?? b.createdAt) ? -1 : 1
+          );
+          setProducts(sortedProductsData);
           setLoading(false);
         } catch (err) {
           setError('Failed to load products: ' + err.message);
@@ -103,7 +109,8 @@ export default function Products({
           const categoriesData = categoriesSnapshot.docs.map((doc) => ({
             id: doc.id,
             categoriesname: doc.data().categoriesname || 'Unknown',
-          }));
+            sortOrder: doc.data().sortOrder ?? 999, // Fallback
+          })).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)); // Sort by sortOrder
           setCategories(categoriesData);
         } catch (err) {
           setError('Error fetching categories: ' + err.message);
@@ -122,7 +129,8 @@ export default function Products({
             id: doc.id,
             name: doc.data().name || 'Unknown',
             categoryId: doc.data().categoryId || '',
-          }));
+            sortOrder: doc.data().sortOrder ?? 999, // Fallback
+          })).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)); // Sort by sortOrder
           setSubcategories(subcategoriesData);
         } catch (err) {
           setError('Error fetching subcategories: ' + err.message);
@@ -143,16 +151,27 @@ export default function Products({
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        const visible = entries.find((entry) => entry.isIntersecting);
-        if (visible && onActiveCategoryChange) {
-          onActiveCategoryChange(visible.target.dataset.categoryid);
+        let mostVisible = null;
+        let maxRatio = 0;
+
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
+            mostVisible = entry;
+            maxRatio = entry.intersectionRatio;
+          }
+        });
+
+        if (mostVisible && onActiveCategoryChange) {
+          onActiveCategoryChange(mostVisible.target.dataset.categoryid);
         }
       },
-      { threshold: 0.4 }
+      { threshold: [0.4, 0.6, 0.8] }
     );
+
     Object.values(categoryRefs.current).forEach((el) => {
       if (el) observer.observe(el);
     });
+
     return () => observer.disconnect();
   }, [products, categories, onActiveCategoryChange]);
 
@@ -180,7 +199,7 @@ export default function Products({
     selectedCategory ? subcat.categoryId === selectedCategory : true
   );
 
-  // Group products by category and subcategory
+  // Group products by category and subcategory (sorted by sortOrder)
   const productsByCategory = {};
   filteredProducts.forEach((product) => {
     const categoryId = product.categoryId || 'uncategorized';
@@ -194,11 +213,29 @@ export default function Products({
     setExpandedCategories((prev) => ({ ...prev, [categoryId]: !prev[categoryId] }));
   };
 
+  // Helper to get sorted subcategories for a category
+  const getSortedSubcatsForCategory = (categoryId) => {
+    const catSubcats = productsByCategory[categoryId] || {};
+    return Object.entries(catSubcats)
+      .map(([subcatId, prods]) => {
+        const subcat = subcategories.find(s => s.id === subcatId);
+        return { subcatId, products: prods, sortOrder: subcat?.sortOrder ?? 999 };
+      })
+      .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999))
+      .map(item => [item.subcatId, item.products]);
+  };
+
+  if (loading) {
+    return <div>Loading products...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
   return (
     <section className="w-full">
-      {/* Filter Dropdowns */}
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
-        {/* Category Filter */}
         <div className="max-w-xs w-full">
           <select
             value={selectedCategory}
@@ -214,108 +251,104 @@ export default function Products({
           </select>
         </div>
       </div>
-      {/* Product List with Sticky Category Headers */}
       <div className="space-y-8">
-        {Object.entries(productsByCategory).map(([categoryId, subcats]) => (
-          <div key={categoryId} data-categoryid={categoryId}>
-            {/* Sticky Category Header */}
-            <div className="sticky top-0 z-10 bg-gray-50 py-2 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-blue-700">
-                {(categories.find(cat => cat.id === categoryId) || {}).categoriesname || 'Uncategorized'}
-              </h3>
-            </div>
-            {/* Subcategory clusters */}
-            {Object.entries(subcats).map(([subcatId, products]) => {
-              const isExpanded = expandedCategories[categoryId];
-              const displayProducts = isExpanded ? products : products.slice(0, 5);
-              const hasMore = products.length > 5;
+        {categories.map((category) => {
+          const categorySubcats = getSortedSubcatsForCategory(category.id);
+          if (categorySubcats.length === 0) return null;
+          return (
+            <div key={category.id} data-categoryid={category.id} ref={(el) => (categoryRefs.current[category.id] = el)}>
+              <div className="sticky top-0 z-10 bg-gray-50 py-2 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-blue-700">
+                  {category.categoriesname}
+                </h3>
+              </div>
+              {categorySubcats.map(([subcatId, products]) => {
+                const isExpanded = expandedCategories[category.id];
+                const displayProducts = isExpanded ? products : products.slice(0, 5);
+                const hasMore = products.length > 5;
+                const subcatName = subcategories.find(sub => sub.id === subcatId)?.name || 'Other';
 
-              return (
-                <div
-                  key={subcatId}
-                  data-subcategoryid={subcatId}
-                  ref={el => (subcategoryRefs.current[subcatId] = el)}
-                  className="space-y-3"
-                >
-                  {/* Sticky Subcategory Header */}
-                  <div className="sticky top-12 z-10 bg-gray-100 py-1 border-b border-gray-200">
-                    <h4 className="text-base font-semibold text-blue-600">
-                      {(subcategories.find(sub => sub.id === subcatId) || {}).name || 'Other'}
-                    </h4>
+                return (
+                  <div
+                    key={subcatId}
+                    data-subcategoryid={subcatId}
+                    className={`space-y-3 ${activeSubcategory === subcatId ? 'bg-blue-50 border-l-4 border-blue-300' : ''}`}
+                  >
+                    <div className="sticky top-12 z-10 bg-gray-100 py-1 border-b border-gray-200">
+                      <h4 className="text-base font-semibold text-blue-600">
+                        {subcatName}
+                      </h4>
+                    </div>
+                    <ul className="space-y-3">
+                      {displayProducts.map(product => {
+                        const quantity = getQuantity(product.id);
+                        return (
+                          <li key={product.id} className="bg-white rounded-lg shadow p-4 flex items-center gap-4">
+                            <div className="w-16 h-16 rounded-lg overflow-hidden">
+                              <Image
+                                src={product.image}
+                                alt={product.name}
+                                width={64}
+                                height={64}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="font-medium">{product.name}</h3>
+                              <p className="text-sm text-gray-500">{product.subcategoryName}</p>
+                              <div className="flex gap-2">
+                                {product.discountedPrice ? (
+                                  <>
+                                    <p className="text-gray-500 line-through">₹{product.price}</p>
+                                    <p className="text-gray-600 font-medium">₹{product.discountedPrice}</p>
+                                  </>
+                                ) : (
+                                  <p className="text-gray-600">₹{product.price}</p>
+                                )}
+                              </div>
+                            </div>
+                            {quantity === 0 ? (
+                              <button
+                                onClick={() => addToCart(product)}
+                                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                              >
+                                ADD +
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => removeFromCart(product.id)}
+                                  className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 transition-colors"
+                                >
+                                  −
+                                </button>
+                                <span className="min-w-[20px] text-center">{quantity}</span>
+                                <button
+                                  onClick={() => addToCart(product)}
+                                  className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {hasMore && (
+                      <button
+                        onClick={() => toggleCategoryExpansion(category.id)}
+                        className="text-blue-500 hover:text-blue-700 text-sm font-medium"
+                      >
+                        {isExpanded ? 'Show Less' : `See More (${products.length - 5} more)`}
+                      </button>
+                    )}
                   </div>
-                  <ul className="space-y-3">
-                    {displayProducts.map(product => {
-                      const quantity = getQuantity(product.id);
-                      return (
-                        <li key={product.id} className="bg-white rounded-lg shadow p-4 flex items-center gap-4">
-                          <div className="w-16 h-16 rounded-lg overflow-hidden">
-                            <Image
-                              src={product.image}
-                              alt={product.name}
-                              width={64}
-                              height={64}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-medium">{product.name}</h3>
-                            <p className="text-sm text-gray-500">{product.subcategoryName}</p>
-                            <div className="flex gap-2">
-                              {product.discountedPrice ? (
-                                <>
-                                  <p className="text-gray-500 line-through">₹{product.price}</p>
-                                  <p className="text-gray-600 font-medium">₹{product.discountedPrice}</p>
-                                </>
-                              ) : (
-                                <p className="text-gray-600">₹{product.price}</p>
-                              )}
-                            </div>
-                          </div>
-                          {quantity === 0 ? (
-                            <button
-                              onClick={() =>
-                                addToCart(product.id, product.name, product.discountedPrice || product.price)
-                              }
-                              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-                            >
-                              ADD +
-                            </button>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => removeFromCart(product.id)}
-                                className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 transition-colors"
-                              >
-                                −
-                              </button>
-                              <span className="min-w-[20px] text-center">{quantity}</span>
-                              <button
-                                onClick={() =>
-                                  addToCart(product.id, product.name, product.discountedPrice || product.price)
-                                }
-                                className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors"
-                              >
-                                +
-                              </button>
-                            </div>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {hasMore && (
-                    <button
-                      onClick={() => toggleCategoryExpansion(categoryId)}
-                      className="text-blue-500 hover:text-blue-700 text-sm font-medium"
-                    >
-                      {isExpanded ? 'Show Less' : `See More (${products.length - 5} more)`}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
     </section>
   );

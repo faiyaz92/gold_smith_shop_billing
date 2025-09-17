@@ -120,7 +120,7 @@ export default function CheckoutPage() {
 
       await addDoc(collection(db, tenantOrdersPath), {
         userId: user.uid,
-        items: cart,
+        items: cart, // cart already has all product details
         total: total,
         name: form.name,
         email: form.email,
@@ -228,7 +228,7 @@ export default function CheckoutPage() {
                     <span className="font-medium text-blue-700">₹{item.price * item.quantity}</span>
                   </div>
                 ))
-              )}
+            )  }
             </div>
 
             <div className="mt-4 border-t border-blue-100 pt-4">
