@@ -14,19 +14,19 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const addToCart = (name, price) => {
+  const addToCart = (id, name, price) => {
     setCart(prev => {
-      const existing = prev.find(item => item.name === name);
+      const existing = prev.find(item => item.id === id);
       if (existing) {
-        return prev.map(item => item.name === name ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map(item => item.id === id ? { ...item, quantity: item.quantity + 1 } : item);
       } else {
-        return [...prev, { name, price, quantity: 1 }];
+        return [...prev, { id, name, price, quantity: 1 }];
       }
     });
   };
 
-  const removeFromCart = (name) => {
-    setCart(prev => prev.map(item => item.name === name ? { ...item, quantity: item.quantity - 1 } : item).filter(item => item.quantity > 0));
+  const removeFromCart = (id) => {
+    setCart(prev => prev.map(item => item.id === id ? { ...item, quantity: item.quantity - 1 } : item).filter(item => item.quantity > 0));
   };
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
