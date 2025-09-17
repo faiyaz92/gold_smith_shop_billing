@@ -1,12 +1,12 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { Shirt, Bed, Waves, Home } from 'lucide-react';
+import { ChevronDown, ChevronUp, Shirt, Bed, Waves, Home } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { db } from '@/app/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
 
-function Categories({ isMobile, onCategoryClick, activeCategory }) {
+function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCategory, activeSubcategory }) {
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
   const tenantCompaniesPath = `${basePath}/tenantCompanies`;
@@ -17,6 +17,10 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [localActiveCategory, setLocalActiveCategory] = useState(activeCategory); // Local state for UI
+  const [subcategories, setSubcategories] = useState([]);
+  const [expandedCategory, setExpandedCategory] = useState(null);
+  const [showAllSubcats, setShowAllSubcats] = useState({});
+  const sidebarRef = useRef();
 
   const defaultIcons = {
     "Shirts": <Shirt className="w-5 h-5 stroke-[1.5] text-blue-600" />,
@@ -58,6 +62,15 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
     };
   }, [categoryPath, productPath]);
 
+  // Fetch subcategories
+  useEffect(() => {
+    const subcategoryPath = `${tenantCompaniesPath}/${companyId}/subcategories`;
+    const unsubSubcategories = onSnapshot(collection(db, subcategoryPath), (snapshot) => {
+      setSubcategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubSubcategories();
+  }, [companyId, tenantCompaniesPath]);
+
   // Set the first category as active by default if no activeCategory is provided
   useEffect(() => {
     if (categories.length > 0 && !activeCategory && !localActiveCategory) {
@@ -67,10 +80,28 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
     // eslint-disable-next-line
   }, [categories, activeCategory, onCategoryClick]);
 
-  // Handle category click
-  const handleCategoryClick = (categoryId) => {
-    setLocalActiveCategory(categoryId); // Update local state for immediate UI feedback
-    onCategoryClick(categoryId); // Notify parent for filtering/scrolling
+  // Click outside to collapse
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        setExpandedCategory(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Handle chevron click (expand/collapse)
+  const handleChevronClick = (e, categoryId) => {
+    e.stopPropagation();
+    setExpandedCategory(expandedCategory === categoryId ? null : categoryId);
+  };
+
+  // Handle category row click (select and scroll)
+  const handleCategoryRowClick = (categoryId) => {
+    setExpandedCategory(null);
+    setLocalActiveCategory(categoryId); // <-- update local state for immediate UI feedback
+    onCategoryClick(categoryId);        // <-- update parent
   };
 
   // Count products per category
@@ -93,24 +124,29 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
   }
 
   return (
-    <section className={isMobile ? "lg:hidden w-full px-4 py-2" : "hidden lg:block basis-[20%] max-w-xs"}>
+    <section
+      ref={sidebarRef}
+      className={isMobile ? "lg:hidden w-full px-4 py-2" : "hidden lg:block basis-[20%] max-w-xs"}
+    >
       <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">Categories</h2>
-
-      {categoriesWithCount.length === 0 ? (
-        <p className="text-sm text-gray-500">No categories found.</p>
-      ) : isMobile ? (
-        <div className="relative">
-          <div className="flex space-x-3 pb-2 overflow-x-auto scrollbar-hide">
-            {categoriesWithCount.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => handleCategoryClick(category.id)}
-                className={`flex-shrink-0 w-28 flex flex-col items-center gap-2 p-3 rounded-lg border transition-all duration-300 transform hover:-translate-y-1 ${
-                  localActiveCategory === category.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100'
-                }`}
+      <div className="flex flex-col gap-3">
+        {categoriesWithCount.map((category) => {
+          const subcats = subcategories.filter(sub => sub.categoryId === category.id);
+          const showAll = showAllSubcats[category.id];
+          const visibleSubcats = showAll ? subcats : subcats.slice(0, 2);
+          const isExpanded = expandedCategory === category.id;
+          return (
+            <div key={category.id}>
+              <div
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 cursor-pointer relative
+                  ${activeCategory === category.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100'}
+                  hover:bg-blue-100`}
+                onClick={() => handleCategoryRowClick(category.id)}
+                style={{ minHeight: 48 }}
               >
+                {/* Icon */}
                 {category.categoriesimage ? (
-                  <div className="relative w-10 h-10 overflow-hidden rounded-full">
+                  <div className="relative w-8 h-8 rounded-full overflow-hidden">
                     <Image src={category.categoriesimage} alt={category.categoriesname} fill className="object-cover" />
                   </div>
                 ) : (
@@ -118,47 +154,73 @@ function Categories({ isMobile, onCategoryClick, activeCategory }) {
                     {defaultIcons[category.categoriesname] || <Shirt className="w-5 h-5 stroke-[1.5] text-blue-600" />}
                   </span>
                 )}
-                <span className="text-xs text-gray-700 font-medium text-center">
+                {/* Name */}
+                <span className="text-sm text-gray-700 font-medium flex-1">
                   {category.categoriesname} ({category.count})
                 </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {categoriesWithCount.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => handleCategoryClick(category.id)}
-              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 transform hover:-translate-y-1 ${
-                localActiveCategory === category.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-100'
-              }`}
-            >
-              {category.categoriesimage ? (
-                <div className="relative w-8 h-8 rounded-full overflow-hidden">
-                  <Image src={category.categoriesimage} alt={category.categoriesname} fill className="object-cover" />
+                {/* Chevron */}
+                {subcats.length > 0 && (
+                  <button
+                    className="ml-2 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-blue-200 transition"
+                    onClick={e => handleChevronClick(e, category.id)}
+                    tabIndex={-1}
+                    aria-label={isExpanded ? "Collapse" : "Expand"}
+                  >
+                    {isExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-blue-600" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-blue-600" />
+                    )}
+                  </button>
+                )}
+              </div>
+              {/* Subcategories */}
+              {isExpanded && (
+                <div className="ml-10 mt-2 flex flex-wrap gap-2">
+                  {visibleSubcats.map(sub => (
+                    <button
+                      key={sub.id}
+                      onClick={e => {
+                        e.stopPropagation();
+                        onSubcategoryClick(sub.id);
+                      }}
+                      className={`px-3 py-1 rounded-full text-xs border transition
+                        ${activeSubcategory === sub.id
+                          ? 'bg-blue-100 border-blue-400 text-blue-700'
+                          : 'bg-gray-100 border-gray-200 text-gray-700'
+                        }`}
+                    >
+                      {sub.name}
+                    </button>
+                  ))}
+                  {subcats.length > 2 && !showAll && (
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        setShowAllSubcats(prev => ({ ...prev, [category.id]: true }));
+                      }}
+                      className="px-3 py-1 rounded-full text-xs border bg-gray-200 border-gray-300 text-gray-700"
+                    >
+                      Show more
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <span className="p-2 bg-blue-50 rounded-full">
-                  {defaultIcons[category.categoriesname] || <Shirt className="w-5 h-5 stroke-[1.5] text-blue-600" />}
-                </span>
               )}
-              <span className="text-sm text-gray-700 font-medium">
-                {category.categoriesname} ({category.count})
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
 
+// Add new prop types:
 Categories.propTypes = {
   isMobile: PropTypes.bool,
   onCategoryClick: PropTypes.func,
-  activeCategory: PropTypes.string
+  onSubcategoryClick: PropTypes.func,
+  activeCategory: PropTypes.string,
+  activeSubcategory: PropTypes.string,
 };
 
 export default Categories;

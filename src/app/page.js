@@ -5,15 +5,13 @@ import Navbar from '@/app/Componenets/Navbar';
 import Products from '@/app/Componenets/Products';
 import Cart from '@/app/Componenets/Cart';
 import Footer from '@/app/Componenets/Footer';
-import MobileNav from '@/app/Componenets/MobileNav';
 import Categories from './Componenets/Categories';
-import Link from 'next/link';
 
 export default function Home() {
   const [cart, setCart] = useState([]);
-  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isProgrammaticScroll, setIsProgrammaticScroll] = useState(false); // Track programmatic scrolls
 
   const addToCart = (id, name, price, categoryName, subcategoryName) => {
     setCart((prev) => {
@@ -41,12 +39,14 @@ export default function Home() {
     );
   };
 
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
   const handleCategoryClick = useCallback((categoryId) => {
+    setIsProgrammaticScroll(true); // Mark as programmatic scroll
+    setActiveCategory(categoryId); // Update activeCategory immediately
     const el = document.querySelector(`[data-categoryid="${categoryId}"]`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Reset programmatic scroll flag after scroll completes
+      setTimeout(() => setIsProgrammaticScroll(false), 1000); // Adjust timeout as needed
     }
   }, []);
 
@@ -63,63 +63,38 @@ export default function Home() {
 
       <Navbar onSearch={onSearch} />
 
-      <div className="text-center py-4">
-        <Link
-          href="/catalog"
-          className="text-blue-600 hover:text-blue-800 font-medium"
-        >
-          Go to Catalog Page (Improved View)
-        </Link>
-      </div>
-
-      <Categories
-        isMobile={true}
-        onCategoryClick={handleCategoryClick}
-        activeCategory={activeCategory}
-      />
-
-      <main className="max-w-7xl mx-auto lg:flex lg:space-x-6 px-4 lg:px-8 py-6">
-        <Categories
-          isMobile={false}
-          onCategoryClick={handleCategoryClick}
-          activeCategory={activeCategory}
-        />
-
-        <Products
-          cart={cart}
-          addToCart={addToCart}
-          removeFromCart={removeFromCart}
-          onActiveCategoryChange={setActiveCategory}
-          searchQuery={searchQuery}
-        />
-
-        <Cart
-          cart={cart}
-          total={total}
-          isMobile={false}
-          addToCart={addToCart}
-          removeFromCart={removeFromCart}
-        />
+      <main className="max-w-7xl mx-auto flex px-4 lg:px-8 py-6 space-x-6">
+        <div className="w-56 flex-shrink-0">
+          <Categories
+            isMobile={false}
+            onCategoryClick={handleCategoryClick}
+            activeCategory={activeCategory}
+          />
+        </div>
+        <div className="flex-1 min-w-0 h-[calc(100vh-120px)] overflow-y-auto">
+          <Products
+            cart={cart}
+            addToCart={addToCart}
+            removeFromCart={removeFromCart}
+            onActiveCategoryChange={(categoryId) => {
+              if (!isProgrammaticScroll) {
+                setActiveCategory(categoryId); // Only update if not programmatic
+              }
+            }}
+            searchQuery={searchQuery}
+          />
+        </div>
+        <div className="hidden lg:block w-[350px] flex-shrink-0">
+          <Cart
+            cart={cart}
+            isMobile={false}
+            addToCart={addToCart}
+            removeFromCart={removeFromCart}
+          />
+        </div>
       </main>
 
       <Footer />
-
-      <MobileNav
-        cart={cart}
-        openCart={() => setMobileCartOpen(true)}
-        onSearch={onSearch}
-      />
-
-      {mobileCartOpen && (
-        <Cart
-          cart={cart}
-          total={total}
-          isMobile={true}
-          onClose={() => setMobileCartOpen(false)}
-          addToCart={addToCart}
-          removeFromCart={removeFromCart}
-        />
-      )}
     </div>
   );
 }
