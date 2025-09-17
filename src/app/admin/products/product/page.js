@@ -15,7 +15,7 @@ import Image from 'next/image';
 import { Trash2, Edit, Home, Package, ShoppingBag, Users, LogOut, Menu, X, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadToCloudinary } from '@/app/cloudinary';
-
+///Add delete edit products
 export default function ProductPage() {
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
