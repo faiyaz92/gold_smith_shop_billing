@@ -14,7 +14,7 @@ import { db } from '@/app/firebase';
 import Image from 'next/image';
 import { Trash2, Edit, Home, Package, ShoppingBag, Users, LogOut, Menu, X, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { uploadToCloudinary } from '@/app/cloudinary';
+import { uploadToCloudinary, deleteFromCloudinary } from '@/app/cloudinary'; // Add deleteFromCloudinary here
 ///Add delete edit products
 export default function ProductPage() {
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
@@ -132,16 +132,29 @@ export default function ProductPage() {
     await fetchSubcategories(categoryId); // Fetch subcategories for the selected category
   };
 
-  const handleSubmit = async () => {
+const handleSubmit = async () => {
     if (!form.name || !form.image || !form.price || !form.categoryId) {
       return alert('Name, image, price, and category are required');
     }
 
     try {
       if (editingId) {
+        // Fetch the current product to get the existing image URL
+        const productDoc = await getDoc(doc(db, productPath, editingId));
+        if (productDoc.exists()) {
+          const productData = productDoc.data();
+          // Check if a new image is being uploaded (form.image has changed)
+          if (form.image !== productData.image && productData.image) {
+            // Delete the existing image from Cloudinary
+            await deleteFromCloudinary(productData.image);
+          }
+        }
+
+        // Update the product in Firebase
         await updateDoc(doc(db, productPath, editingId), form);
         setEditingId(null);
       } else {
+        // Add new product
         await addDoc(collection(db, productPath), form);
       }
       setForm({ name: '', price: '', discountedPrice: '', image: '', categoryId: '', subcategoryId: '' });
@@ -167,16 +180,27 @@ export default function ProductPage() {
   };
 
   const handleDelete = async id => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+  if (!confirm('Are you sure you want to delete this product?')) return;
 
-    try {
-      await deleteDoc(doc(db, productPath, id));
-      await fetchProducts();
-    } catch (error) {
-      console.error('Error deleting product:', error);
-      alert('Failed to delete product');
+  try {
+    // Fetch the product to get the image URL
+    const productDoc = await getDoc(doc(db, productPath, id));
+    if (productDoc.exists()) {
+      const productData = productDoc.data();
+      if (productData.image) {
+        // Delete the image from Cloudinary
+        await deleteFromCloudinary(productData.image);
+      }
     }
-  };
+
+    // Delete the product from Firebase
+    await deleteDoc(doc(db, productPath, id));
+    await fetchProducts();
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    alert('Failed to delete product');
+  }
+};
 
   const handleNavigation = (id) => {
     window.location.href = `/admin/${id}`;

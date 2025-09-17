@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { db } from '@/app/firebase';
 import { addDoc, collection, getDocs, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 // import { useFirestorePaths } from '@/app/utils/firestorePaths';
-import { uploadToCloudinary } from '@/app/cloudinary';
+import { uploadToCloudinary, deleteFromCloudinary } from '@/app/cloudinary';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -135,29 +135,39 @@ export default function CategoriesPage() {
   };
 
  const handleDeleteCategory = async (id) => {
-  if (!window.confirm('Are you sure you want to delete this category?')) return;
+    if (!window.confirm('Are you sure you want to delete this category?')) return;
 
-  try {
-    // Use the correct Firestore path for deletion
-    await deleteDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, id));
+    try {
+      // Fetch the category to get the image URL
+      const categoryDoc = await getDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, id));
+      if (categoryDoc.exists()) {
+        const categoryData = categoryDoc.data();
+        if (categoryData.categoriesimage) {
+          // Delete the image from Cloudinary
+          await deleteFromCloudinary(categoryData.categoriesimage);
+        }
+      }
 
-    // Update sort orders for remaining categories
-    const updatedCategories = categories.filter(cat => cat.id !== id);
-    const batch = writeBatch(db);
+      // Delete the category from Firebase
+      await deleteDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, id));
 
-    updatedCategories.forEach((cat, index) => {
-      batch.update(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, cat.id), { 
-        sortOrder: index 
+      // Update sort orders for remaining categories
+      const updatedCategories = categories.filter(cat => cat.id !== id);
+      const batch = writeBatch(db);
+
+      updatedCategories.forEach((cat, index) => {
+        batch.update(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, cat.id), { 
+          sortOrder: index 
+        });
       });
-    });
 
-    await batch.commit();
-    fetchCategories();
-  } catch (error) {
-    console.error('Delete Error:', error);
-    setUploadError('Failed to delete category: ' + error.message);
-  }
-};
+      await batch.commit();
+      fetchCategories();
+    } catch (error) {
+      console.error('Delete Error:', error);
+      setUploadError('Failed to delete category: ' + error.message);
+    }
+  };
 
   const handleMoveCategory = async (id, direction) => {
   try {
@@ -198,34 +208,48 @@ export default function CategoriesPage() {
     setEditImage(null);
   };
 
-const handleUpdateCategory = async () => {
-  if (!editName) {
-    setUploadError('Category name cannot be empty');
-    return;
-  }
-
-  setIsLoading(true);
-  setUploadError('');
-
-  try {
-    const updateData = { categoriesname: editName };
-
-    if (editImage) {
-      const imageUrl = await handleImageUpload(editImage);
-      updateData.categoriesimage = imageUrl;
+ const handleUpdateCategory = async () => {
+    if (!editName) {
+      setUploadError('Category name cannot be empty');
+      return;
     }
 
-    // Use the correct Firestore path
-    await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, editingId), updateData);
-    setEditingId(null);
-    fetchCategories();
-  } catch (error) {
-    console.error('Update Error:', error);
-    setUploadError(error.message);
-  } finally {
-    setIsLoading(false);
-  }
-};
+    setIsLoading(true);
+    setUploadError('');
+
+    try {
+      const updateData = { categoriesname: editName };
+
+      if (editImage) {
+        // Fetch the current category to get the existing image URL
+        const categoryDoc = await getDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, editingId));
+        if (categoryDoc.exists()) {
+          const categoryData = categoryDoc.data();
+          if (categoryData.categoriesimage) {
+            // Delete the existing image from Cloudinary
+            await deleteFromCloudinary(categoryData.categoriesimage);
+          }
+        }
+
+        // Upload the new image
+        const imageUrl = await handleImageUpload(editImage);
+        updateData.categoriesimage = imageUrl;
+      }
+
+      // Update the category in Firebase
+      await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, editingId), updateData);
+      setEditingId(null);
+      setEditName('');
+      setEditImage(null);
+      setEditPreviewUrl('');
+      fetchCategories();
+    } catch (error) {
+      console.error('Update Error:', error);
+      setUploadError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const cancelEdit = () => {
     setEditingId(null);

@@ -11,7 +11,7 @@ import {
   updateDoc, 
   getDoc 
 } from 'firebase/firestore';
-import { uploadToCloudinary } from '@/app/cloudinary';
+import { uploadToCloudinary, deleteFromCloudinary } from '@/app/cloudinary';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -182,6 +182,17 @@ export default function SubcategoriesPage() {
     if (!window.confirm('Are you sure you want to delete this subcategory?')) return;
 
     try {
+      // Fetch the subcategory to get the image URL
+      const subcategoryDoc = await getDoc(doc(db, subcategoryPath, id));
+      if (subcategoryDoc.exists()) {
+        const subcategoryData = subcategoryDoc.data();
+        if (subcategoryData.image) {
+          // Delete the image from Cloudinary
+          await deleteFromCloudinary(subcategoryData.image);
+        }
+      }
+
+      // Delete the subcategory from Firebase
       await deleteDoc(doc(db, subcategoryPath, id));
       fetchSubcategories();
     } catch (error) {
@@ -201,7 +212,7 @@ export default function SubcategoriesPage() {
     }
   };
 
-  const handleUpdateSubcategory = async () => {
+const handleUpdateSubcategory = async () => {
     if (!editName) {
       setUploadError('Subcategory name cannot be empty');
       return;
@@ -221,10 +232,22 @@ export default function SubcategoriesPage() {
       };
 
       if (editImage) {
+        // Fetch the current subcategory to get the existing image URL
+        const subcategoryDoc = await getDoc(doc(db, subcategoryPath, editingId));
+        if (subcategoryDoc.exists()) {
+          const subcategoryData = subcategoryDoc.data();
+          if (subcategoryData.image) {
+            // Delete the existing image from Cloudinary
+            await deleteFromCloudinary(subcategoryData.image);
+          }
+        }
+
+        // Upload the new image
         const imageUrl = await handleImageUpload(editImage);
         updateData.image = imageUrl;
       }
 
+      // Update the subcategory in Firebase
       await updateDoc(doc(db, subcategoryPath, editingId), updateData);
       setEditingId(null);
       setEditName('');
