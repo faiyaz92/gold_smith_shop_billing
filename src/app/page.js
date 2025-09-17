@@ -7,6 +7,7 @@ import Cart from '@/app/Componenets/Cart';
 import Footer from '@/app/Componenets/Footer';
 import MobileNav from '@/app/Componenets/MobileNav';
 import Categories from './Componenets/Categories';
+import Link from 'next/link';
 
 export default function Home() {
   const [cart, setCart] = useState([]);
@@ -14,19 +15,30 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const addToCart = (id, name, price) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === id);
+  const addToCart = (id, name, price, categoryName, subcategoryName) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.id === id);
       if (existing) {
-        return prev.map(item => item.id === id ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map((item) =>
+          item.id === id ? { ...item, quantity: item.quantity + 1 } : item
+        );
       } else {
-        return [...prev, { id, name, price, quantity: 1 }];
+        return [
+          ...prev,
+          { id, name, price, categoryName, subcategoryName, quantity: 1 },
+        ];
       }
     });
   };
 
   const removeFromCart = (id) => {
-    setCart(prev => prev.map(item => item.id === id ? { ...item, quantity: item.quantity - 1 } : item).filter(item => item.quantity > 0));
+    setCart((prev) =>
+      prev
+        .map((item) =>
+          item.id === id ? { ...item, quantity: item.quantity - 1 } : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
   };
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -38,7 +50,6 @@ export default function Home() {
     }
   }, []);
 
-  // Memoize onSearch to prevent unnecessary re-renders
   const onSearch = useCallback((query) => {
     setSearchQuery(query);
   }, []);
@@ -52,10 +63,27 @@ export default function Home() {
 
       <Navbar onSearch={onSearch} />
 
-      <Categories isMobile={true} onCategoryClick={handleCategoryClick} activeCategory={activeCategory} />
+      <div className="text-center py-4">
+        <Link
+          href="/catalog"
+          className="text-blue-600 hover:text-blue-800 font-medium"
+        >
+          Go to Catalog Page (Improved View)
+        </Link>
+      </div>
+
+      <Categories
+        isMobile={true}
+        onCategoryClick={handleCategoryClick}
+        activeCategory={activeCategory}
+      />
 
       <main className="max-w-7xl mx-auto lg:flex lg:space-x-6 px-4 lg:px-8 py-6">
-        <Categories isMobile={false} onCategoryClick={handleCategoryClick} activeCategory={activeCategory} />
+        <Categories
+          isMobile={false}
+          onCategoryClick={handleCategoryClick}
+          activeCategory={activeCategory}
+        />
 
         <Products
           cart={cart}
@@ -65,15 +93,32 @@ export default function Home() {
           searchQuery={searchQuery}
         />
 
-        <Cart cart={cart} total={total} isMobile={false} addToCart={addToCart} removeFromCart={removeFromCart} />
+        <Cart
+          cart={cart}
+          total={total}
+          isMobile={false}
+          addToCart={addToCart}
+          removeFromCart={removeFromCart}
+        />
       </main>
 
       <Footer />
 
-      <MobileNav cart={cart} openCart={() => setMobileCartOpen(true)} onSearch={onSearch} />
+      <MobileNav
+        cart={cart}
+        openCart={() => setMobileCartOpen(true)}
+        onSearch={onSearch}
+      />
 
       {mobileCartOpen && (
-        <Cart cart={cart} total={total} isMobile={true} onClose={() => setMobileCartOpen(false)} addToCart={addToCart} removeFromCart={removeFromCart} />
+        <Cart
+          cart={cart}
+          total={total}
+          isMobile={true}
+          onClose={() => setMobileCartOpen(false)}
+          addToCart={addToCart}
+          removeFromCart={removeFromCart}
+        />
       )}
     </div>
   );

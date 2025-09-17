@@ -5,34 +5,6 @@ import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import Image from 'next/image';
 import { ChevronDown } from 'lucide-react';
 
-// TypeScript interfaces (uncomment if using TypeScript)
-// interface Product {
-//   id: string;
-//   name: string;
-//   price: number;
-//   discountedPrice?: number;
-//   image: string;
-//   categoryId?: string;
-//   subcategoryId?: string;
-//   categoryName: string;
-//   subcategoryName: string;
-// }
-// interface Category {
-//   id: string;
-//   categoriesname: string;
-// }
-// interface Subcategory {
-//   id: string;
-//   name: string;
-//   categoryId: string;
-// }
-// interface CartItem {
-//   id: string;
-//   name: string;
-//   price: number;
-//   quantity: number;
-// }
-
 export default function Products({
   addToCart,
   removeFromCart,
@@ -40,12 +12,13 @@ export default function Products({
   onActiveCategoryChange,
   searchQuery = '',
 }) {
-  const [products, setProducts] = useState([]); // Product[]
-  const [categories, setCategories] = useState([]); // Category[]
-  const [subcategories, setSubcategories] = useState([]); // Subcategory[]
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
   const [expandedCategories, setExpandedCategories] = useState({});
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const categoryRefs = useRef({});
@@ -71,7 +44,6 @@ export default function Products({
 
     setLoading(true);
 
-    // Real-time sync for products
     const unsubProducts = onSnapshot(
       collection(db, productPath),
       async (productsSnapshot) => {
@@ -89,7 +61,9 @@ export default function Products({
                 }
               }
               if (data.subcategoryId) {
-                const subcategoryDoc = await getDoc(doc(db, subcategoryPath, data.subcategoryId));
+                const subcategoryDoc = await getDoc(
+                  doc(db, subcategoryPath, data.subcategoryId)
+                );
                 if (subcategoryDoc.exists()) {
                   subcategoryName = subcategoryDoc.data().name || 'None';
                 }
@@ -100,7 +74,7 @@ export default function Products({
                 name: data.name || '',
                 price: data.price || 0,
                 discountedPrice: data.discountedPrice || null,
-                image: data.image || '',
+                image: data.image || '/placeholder.png',
                 categoryId: data.categoryId || '',
                 subcategoryId: data.subcategoryId || '',
                 categoryName,
@@ -121,7 +95,6 @@ export default function Products({
       }
     );
 
-    // Real-time sync for categories
     const unsubCategories = onSnapshot(
       collection(db, categoryPath),
       (categoriesSnapshot) => {
@@ -140,7 +113,6 @@ export default function Products({
       }
     );
 
-    // Real-time sync for subcategories
     const unsubSubcategories = onSnapshot(
       collection(db, subcategoryPath),
       (subcategoriesSnapshot) => {
@@ -190,14 +162,12 @@ export default function Products({
     return found ? found.quantity : 0;
   };
 
-  // Handle category filter change
   const handleCategoryFilterChange = (e) => {
     const categoryId = e.target.value;
     setSelectedCategory(categoryId);
-    setSelectedSubcategory(''); // Reset subcategory when category changes
+    setSelectedSubcategory('');
   };
 
-  // Filter products based on search query, category, and subcategory
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory ? product.categoryId === selectedCategory : true;
@@ -207,7 +177,6 @@ export default function Products({
     return matchesSearch && matchesCategory && matchesSubcategory;
   });
 
-  // Filter subcategories based on selected category
   const filteredSubcategories = subcategories.filter((subcat) =>
     selectedCategory ? subcat.categoryId === selectedCategory : true
   );
@@ -231,9 +200,24 @@ export default function Products({
 
   return (
     <section className="w-full px-4 py-6">
-      <h2 className="text-xl font-semibold mb-6">Services</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold">Services</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setViewMode('list')}
+            className={`px-3 py-1 rounded ${viewMode === 'list' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}`}
+          >
+            List
+          </button>
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`px-3 py-1 rounded ${viewMode === 'grid' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}`}
+          >
+            Grid
+          </button>
+        </div>
+      </div>
 
-      {/* Filter Dropdowns */}
       <div className="mb-6 flex flex-col sm:flex-row justify-end space-x-0 sm:space-x-4 space-y-4 sm:space-y-0">
         <div className="space-y-2 max-w-xs w-full">
           <label className="block text-sm font-medium text-gray-700">Filter by Category</label>
@@ -298,7 +282,7 @@ export default function Products({
                 className="space-y-3 transition-all duration-500 ease-in-out"
               >
                 <h3 className="text-lg font-medium text-gray-800">{categoryData.name}</h3>
-                <div className="space-y-3">
+                <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-3'}>
                   {displayProducts.length === 0 ? (
                     <p>No products in this category</p>
                   ) : (
@@ -307,18 +291,22 @@ export default function Products({
                       return (
                         <div
                           key={product.id}
-                          className="bg-white rounded-lg shadow p-4 flex items-center gap-4"
+                          className={`bg-white rounded-lg shadow p-4 ${
+                            viewMode === 'grid'
+                              ? 'flex flex-col items-start gap-2'
+                              : 'flex items-center gap-4'
+                          }`}
                         >
-                          <div className="w-16 h-16 rounded-lg overflow-hidden">
+                          <div className={viewMode === 'grid' ? 'w-full h-32' : 'w-16 h-16'}>
                             <Image
                               src={product.image}
                               alt={product.name}
-                              width={64}
-                              height={64}
-                              className="w-full h-full object-cover"
+                              width={viewMode === 'grid' ? 200 : 64}
+                              height={viewMode === 'grid' ? 128 : 64}
+                              className="w-full h-full object-cover rounded-lg"
                             />
                           </div>
-                          <div className="flex-1">
+                          <div className={viewMode === 'grid' ? 'flex-1' : 'flex-1'}>
                             <h3 className="font-medium">{product.name}</h3>
                             <p className="text-sm text-gray-500">{product.subcategoryName}</p>
                             <div className="flex gap-2">
@@ -332,34 +320,48 @@ export default function Products({
                               )}
                             </div>
                           </div>
-                          {quantity === 0 ? (
-                            <button
-                              onClick={() =>
-                                addToCart(product.id, product.name, product.discountedPrice || product.price)
-                              }
-                              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-                            >
-                              ADD +
-                            </button>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => removeFromCart(product.id)}
-                                className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 transition-colors"
-                              >
-                                −
-                              </button>
-                              <span className="min-w-[20px] text-center">{quantity}</span>
+                          <div className={viewMode === 'grid' ? 'w-full flex justify-end' : ''}>
+                            {quantity === 0 ? (
                               <button
                                 onClick={() =>
-                                  addToCart(product.id, product.name, product.discountedPrice || product.price)
+                                  addToCart(
+                                    product.id,
+                                    product.name,
+                                    product.discountedPrice || product.price,
+                                    product.categoryName,
+                                    product.subcategoryName
+                                  )
                                 }
-                                className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors"
+                                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
                               >
-                                +
+                                ADD +
                               </button>
-                            </div>
-                          )}
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => removeFromCart(product.id)}
+                                  className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 transition-colors"
+                                >
+                                  −
+                                </button>
+                                <span className="min-w-[20px] text-center">{quantity}</span>
+                                <button
+                                  onClick={() =>
+                                    addToCart(
+                                      product.id,
+                                      product.name,
+                                      product.discountedPrice || product.price,
+                                      product.categoryName,
+                                      product.subcategoryName
+                                    )
+                                  }
+                                  className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })
