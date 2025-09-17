@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -13,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import Image from 'next/image';
-import { Trash2, Edit, Home, Package, ShoppingBag, Users, LogOut, Menu, X } from 'lucide-react';
+import { Trash2, Edit, Home, Package, ShoppingBag, Users, LogOut, Menu, X, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { uploadToCloudinary } from '@/app/cloudinary';
 
@@ -23,46 +22,84 @@ export default function ProductPage() {
   const tenantCompaniesPath = `${basePath}/tenantCompanies`;
   const productPath = `${tenantCompaniesPath}/${companyId}/products`;
   const categoryPath = `${tenantCompaniesPath}/${companyId}/categories`;
+  const subcategoryPath = `${tenantCompaniesPath}/${companyId}/subcategories`;
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(''); // For filtering product list
+  const [selectedSubcategory, setSelectedSubcategory] = useState(''); // For filtering product list
   const [form, setForm] = useState({
     name: '',
     price: '',
     discountedPrice: '',
     image: '',
-    categoryId: ''
+    categoryId: '',
+    subcategoryId: ''
   });
   const [editingId, setEditingId] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const fetchProducts = async () => {
-    const snapshot = await getDocs(collection(db, productPath));
-    const data = await Promise.all(
-      snapshot.docs.map(async docSnap => {
-        const data = docSnap.data();
-        const categoryDoc = await getDoc(doc(db, categoryPath, data.categoryId));
-        return {
-          id: docSnap.id,
-          ...data,
-          categoryName: categoryDoc.exists() ? categoryDoc.data().categoriesname : 'Unknown'
-        };
-      })
-    );
-    setProducts(data);
-  };
+  const [filterError, setFilterError] = useState('');
 
   const fetchCategories = async () => {
-    const snapshot = await getDocs(collection(db, categoryPath));
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setCategories(data);
+    try {
+      const snapshot = await getDocs(collection(db, categoryPath));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCategories(data);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      setFilterError('Failed to load categories');
+    }
+  };
+
+  const fetchSubcategories = async (categoryId = '') => {
+    try {
+      const snapshot = await getDocs(collection(db, subcategoryPath));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Filter subcategories by categoryId if provided, otherwise fetch all
+      const filteredData = categoryId
+        ? data.filter(subcat => subcat.categoryId === categoryId)
+        : data;
+      setSubcategories(filteredData);
+    } catch (error) {
+      console.error('Error fetching subcategories:', error);
+      setFilterError('Failed to load subcategories');
+    }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, productPath));
+      const data = await Promise.all(
+        snapshot.docs.map(async docSnap => {
+          const data = docSnap.data();
+          const categoryDoc = await getDoc(doc(db, categoryPath, data.categoryId));
+          let subcategoryName = 'None';
+          if (data.subcategoryId) {
+            const subcategoryDoc = await getDoc(doc(db, subcategoryPath, data.subcategoryId));
+            subcategoryName = subcategoryDoc.exists() ? subcategoryDoc.data().name : 'Unknown';
+          }
+          return {
+            id: docSnap.id,
+            ...data,
+            categoryName: categoryDoc.exists() ? categoryDoc.data().categoriesname : 'Unknown',
+            subcategoryName
+          };
+        })
+      );
+      setProducts(data);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setFilterError('Failed to load products');
+    }
   };
 
   useEffect(() => {
-    fetchProducts();
     fetchCategories();
+    fetchProducts();
+    fetchSubcategories(); // Fetch all subcategories initially for add product section
   }, []);
 
   const handleImageUpload = async e => {
@@ -81,9 +118,23 @@ export default function ProductPage() {
     }
   };
 
+  const handleCategoryChange = async e => {
+    const categoryId = e.target.value;
+    setForm({ ...form, categoryId, subcategoryId: '' }); // Reset subcategory when category changes
+    await fetchSubcategories(categoryId); // Fetch subcategories for the selected category
+  };
+
+  const handleFilterCategoryChange = async e => {
+    const categoryId = e.target.value;
+    setSelectedCategory(categoryId);
+    setSelectedSubcategory(''); // Reset subcategory when category changes
+    setFilterError('');
+    await fetchSubcategories(categoryId); // Fetch subcategories for the selected category
+  };
+
   const handleSubmit = async () => {
     if (!form.name || !form.image || !form.price || !form.categoryId) {
-      return alert('All fields are required');
+      return alert('Name, image, price, and category are required');
     }
 
     try {
@@ -93,7 +144,8 @@ export default function ProductPage() {
       } else {
         await addDoc(collection(db, productPath), form);
       }
-      setForm({ name: '', price: '', discountedPrice: '', image: '', categoryId: '' });
+      setForm({ name: '', price: '', discountedPrice: '', image: '', categoryId: '', subcategoryId: '' });
+      setSubcategories([]); // Clear subcategories after submit
       await fetchProducts();
     } catch (error) {
       console.error('Error saving product:', error);
@@ -101,15 +153,17 @@ export default function ProductPage() {
     }
   };
 
-  const handleEdit = product => {
+  const handleEdit = async product => {
     setForm({
       name: product.name,
       price: product.price,
       discountedPrice: product.discountedPrice || '',
       image: product.image,
-      categoryId: product.categoryId
+      categoryId: product.categoryId,
+      subcategoryId: product.subcategoryId || ''
     });
     setEditingId(product.id);
+    await fetchSubcategories(product.categoryId); // Fetch subcategories for the product's category
   };
 
   const handleDelete = async id => {
@@ -129,9 +183,24 @@ export default function ProductPage() {
   };
 
   const handleLogout = () => {
-    // TODO: implement logout
     console.log('Logout clicked');
   };
+
+  // Filter products based on selected category and subcategory
+  const filteredProducts = products.filter(product => {
+    if (selectedSubcategory) {
+      return product.subcategoryId === selectedSubcategory;
+    }
+    if (selectedCategory) {
+      return product.categoryId === selectedCategory;
+    }
+    return true; // Show all products if no filters are applied
+  });
+
+  // Filter subcategories for the product list filter dropdown
+  const filteredSubcategories = subcategories.filter(subcat =>
+    selectedCategory ? subcat.categoryId === selectedCategory : true
+  );
 
   return (
     <div className="min-h-screen bg-white text-gray-800">
@@ -151,9 +220,9 @@ export default function ProductPage() {
 
         <div className="hidden md:flex items-center space-x-6 text-sm">
           {[{ id: 'dashboard', label: 'Dashboard', icon: <Home className="w-4 h-4" /> },
-          { id: 'products', label: 'Products', icon: <Package className="w-4 h-4" /> },
-          { id: 'orders', label: 'Orders', icon: <ShoppingBag className="w-4 h-4" /> },
-          { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> }]
+            { id: 'products', label: 'Products', icon: <Package className="w-4 h-4" /> },
+            { id: 'orders', label: 'Orders', icon: <ShoppingBag className="w-4 h-4" /> },
+            { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> }]
             .map((item) => (
               <motion.button
                 key={item.id}
@@ -230,6 +299,7 @@ export default function ProductPage() {
       <div className="p-4 sm:p-6">
         <h2 className="text-xl font-bold mb-4 text-blue-600">Manage Products</h2>
 
+        {/* Add/Edit Product Section (Unchanged) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
           <input
             type="text"
@@ -252,18 +322,37 @@ export default function ProductPage() {
             value={form.discountedPrice}
             onChange={e => setForm({ ...form, discountedPrice: e.target.value })}
           />
-          <select
-            className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            value={form.categoryId}
-            onChange={e => setForm({ ...form, categoryId: e.target.value })}
-          >
-            <option value="">Select Category</option>
-            {categories.map(cat => (
-              <option key={cat.id} value={cat.id}>
-                {cat.categoriesname}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-full appearance-none pr-8"
+              value={form.categoryId}
+              onChange={handleCategoryChange}
+            >
+              <option value="">Select Category</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.categoriesname}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
+          </div>
+          <div className="relative">
+            <select
+              className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-full appearance-none pr-8"
+              value={form.subcategoryId}
+              onChange={e => setForm({ ...form, subcategoryId: e.target.value })}
+              disabled={!form.categoryId || subcategories.length === 0}
+            >
+              <option value="">Select Subcategory</option>
+              {subcategories.map(subcat => (
+                <option key={subcat.id} value={subcat.id}>
+                  {subcat.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
+          </div>
           <div className="col-span-full">
             <label className="block text-sm text-gray-600 mb-1">Product Image</label>
             <input
@@ -300,6 +389,56 @@ export default function ProductPage() {
           </motion.button>
         </div>
 
+        {/* Product List Section with Filter Dropdowns */}
+        <div className="mb-6 flex justify-end space-x-4">
+          <div className="space-y-2 max-w-xs">
+            <label className="block text-sm font-medium text-gray-700">Filter by Category</label>
+            <div className="relative">
+              <select
+                value={selectedCategory}
+                onChange={handleFilterCategoryChange}
+                className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-full appearance-none pr-8"
+              >
+                <option value="">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.categoriesname}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
+            </div>
+          </div>
+          <div className="space-y-2 max-w-xs">
+            <label className="block text-sm font-medium text-gray-700">Filter by Subcategory</label>
+            <div className="relative">
+              <select
+                value={selectedSubcategory}
+                onChange={e => {
+                  setSelectedSubcategory(e.target.value);
+                  setFilterError('');
+                }}
+                className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-full appearance-none pr-8"
+                disabled={!selectedCategory || filteredSubcategories.length === 0}
+              >
+                <option value="">All Subcategories</option>
+                {filteredSubcategories.map(subcat => (
+                  <option key={subcat.id} value={subcat.id}>
+                    {subcat.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
+            </div>
+          </div>
+        </div>
+
+        {filterError && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded border border-red-200">
+            {filterError}
+          </div>
+        )}
+
         <div className="overflow-x-auto bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
           <table className="w-full text-left">
             <thead>
@@ -309,12 +448,13 @@ export default function ProductPage() {
                 <th className="p-3 text-sm font-medium text-gray-600">Price</th>
                 <th className="p-3 text-sm font-medium text-gray-600">Discount</th>
                 <th className="p-3 text-sm font-medium text-gray-600">Category</th>
+                <th className="p-3 text-sm font-medium text-gray-600">Subcategory</th>
                 <th className="p-3 text-sm font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {products.length > 0 ? (
-                products.map(p => (
+              {filteredProducts.length > 0 ? (
+                filteredProducts.map(p => (
                   <tr key={p.id} className="border-b border-gray-200 hover:bg-gray-100 transition-colors">
                     <td className="p-3">
                       <Image
@@ -329,6 +469,7 @@ export default function ProductPage() {
                     <td className="p-3">₹{p.price}</td>
                     <td className="p-3">{p.discountedPrice ? `₹${p.discountedPrice}` : '-'}</td>
                     <td className="p-3 text-gray-500">{p.categoryName}</td>
+                    <td className="p-3 text-gray-500">{p.subcategoryName}</td>
                     <td className="p-3">
                       <div className="flex gap-2">
                         <motion.button
@@ -353,7 +494,7 @@ export default function ProductPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="p-4 text-center text-gray-500">
+                  <td colSpan="7" className="p-4 text-center text-gray-500">
                     No products found
                   </td>
                 </tr>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { db } from '@/app/firebase';
 import { 
   addDoc, 
@@ -38,6 +38,9 @@ export default function SubcategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Filter state
+  const [filterCategory, setFilterCategory] = useState('');
+
   // Edit states
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
@@ -47,6 +50,10 @@ export default function SubcategoriesPage() {
 
   // UI states
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Separate refs for add and edit file inputs
+  const addFileInputRef = useRef(null);
+  const editFileInputRef = useRef(null);
 
   const subcategoriesRef = collection(db, subcategoryPath);
   const categoriesRef = collection(db, categoryPath);
@@ -101,7 +108,6 @@ export default function SubcategoriesPage() {
         ...doc.data()
       }));
       
-      // Join with category data
       const joinedData = await Promise.all(data.map(async subcat => {
         try {
           const categoryDoc = await getDoc(doc(db, categoryPath, subcat.categoryId));
@@ -139,13 +145,17 @@ export default function SubcategoriesPage() {
     setUploadError('');
 
     try {
-      const imageUrl = await handleImageUpload(subcategoryImage);
+      let imageUrl = '';
+      if (subcategoryImage) {
+        imageUrl = await handleImageUpload(subcategoryImage);
+      }
+
       const subcategoryId = generateSubcategoryId();
 
       await addDoc(subcategoriesRef, {
         subcategoryId,
         name: subcategoryName,
-        image: imageUrl,
+        image: imageUrl || '',
         categoryId: selectedCategory,
         createdAt: new Date(),
       });
@@ -155,8 +165,10 @@ export default function SubcategoriesPage() {
       setSubcategoryImage(null);
       setPreviewUrl('');
       setSelectedCategory('');
+      if (addFileInputRef.current) {
+        addFileInputRef.current.value = ''; // Clear add file input
+      }
       
-      // Refresh data
       fetchSubcategories();
     } catch (error) {
       console.error('Add Subcategory Error:', error);
@@ -181,9 +193,12 @@ export default function SubcategoriesPage() {
   const handleEditSubcategory = (subcat) => {
     setEditingId(subcat.id);
     setEditName(subcat.name);
-    setEditPreviewUrl(subcat.image);
+    setEditPreviewUrl(subcat.image || '');
     setEditCategory(subcat.categoryId);
     setEditImage(null);
+    if (editFileInputRef.current) {
+      editFileInputRef.current.value = ''; // Clear edit file input
+    }
   };
 
   const handleUpdateSubcategory = async () => {
@@ -212,6 +227,13 @@ export default function SubcategoriesPage() {
 
       await updateDoc(doc(db, subcategoryPath, editingId), updateData);
       setEditingId(null);
+      setEditName('');
+      setEditImage(null);
+      setEditPreviewUrl('');
+      setEditCategory('');
+      if (editFileInputRef.current) {
+        editFileInputRef.current.value = ''; // Clear edit file input
+      }
       fetchSubcategories();
     } catch (error) {
       console.error('Update Error:', error);
@@ -228,6 +250,9 @@ export default function SubcategoriesPage() {
     setEditPreviewUrl('');
     setEditCategory('');
     setUploadError('');
+    if (editFileInputRef.current) {
+      editFileInputRef.current.value = ''; // Clear edit file input
+    }
   };
 
   useEffect(() => {
@@ -240,9 +265,12 @@ export default function SubcategoriesPage() {
   };
 
   const handleLogout = () => {
-    // TODO: implement logout
     console.log('Logout clicked');
   };
+
+  const filteredSubcategories = subcategories.filter(subcat => 
+    filterCategory ? subcat.categoryId === filterCategory : true
+  );
 
   return (
     <div className="min-h-screen bg-white text-gray-800">
@@ -380,15 +408,19 @@ export default function SubcategoriesPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Subcategory Image</label>
+              <label className="block text-sm font-medium text-gray-700">Subcategory Image (Optional)</label>
               <input
                 type="file"
                 accept="image/jpeg, image/png, image/webp"
+                ref={addFileInputRef}
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
                     setSubcategoryImage(e.target.files[0]);
                     setPreviewUrl(URL.createObjectURL(e.target.files[0]));
                     setUploadError('');
+                  } else {
+                    setSubcategoryImage(null);
+                    setPreviewUrl('');
                   }
                 }}
                 className="w-full p-2 rounded bg-white border border-blue-200 text-gray-800 file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-100 file:text-blue-600 hover:file:bg-blue-200"
@@ -423,11 +455,29 @@ export default function SubcategoriesPage() {
 
         {/* Subcategories List */}
         <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
-          <h2 className="text-2xl font-bold mb-6 text-blue-600">Subcategories List</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-blue-600">Subcategories List</h2>
+            <div className="space-y-2 max-w-xs">
+              <label className="block text-sm font-medium text-gray-700">Filter by Category</label>
+              <div className="relative">
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="w-full p-2 rounded bg-white border border-blue-200 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none pr-8"
+                >
+                  <option value="">All Categories</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.categoriesname}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
+              </div>
+            </div>
+          </div>
           
-          {subcategories.length === 0 ? (
+          {filteredSubcategories.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No subcategories found. Add your first subcategory above.
+              No subcategories found. Add your first subcategory above or adjust the filter.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -442,7 +492,7 @@ export default function SubcategoriesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {subcategories.map((subcat) => (
+                  {filteredSubcategories.map((subcat) => (
                     <tr key={subcat.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
                       <td className="p-3">
                         {editingId === subcat.id ? (
@@ -463,11 +513,15 @@ export default function SubcategoriesPage() {
                             <input
                               type="file"
                               accept="image/jpeg, image/png, image/webp"
+                              ref={editFileInputRef}
                               onChange={(e) => {
                                 if (e.target.files && e.target.files[0]) {
                                   setEditImage(e.target.files[0]);
                                   setEditPreviewUrl(URL.createObjectURL(e.target.files[0]));
                                   setUploadError('');
+                                } else {
+                                  setEditImage(null);
+                                  setEditPreviewUrl(subcat.image || '');
                                 }
                               }}
                               className="text-gray-800 text-sm"
@@ -483,12 +537,16 @@ export default function SubcategoriesPage() {
                           </div>
                         ) : (
                           <div className="relative w-20 h-20 border border-blue-200 rounded overflow-hidden">
-                            <Image
-                              src={subcat.image}
-                              alt={subcat.name}
-                              fill
-                              className="object-cover"
-                            />
+                            {subcat.image ? (
+                              <Image
+                                src={subcat.image}
+                                alt={subcat.name}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <span className="text-gray-500 text-sm flex items-center justify-center h-full">No Image</span>
+                            )}
                           </div>
                         )}
                       </td>

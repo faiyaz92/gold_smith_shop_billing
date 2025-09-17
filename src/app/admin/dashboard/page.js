@@ -342,7 +342,6 @@ export default function AdminDashboard() {
           </ResponsiveContainer>
         </div>
       </motion.div>
-      <Footer />
     </AdminLayout>
   );
 }
