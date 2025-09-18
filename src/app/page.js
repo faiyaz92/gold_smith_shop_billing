@@ -98,6 +98,11 @@ export default function Home() {
                 setActiveCategory(categoryId);
               }
             }}
+            onActiveSubcategoryChange={(subcategoryId) => {
+              if (!isProgrammaticScroll) {
+                setActiveSubcategory(subcategoryId);
+              }
+            }}
             searchQuery={searchQuery}
             activeSubcategory={activeSubcategory}
           />

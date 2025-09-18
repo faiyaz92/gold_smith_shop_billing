@@ -22,10 +22,26 @@ export default function CategoriesHorizontal({
 
   useEffect(() => {
     const unsubCategories = onSnapshot(collection(db, categoryPath), (snapshot) => {
-      setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const categoriesData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          sortOrder: data.sortOrder ?? 999,
+        };
+      }).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+      setCategories(categoriesData);
     });
     const unsubSubcategories = onSnapshot(collection(db, subcategoryPath), (snapshot) => {
-      setSubcategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const subcategoriesData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          sortOrder: data.sortOrder ?? 999,
+        };
+      }).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+      setSubcategories(subcategoriesData);
     });
     return () => {
       unsubCategories();
@@ -102,69 +118,82 @@ export default function CategoriesHorizontal({
               <ChevronUp size={20} />
             </button>
           </div>
-          {/* Categories horizontal scroll */}
-          <div className="flex justify-center">
-            <div className="flex space-x-3 overflow-x-auto scrollbar-hide py-2 px-1">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => {
-                    setActiveCategory(cat.id);
-                    setActiveSubcategory(null);
-                    scrollToCluster('data-categoryid', cat.id);
-                  }}
-                  className={`flex flex-col items-center justify-center rounded-xl border transition
-                    w-20 h-20 min-w-[88px] min-h-[88px] max-w-[88px] max-h-[88px]
-                    ${activeCategory === cat.id
-                      ? 'bg-blue-100 border-blue-400 text-blue-700'
-                      : 'bg-gray-100 border-gray-200 text-gray-700'
-                    }`}
-                  style={{ flex: '0 0 88px' }}
-                >
-                  {cat.categoriesimage ? (
-                    <div className="w-12 h-12 mb-1 rounded-full overflow-hidden bg-white">
-                      <Image src={cat.categoriesimage} alt={cat.categoriesname} width={48} height={48} className="object-cover" />
-                    </div>
-                  ) : (
-                    <div className="w-12 h-12 mb-1 rounded-full bg-blue-50" />
-                  )}
-                  <span className="text-xs text-center truncate w-full">{cat.categoriesname}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          {/* Subcategories horizontal scroll (rectangle: image + name in row) */}
-          {filteredSubcategories.length > 0 && (
-            <div className="flex justify-center">
-              <div className="flex space-x-3 overflow-x-auto scrollbar-hide py-1 px-1">
-                {filteredSubcategories.map((sub) => (
+          {/* Categories and Subcategories with divider and labels */}
+          <div className="flex flex-col sm:flex-row items-stretch justify-center gap-0">
+            {/* Categories */}
+            <div className="flex flex-col items-center">
+              <span className="text-xs font-semibold text-blue-700 mb-1">Services</span>
+              <div className="flex space-x-3 overflow-x-auto overflow-y-hidden scrollbar-hide py-2 px-1">
+                {categories.map((cat) => (
                   <button
-                    key={sub.id}
+                    key={cat.id}
                     onClick={() => {
-                      setActiveSubcategory(sub.id);
-                      scrollToCluster('data-subcategoryid', sub.id);
+                      setActiveCategory(cat.id);
+                      setActiveSubcategory(null);
+                      scrollToCluster('data-categoryid', cat.id);
                     }}
-                    className={`flex items-center rounded-xl border transition
-                      h-14 min-h-[56px] px-2 pr-4
-                      ${activeSubcategory === sub.id
+                    className={`flex flex-col items-center justify-center rounded-xl border transition
+                      w-20 h-20 min-w-[88px] min-h-[88px] max-w-[88px] max-h-[88px]
+                      ${activeCategory === cat.id
                         ? 'bg-blue-100 border-blue-400 text-blue-700'
                         : 'bg-gray-100 border-gray-200 text-gray-700'
                       }`}
-                    style={{ minWidth: 140, maxWidth: 200, flex: '0 0 auto' }}
+                    style={{ flex: '0 0 88px' }}
                   >
-                    {sub.image ? (
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white mr-2">
-                        <Image src={sub.image} alt={sub.name} width={40} height={40} className="object-cover" />
+                    {cat.categoriesimage ? (
+                      <div className="w-12 h-12 mb-1 rounded-full overflow-hidden bg-white">
+                        <Image src={cat.categoriesimage} alt={cat.categoriesname} width={48} height={48} className="object-cover" />
                       </div>
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-blue-50 mr-2" />
+                      <div className="w-12 h-12 mb-1 rounded-full bg-blue-50" />
                     )}
-                    <span className="text-sm text-left truncate">{sub.name}</span>
+                    <span className="text-xs text-center truncate w-full">{cat.categoriesname}</span>
                   </button>
                 ))}
               </div>
             </div>
-          )}
+            {/* Divider */}
+            {filteredSubcategories.length > 0 && (
+              <div className="flex items-center justify-center w-full my-1">
+                {/* Horizontal divider for mobile, vertical for desktop */}
+                <div className="h-px w-16 bg-blue-200 mx-2 sm:hidden" />
+                <div className="w-px h-10 bg-blue-200 mx-2 hidden sm:block" />
+              </div>
+            )}
+            {/* Subcategories */}
+            {filteredSubcategories.length > 0 && (
+              <div className="flex flex-col items-center">
+                <span className="text-xs font-semibold text-blue-700 mb-1">Types</span>
+                <div className="flex space-x-3 overflow-x-auto overflow-y-hidden scrollbar-hide py-1 px-1">
+                  {filteredSubcategories.map((sub) => (
+                    <button
+                      key={sub.id}
+                      onClick={() => {
+                        setActiveSubcategory(sub.id);
+                        scrollToCluster('data-subcategoryid', sub.id);
+                      }}
+                      className={`flex items-center rounded-xl border transition
+                        h-14 min-h-[56px] px-2 pr-4
+                        ${activeSubcategory === sub.id
+                          ? 'bg-blue-100 border-blue-400 text-blue-700'
+                          : 'bg-gray-100 border-gray-200 text-gray-700'
+                        }`}
+                      style={{ minWidth: 140, maxWidth: 200, flex: '0 0 auto' }}
+                    >
+                      {sub.image ? (
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-white mr-2">
+                          <Image src={sub.image} alt={sub.name} width={40} height={40} className="object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-blue-50 mr-2" />
+                      )}
+                      <span className="text-sm text-left truncate">{sub.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
