@@ -64,10 +64,12 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <Navbar
-        onSearch={onSearch}
-        onOpenMobileCategory={() => setMobileCategoryOpen(true)} // Trigger mobile category drawer
-      />
+      <div className="sticky top-0 z-50 bg-gray-50">
+        <Navbar
+          onSearch={onSearch}
+          onOpenMobileCategory={() => setMobileCategoryOpen(true)}
+        />
+      </div>
 
       <main className="max-w-7xl mx-auto flex flex-col lg:flex-row px-2 sm:px-4 lg:px-8 py-4 lg:py-6 gap-4 lg:gap-6">
         {/* Desktop Categories */}
@@ -79,7 +81,7 @@ export default function Home() {
           />
         </div>
         {/* Mobile Categories Horizontal List */}
-        <div className="block lg:hidden sticky top-0 z-40 bg-gray-50">
+        <div className="block lg:hidden sticky top-[56px] z-40 bg-gray-50">
           <CategoriesHorizontal
             activeCategory={activeCategory}
             setActiveCategory={setActiveCategory}
@@ -87,7 +89,7 @@ export default function Home() {
             activeSubcategory={activeSubcategory}
           />
         </div>
-        {/* Products */}
+        {/* Gray horizontal divider */}
         <div className="flex-1 min-w-0 h-[calc(100vh-120px)] overflow-y-auto">
           <Products
             cart={cart}

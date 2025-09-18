@@ -7,6 +7,12 @@ import {
   Package,
   ShoppingBag,
   MessageSquare,
+  Truck,
+  CheckCircle,
+  Clock,
+  PackageCheck,
+  ShoppingCart,
+  Package2,
 } from 'lucide-react';
 import {
   BarChart,
@@ -21,7 +27,6 @@ import {
 import { motion } from 'framer-motion';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/app/firebase';
-import Footer from '@/app/Componenets/Footer';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import AdminLayout from '../AdminLayout';
@@ -44,6 +49,14 @@ export default function AdminDashboard() {
   });
   const [endDate, setEndDate] = useState(() => new Date());
   const [salesChartData, setSalesChartData] = useState([]);
+  const [orders, setOrders] = useState([
+    { status: 'Pending', rawTimestamp: { toDate: () => new Date() } },
+    { status: 'Completed', rawTimestamp: { toDate: () => new Date() } },
+    { status: 'Processing', rawTimestamp: { toDate: () => new Date() } },
+    { status: 'Delivered', rawTimestamp: { toDate: () => new Date() } },
+    { status: 'Pending', rawTimestamp: { toDate: () => new Date() } },
+  ]);
+  const [topSellingItems, setTopSellingItems] = useState([]);
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
@@ -61,7 +74,6 @@ export default function AdminDashboard() {
       return;
     }
 
-    // Real-time listeners
     const unsubUsers = onSnapshot(collection(db, usersPath), (snapshot) => {
       setUserCount(snapshot.size);
     });
@@ -75,7 +87,6 @@ export default function AdminDashboard() {
       (snapshot) => {
         setOrderCount(snapshot.size);
 
-        // Filter orders by selected date range
         const orders = snapshot.docs
           .map(docSnap => ({
             id: docSnap.id,
@@ -83,17 +94,36 @@ export default function AdminDashboard() {
             timestamp: docSnap.data().timestamp?.toDate() || new Date(),
             status: docSnap.data().status || 'Pending',
             total: Number(docSnap.data().total || 0),
+            items: docSnap.data().items || [], // Ensure items array exists
           }))
           .filter(order =>
             order.timestamp >= startDate &&
             order.timestamp <= new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999)
           );
 
-        // Total sales calculation
-        const sales = orders.reduce((sum, order) => sum + (order.total || 0), 0);
-        setTotalSales(sales);
+        setTotalSales(orders.reduce((sum, order) => sum + (order.total || 0), 0));
 
-        // Sales chart data (by day)
+        // Calculate top-selling items
+        const itemQuantities = {};
+        orders.forEach(order => {
+          order.items.forEach(item => {
+            const itemKey = `${item.name}|${item.categoryName || 'Other'}`; // Unique key by name and category
+            if (!itemQuantities[itemKey]) {
+              itemQuantities[itemKey] = {
+                name: item.name,
+                category: item.categoryName || 'Other',
+                totalQuantity: 0,
+              };
+            }
+            itemQuantities[itemKey].totalQuantity += Number(item.quantity || 1);
+          });
+        });
+
+        const topItems = Object.values(itemQuantities)
+          .sort((a, b) => b.totalQuantity - a.totalQuantity)
+          .slice(0, 5); // Top 5 items
+        setTopSellingItems(topItems);
+
         const salesByDay = {};
         for (let i = 0; i < 30; i++) {
           const d = new Date(startDate);
@@ -114,7 +144,6 @@ export default function AdminDashboard() {
           }))
         );
 
-        // Order status chart data (by month and status)
         const months = [];
         const now = new Date();
         for (let i = 5; i >= 0; i--) {
@@ -152,44 +181,120 @@ export default function AdminDashboard() {
       unsubOrders();
       unsubInquiries();
     };
-  // Add startDate and endDate as dependencies
   }, [router, startDate, endDate]);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const isToday = (date) => {
+    if (!date) return false;
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() === today.getTime();
+  };
+
+  const todaysPlacedOrders = orders.filter(order => isToday(order.rawTimestamp?.toDate())).length;
+  const todaysDeliveredOrders = orders.filter(order => 
+    (order.status === 'Completed' || order.status === 'Delivered') && isToday(order.rawTimestamp?.toDate())
+  ).length;
+  const pendingOrders = orders.filter(order => order.status === 'Pending').length;
+  const todaysDelivery = orders.filter(order =>
+    (order.status === 'Completed' || order.status === 'Delivered') && isToday(order.rawTimestamp?.toDate())
+  ).length;
+  const todaysPickup = orders.filter(order =>
+    (order.status === 'Processing' || order.status === 'PickedUp') && isToday(order.rawTimestamp?.toDate())
+  ).length;
 
   const stats = [
     {
-      label: 'Total Users',
-      value: userCount,
-      icon: <Users className="w-5 h-5 sm:w-6 sm:h-6" />,
-      change: '+12%', // Placeholder
-      onClick: () => router.push('/admin/users'),
-    },
-    {
-      label: 'Total Products',
-      value: productCount,
-      icon: <Package className="w-5 h-5 sm:w-6 sm:h-6" />,
-      change: '+5%', // Placeholder
-      onClick: () => router.push('/admin/products'),
+      label: 'Total Sales',
+      value: `₹${totalSales.toLocaleString()}`,
+      icon: <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6" />,
+      change: '',
+      onClick: () => {},
+      bgColor: 'bg-blue-400/10',
+      textColor: 'text-blue-600',
     },
     {
       label: 'Total Orders',
       value: orderCount,
       icon: <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />,
-      change: '+23%', // Placeholder
+      change: '+23%',
       onClick: () => router.push('/admin/orders'),
+      bgColor: 'bg-blue-400/10',
+      textColor: 'text-blue-600',
+    },
+    {
+      label: 'Pending Orders',
+      value: pendingOrders,
+      icon: <Clock className="w-5 h-5 sm:w-6 sm:h-6" />,
+      change: '',
+      onClick: () => router.push('/admin/orders'),
+      bgColor: 'bg-orange-50',
+      textColor: 'text-orange-700',
+    },
+    {
+      label: "Today's Placed Orders",
+      value: todaysPlacedOrders,
+      icon: <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />,
+      change: '',
+      onClick: () => router.push('/admin/orders'),
+      bgColor: 'bg-blue-50',
+      textColor: 'text-blue-700',
+    },
+    {
+      label: "Today's Delivered Orders",
+      value: todaysDeliveredOrders,
+      icon: <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6" />,
+      change: '',
+      onClick: () => router.push('/admin/orders'),
+      bgColor: 'bg-green-50',
+      textColor: 'text-green-700',
+    },
+    {
+      label: "Today's Delivery",
+      value: todaysDelivery,
+      icon: <Truck className="w-5 h-5 sm:w-6 sm:h-6" />,
+      change: '',
+      onClick: () => router.push('/admin/orders'),
+      bgColor: 'bg-indigo-50',
+      textColor: 'text-indigo-700',
+    },
+    {
+      label: "Today's Pickup",
+      value: todaysPickup,
+      icon: <PackageCheck className="w-5 h-5 sm:w-6 sm:h-6" />,
+      change: '',
+      onClick: () => router.push('/admin/orders'),
+      bgColor: 'bg-yellow-50',
+      textColor: 'text-yellow-700',
+    },
+    {
+      label: 'Total Users',
+      value: userCount,
+      icon: <Users className="w-5 h-5 sm:w-6 sm:h-6" />,
+      change: '+12%',
+      onClick: () => router.push('/admin/users'),
+      bgColor: 'bg-blue-400/10',
+      textColor: 'text-blue-600',
+    },
+    {
+      label: 'Total Products',
+      value: productCount,
+      icon: <Package className="w-5 h-5 sm:w-6 sm:h-6" />,
+      change: '+5%',
+      onClick: () => router.push('/admin/products'),
+      bgColor: 'bg-blue-400/10',
+      textColor: 'text-blue-600',
     },
     {
       label: 'Total Inquiries',
       value: inquiryCount,
       icon: <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6" />,
-      change: '+10%', // Placeholder
+      change: '+10%',
       onClick: () => router.push('/admin/inquiries'),
-    },
-    {
-      label: 'Total Sales',
-      value: `₹${totalSales.toLocaleString()}`,
-      icon: <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6" />,
-      change: '', // Placeholder
-      onClick: () => {},
+      bgColor: 'bg-blue-400/10',
+      textColor: 'text-blue-600',
     },
   ];
 
@@ -197,12 +302,40 @@ export default function AdminDashboard() {
 
   return (
     <AdminLayout>
+      {/* Sticky Header */}
+      <div className="block lg:hidden sticky top-0 w-full h-1 bg-gray-200 mt-1" />
+ {/* Date Range Picker */}
+      <div className="flex flex-col sm:flex-row items-center gap-4 mb-8">
+        <label className="font-medium text-gray-700">Filter Orders By Date:</label>
+        <DatePicker
+          selected={startDate}
+          onChange={date => setStartDate(date)}
+          selectsStart
+          startDate={startDate}
+          endDate={endDate}
+          maxDate={endDate}
+          className="border px-3 py-2 rounded mr-2"
+          dateFormat="yyyy-MM-dd"
+        />
+        <span className="mx-2">to</span>
+        <DatePicker
+          selected={endDate}
+          onChange={date => setEndDate(date)}
+          selectsEnd
+          startDate={startDate}
+          endDate={endDate}
+          minDate={startDate}
+          maxDate={new Date()}
+          className="border px-3 py-2 rounded"
+          dateFormat="yyyy-MM-dd"
+        />
+      </div>
       {/* Dashboard Content */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 mt-1"
       >
         {stats.map((stat, index) =>
           isLoading ? (
@@ -230,39 +363,48 @@ export default function AdminDashboard() {
                   <span className="text-2xl sm:text-3xl font-bold mt-2 text-gray-800">{stat.value}</span>
                   <span className="text-xs mt-2 text-green-600">{stat.change}</span>
                 </div>
-                <div className="p-3 bg-blue-400/10 rounded-lg text-blue-600">{stat.icon}</div>
+                <div className={`p-3 ${stat.bgColor} rounded-lg ${stat.textColor}`}>{stat.icon}</div>
               </div>
             </motion.div>
           )
         )}
       </motion.div>
-
-      {/* Date Range Picker */}
-      <div className="flex flex-col sm:flex-row items-center gap-4 mb-8">
-        <label className="font-medium text-gray-700">Filter Orders By Date:</label>
-        <DatePicker
-          selected={startDate}
-          onChange={date => setStartDate(date)}
-          selectsStart
-          startDate={startDate}
-          endDate={endDate}
-          maxDate={endDate}
-          className="border px-3 py-2 rounded mr-2"
-          dateFormat="yyyy-MM-dd"
-        />
-        <span className="mx-2">to</span>
-        <DatePicker
-          selected={endDate}
-          onChange={date => setEndDate(date)}
-          selectsEnd
-          startDate={startDate}
-          endDate={endDate}
-          minDate={startDate}
-          maxDate={new Date()}
-          className="border px-3 py-2 rounded"
-          dateFormat="yyyy-MM-dd"
-        />
-      </div>
+ {/* Top Selling Items */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+        className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-8"
+      >
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Top Selling Items</h3>
+        {isLoading ? (
+          <div className="text-center text-gray-500">Loading...</div>
+        ) : topSellingItems.length === 0 ? (
+          <div className="text-center text-gray-500">No items found</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border border-gray-200 rounded-lg">
+              <thead className="bg-blue-50 text-blue-800 text-xs sm:text-sm">
+                <tr>
+                  <th className="p-3 text-left border-b border-gray-200">Item Name</th>
+                  <th className="p-3 text-left border-b border-gray-200">Category</th>
+                  <th className="p-3 text-left border-b border-gray-200">Total Quantity Sold</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topSellingItems.map((item, index) => (
+                  <tr key={index} className="border-b hover:bg-blue-50 text-xs sm:text-sm">
+                    <td className="p-3">{item.name}</td>
+                    <td className="p-3">{item.category}</td>
+                    <td className="p-3">{item.totalQuantity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </motion.div>
+     
 
       {/* Sales Chart */}
       <motion.div
@@ -302,11 +444,13 @@ export default function AdminDashboard() {
         </div>
       </motion.div>
 
+     
+
       {/* Order Status Chart */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.5 }}
+        transition={{ delay: 0.4, duration: 0.5 }}
         className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200"
       >
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Status Analytics</h3>

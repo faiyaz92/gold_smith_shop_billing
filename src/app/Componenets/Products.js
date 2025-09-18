@@ -237,8 +237,9 @@ export default function Products({
           if (categorySubcats.length === 0) return null;
           return (
             <div key={category.id} data-categoryid={category.id} ref={(el) => (categoryRefs.current[category.id] = el)}>
-              <div className="sticky top-0 z-10 bg-gray-50 py-2 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-blue-700">
+              {/* Category Header - light brown background, white text, centered */}
+              <div className="sticky top-0 z-10 bg-blue-900 py-2 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-white text-center">
                   {category.categoriesname}
                 </h3>
               </div>
@@ -254,14 +255,18 @@ export default function Products({
                     data-subcategoryid={subcatId}
                     className={`space-y-3 ${activeSubcategory === subcatId ? 'bg-blue-50 border-l-4 border-blue-300' : ''}`}
                   >
-                    <div className="sticky top-12 z-10 bg-gray-100 py-1 border-b border-gray-200">
-                      <h4 className="text-base font-semibold text-blue-600">
+                    {/* Subcategory Header - blue background, white text, centered */}
+                    <div className="sticky top-12 z-10 bg-blue-400 py-1 border-b border-gray-200">
+                      <h4 className="text-base font-semibold text-white text-center">
                         {subcatName}
                       </h4>
                     </div>
                     <ul className="space-y-3">
                       {displayProducts.map(product => {
                         const quantity = getQuantity(product.id);
+                        // Find category and subcategory names for each product
+                        const prodCategory = categories.find(cat => cat.id === product.categoryId);
+                        const prodSubcategory = subcategories.find(sub => sub.id === product.subcategoryId);
                         return (
                           <li key={product.id} className="bg-white rounded-lg shadow p-4 flex items-center gap-4">
                             <div className="w-16 h-16 rounded-lg overflow-hidden">
@@ -274,6 +279,13 @@ export default function Products({
                               />
                             </div>
                             <div className="flex-1">
+                              {/* Show Category / Subcategory above product name */}
+                              <div className="mb-1">
+                                <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
+                                  {(prodCategory?.categoriesname || '')}
+                                  {prodSubcategory ? ` / ${prodSubcategory.name}` : ''}
+                                </span>
+                              </div>
                               <h3 className="font-medium">{product.name}</h3>
                               <p className="text-sm text-gray-500">{product.subcategoryName}</p>
                               <div className="flex gap-2">
