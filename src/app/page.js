@@ -7,10 +7,12 @@ import Cart from '@/app/Componenets/Cart';
 import Footer from '@/app/Componenets/Footer';
 import Categories from './Componenets/Categories';
 import MobileNav from '@/app/Componenets/MobileNav';
+import CategoriesHorizontal from '@/app/Componenets/CategoryHorizontal';
 
 export default function Home() {
   const [cart, setCart] = useState([]);
   const [activeCategory, setActiveCategory] = useState(null);
+  const [activeSubcategory, setActiveSubcategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isProgrammaticScroll, setIsProgrammaticScroll] = useState(false); // Track programmatic scrolls
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -76,6 +78,15 @@ export default function Home() {
             activeCategory={activeCategory}
           />
         </div>
+        {/* Mobile Categories Horizontal List */}
+        <div className="block lg:hidden">
+          <CategoriesHorizontal
+            activeCategory={activeCategory}
+            setActiveCategory={setActiveCategory}
+            setActiveSubcategory={setActiveSubcategory}
+            activeSubcategory={activeSubcategory}
+          />
+        </div>
         {/* Products */}
         <div className="flex-1 min-w-0 h-[calc(100vh-120px)] overflow-y-auto">
           <Products
@@ -88,6 +99,7 @@ export default function Home() {
               }
             }}
             searchQuery={searchQuery}
+            activeSubcategory={activeSubcategory}
           />
         </div>
         {/* Desktop Cart */}
