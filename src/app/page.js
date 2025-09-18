@@ -79,7 +79,7 @@ export default function Home() {
           />
         </div>
         {/* Mobile Categories Horizontal List */}
-        <div className="block lg:hidden">
+        <div className="block lg:hidden sticky top-0 z-40 bg-gray-50">
           <CategoriesHorizontal
             activeCategory={activeCategory}
             setActiveCategory={setActiveCategory}

@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { db } from '@/app/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function CategoriesHorizontal({
   activeCategory,
@@ -17,6 +18,7 @@ export default function CategoriesHorizontal({
 
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     const unsubCategories = onSnapshot(collection(db, categoryPath), (snapshot) => {
@@ -42,70 +44,128 @@ export default function CategoriesHorizontal({
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  // Find selected category/subcategory
+  const selectedCategory = categories.find(cat => cat.id === activeCategory);
+  const selectedSubcategory = filteredSubcategories.find(sub => sub.id === activeSubcategory);
+
   return (
-    <div className="sticky top-[56px] z-30 bg-gray-50 pb-2">
-      {/* Categories horizontal scroll (4 per row) */}
-      <div className="flex justify-center">
-        <div className="flex space-x-3 overflow-x-auto scrollbar-hide py-2 px-1">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => {
-                setActiveCategory(cat.id);
-                setActiveSubcategory(null);
-                scrollToCluster('data-categoryid', cat.id);
-              }}
-              className={`flex flex-col items-center justify-center rounded-xl border transition
-                w-20 h-20 min-w-[80px] min-h-[80px] max-w-[80px] max-h-[80px]
-                ${activeCategory === cat.id
-                  ? 'bg-blue-100 border-blue-400 text-blue-700'
-                  : 'bg-gray-100 border-gray-200 text-gray-700'
-                }`}
-              style={{ flex: '0 0 80px' }}
-            >
-              {cat.categoriesimage ? (
-                <div className="w-12 h-12 mb-1 rounded-full overflow-hidden bg-white">
-                  <Image src={cat.categoriesimage} alt={cat.categoriesname} width={48} height={48} className="object-cover" />
-                </div>
-              ) : (
-                <div className="w-12 h-12 mb-1 rounded-full bg-blue-50" />
-              )}
-              <span className="text-xs text-center truncate w-full">{cat.categoriesname}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      {/* Subcategories horizontal scroll (rectangle: image + name in row) */}
-      {filteredSubcategories.length > 0 && (
-        <div className="flex justify-center">
-          <div className="flex space-x-3 overflow-x-auto scrollbar-hide py-1 px-1">
-            {filteredSubcategories.map((sub) => (
-              <button
-                key={sub.id}
-                onClick={() => {
-                  setActiveSubcategory(sub.id);
-                  scrollToCluster('data-subcategoryid', sub.id);
-                }}
-                className={`flex items-center rounded-xl border transition
-                  h-14 min-h-[56px] px-2 pr-4
-                  ${activeSubcategory === sub.id
-                    ? 'bg-blue-100 border-blue-400 text-blue-700'
-                    : 'bg-gray-100 border-gray-200 text-gray-700'
-                  }`}
-                style={{ minWidth: 140, maxWidth: 200, flex: '0 0 auto' }}
-              >
-                {sub.image ? (
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-white mr-2">
-                    <Image src={sub.image} alt={sub.name} width={40} height={40} className="object-cover" />
+    <div className="sticky top-[56px] z-30 bg-gray-50">
+      {/* Collapsed: Show only selected category > subcategory, arrow right */}
+      {collapsed ? (
+        <div className="flex items-center justify-between gap-2 px-2 py-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {selectedCategory && (
+              <div className="flex items-center bg-blue-100 border border-blue-400 rounded-xl px-2 py-1 min-w-0">
+                {selectedCategory.categoriesimage ? (
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-white mr-2">
+                    <Image src={selectedCategory.categoriesimage} alt={selectedCategory.categoriesname} width={32} height={32} className="object-cover" />
                   </div>
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-blue-50 mr-2" />
+                  <div className="w-8 h-8 rounded-full bg-blue-50 mr-2" />
                 )}
-                <span className="text-sm text-left truncate">{sub.name}</span>
-              </button>
-            ))}
+                <span className="text-sm font-medium truncate">{selectedCategory.categoriesname}</span>
+              </div>
+            )}
+            {selectedSubcategory && (
+              <>
+                <span className="mx-2 text-lg text-blue-400 font-bold">{'>'}</span>
+                <div className="flex items-center bg-blue-100 border border-blue-400 rounded-xl px-2 py-1 min-w-0">
+                  {selectedSubcategory.image ? (
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-white mr-2">
+                      <Image src={selectedSubcategory.image} alt={selectedSubcategory.name} width={32} height={32} className="object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-blue-50 mr-2" />
+                  )}
+                  <span className="text-sm font-medium truncate">{selectedSubcategory.name}</span>
+                </div>
+              </>
+            )}
           </div>
+          <button
+            className="p-1 rounded-full bg-blue-100 text-blue-700 ml-2"
+            onClick={() => setCollapsed(false)}
+            aria-label="Expand categories"
+          >
+            <ChevronDown size={20} />
+          </button>
         </div>
+      ) : (
+        <>
+          {/* Arrow right-aligned at top */}
+          <div className="flex justify-end items-center pr-2">
+            <button
+              className="p-1 rounded-full bg-blue-100 text-blue-700"
+              onClick={() => setCollapsed(true)}
+              aria-label="Collapse categories"
+            >
+              <ChevronUp size={20} />
+            </button>
+          </div>
+          {/* Categories horizontal scroll */}
+          <div className="flex justify-center">
+            <div className="flex space-x-3 overflow-x-auto scrollbar-hide py-2 px-1">
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    setActiveCategory(cat.id);
+                    setActiveSubcategory(null);
+                    scrollToCluster('data-categoryid', cat.id);
+                  }}
+                  className={`flex flex-col items-center justify-center rounded-xl border transition
+                    w-20 h-20 min-w-[88px] min-h-[88px] max-w-[88px] max-h-[88px]
+                    ${activeCategory === cat.id
+                      ? 'bg-blue-100 border-blue-400 text-blue-700'
+                      : 'bg-gray-100 border-gray-200 text-gray-700'
+                    }`}
+                  style={{ flex: '0 0 88px' }}
+                >
+                  {cat.categoriesimage ? (
+                    <div className="w-12 h-12 mb-1 rounded-full overflow-hidden bg-white">
+                      <Image src={cat.categoriesimage} alt={cat.categoriesname} width={48} height={48} className="object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 mb-1 rounded-full bg-blue-50" />
+                  )}
+                  <span className="text-xs text-center truncate w-full">{cat.categoriesname}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Subcategories horizontal scroll (rectangle: image + name in row) */}
+          {filteredSubcategories.length > 0 && (
+            <div className="flex justify-center">
+              <div className="flex space-x-3 overflow-x-auto scrollbar-hide py-1 px-1">
+                {filteredSubcategories.map((sub) => (
+                  <button
+                    key={sub.id}
+                    onClick={() => {
+                      setActiveSubcategory(sub.id);
+                      scrollToCluster('data-subcategoryid', sub.id);
+                    }}
+                    className={`flex items-center rounded-xl border transition
+                      h-14 min-h-[56px] px-2 pr-4
+                      ${activeSubcategory === sub.id
+                        ? 'bg-blue-100 border-blue-400 text-blue-700'
+                        : 'bg-gray-100 border-gray-200 text-gray-700'
+                      }`}
+                    style={{ minWidth: 140, maxWidth: 200, flex: '0 0 auto' }}
+                  >
+                    {sub.image ? (
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white mr-2">
+                        <Image src={sub.image} alt={sub.name} width={40} height={40} className="object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-blue-50 mr-2" />
+                    )}
+                    <span className="text-sm text-left truncate">{sub.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
