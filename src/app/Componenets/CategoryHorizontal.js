@@ -121,35 +121,36 @@ export default function CategoriesHorizontal({
           {/* Categories and Subcategories with divider and labels */}
           <div className="flex flex-col sm:flex-row items-stretch justify-center gap-0">
             {/* Categories */}
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center w-full">
               <span className="text-xs font-semibold text-blue-700 mb-1">Services</span>
-              <div className="flex space-x-3 overflow-x-auto overflow-y-hidden scrollbar-hide py-2 px-1">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      setActiveCategory(cat.id);
-                      setActiveSubcategory(null);
-                      scrollToCluster('data-categoryid', cat.id);
-                    }}
-                    className={`flex flex-col items-center justify-center rounded-xl border transition
-                      w-20 h-20 min-w-[88px] min-h-[88px] max-w-[88px] max-h-[88px]
-                      ${activeCategory === cat.id
-                        ? 'bg-blue-100 border-blue-400 text-blue-700'
-                        : 'bg-gray-100 border-gray-200 text-gray-700'
-                      }`}
-                    style={{ flex: '0 0 88px' }}
-                  >
-                    {cat.categoriesimage ? (
-                      <div className="w-12 h-12 mb-1 rounded-full overflow-hidden bg-white">
-                        <Image src={cat.categoriesimage} alt={cat.categoriesname} width={48} height={48} className="object-cover" />
-                      </div>
-                    ) : (
-                      <div className="w-12 h-12 mb-1 rounded-full bg-blue-50" />
-                    )}
-                    <span className="text-xs text-center truncate w-full">{cat.categoriesname}</span>
-                  </button>
-                ))}
+              <div className="overflow-x-auto overflow-y-hidden scrollbar-hide w-full">
+                <div className="inline-flex space-x-3 py-2 px-1">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setActiveCategory(cat.id);
+                        setActiveSubcategory(null);
+                        scrollToCluster('data-categoryid', cat.id);
+                      }}
+                      className={`flex flex-col items-center justify-center rounded-xl border transition shrink-0
+                        w-20 h-20 min-w-[88px] min-h-[88px] max-w-[88px] max-h-[88px]
+                        ${activeCategory === cat.id
+                          ? 'bg-blue-100 border-blue-400 text-blue-700'
+                          : 'bg-gray-100 border-gray-200 text-gray-700'
+                        }`}
+                    >
+                      {cat.categoriesimage ? (
+                        <div className="w-12 h-12 mb-1 rounded-full overflow-hidden bg-white">
+                          <Image src={cat.categoriesimage} alt={cat.categoriesname} width={48} height={48} className="object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 mb-1 rounded-full bg-blue-50" />
+                      )}
+                      <span className="text-xs text-center truncate w-full">{cat.categoriesname}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             {/* Divider */}
@@ -162,34 +163,36 @@ export default function CategoriesHorizontal({
             )}
             {/* Subcategories */}
             {filteredSubcategories.length > 0 && (
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center w-full">
                 <span className="text-xs font-semibold text-blue-700 mb-1">Types</span>
-                <div className="flex space-x-3 overflow-x-auto overflow-y-hidden scrollbar-hide py-1 px-1">
-                  {filteredSubcategories.map((sub) => (
-                    <button
-                      key={sub.id}
-                      onClick={() => {
-                        setActiveSubcategory(sub.id);
-                        scrollToCluster('data-subcategoryid', sub.id);
-                      }}
-                      className={`flex items-center rounded-xl border transition
-                        h-14 min-h-[56px] px-2 pr-4
-                        ${activeSubcategory === sub.id
-                          ? 'bg-blue-100 border-blue-400 text-blue-700'
-                          : 'bg-gray-100 border-gray-200 text-gray-700'
-                        }`}
-                      style={{ minWidth: 140, maxWidth: 200, flex: '0 0 auto' }}
-                    >
-                      {sub.image ? (
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-white mr-2">
-                          <Image src={sub.image} alt={sub.name} width={40} height={40} className="object-cover" />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-blue-50 mr-2" />
-                      )}
-                      <span className="text-sm text-left truncate">{sub.name}</span>
-                    </button>
-                  ))}
+                <div className="overflow-x-auto overflow-y-hidden scrollbar-hide w-full">
+                  <div className="inline-flex space-x-3 py-1 px-1">
+                    {filteredSubcategories.map((sub) => (
+                      <button
+                        key={sub.id}
+                        onClick={() => {
+                          setActiveSubcategory(sub.id);
+                          scrollToCluster('data-subcategoryid', sub.id);
+                        }}
+                        className={`flex items-center rounded-xl border transition shrink-0
+                          h-14 min-h-[56px] px-2 pr-4
+                          ${activeSubcategory === sub.id
+                            ? 'bg-blue-100 border-blue-400 text-blue-700'
+                            : 'bg-gray-100 border-gray-200 text-gray-700'
+                          }`}
+                        style={{ minWidth: 140, maxWidth: 200 }}
+                      >
+                        {sub.image ? (
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-white mr-2">
+                            <Image src={sub.image} alt={sub.name} width={40} height={40} className="object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-blue-50 mr-2" />
+                        )}
+                        <span className="text-sm text-left truncate">{sub.name}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
