@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { LogOut, ChevronDown, ChevronUp, Package, ShoppingBag, Users, Home } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AdminHeader from '../Componenets/AdminHeader';
-import { onSnapshot, query, collection, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { onSnapshot, query, collection, orderBy, doc, updateDoc, addDoc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import AdminLayout from '../AdminLayout';
 import jsPDF from 'jspdf';
@@ -19,6 +19,24 @@ const statusColors = {
   Cancelled: 'bg-red-100 text-red-800',
 };
 
+const DELIVERY_PERSONS = ['Ramesh', 'Suresh', 'Priya'];
+const PICKUP_PERSONS = ['Amit', 'Sunita', 'Vijay'];
+const ESTIMATED_DATES = [
+  'Today',
+  'Tomorrow',
+  'In 2 Days',
+  'In 3 Days'
+];
+const PICKUP_TIMES = [
+  { value: 'morning', label: 'Morning (9-12 PM)' },
+  { value: 'afternoon', label: 'Afternoon (12-5 PM)' },
+  { value: 'evening', label: 'Evening (5-8 PM)' },
+];
+const DELIVERY_PREFS = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'express', label: 'Express (+₹5)' },
+];
+
 export default function AdminOrders() {
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
@@ -31,6 +49,11 @@ export default function AdminOrders() {
   const [showPreviewDialog, setShowPreviewDialog] = useState(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successOrder, setSuccessOrder] = useState(null);
+  const [assignedDeliveryPerson, setAssignedDeliveryPerson] = useState({});
+  const [assignedPickupPerson, setAssignedPickupPerson] = useState({});
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState({});
+  const [estimatedPickupDate, setEstimatedPickupDate] = useState({});
+  const [laundryStatus, setLaundryStatus] = useState({});
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
@@ -72,6 +95,8 @@ export default function AdminOrders() {
             date: orderDate?.toLocaleDateString() || 'Invalid/Missing Date',
             rawTimestamp: data.timestamp,
             userId: data.userId || "N/A",
+            pickupTime: data.pickupTime || '',
+            deliveryPref: data.deliveryPref || '',
             deliveryDetails: {
               name: data.name,
               phone: data.phone,
@@ -80,10 +105,22 @@ export default function AdminOrders() {
               state: data.state,
               pincode: data.zip,
               email: data.email
-            }
+            },
+            laundryStatus: data.laundryStatus || {
+              pickupManVerified: false,
+              customerPickupVerified: false,
+              deliveryManDone: false,
+              customerDeliveryConfirmed: false
+            },
           };
         });
         setOrders(fetchedOrders);
+        setLaundryStatus(
+          fetchedOrders.reduce((acc, order) => {
+            acc[order.id] = order.laundryStatus || {};
+            return acc;
+          }, {})
+        );
         setIsLoading(false);
       }, (err) => {
         console.error('Error fetching orders from Firestore:', err);
@@ -113,6 +150,24 @@ export default function AdminOrders() {
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     } catch (err) {
       console.error("Failed to update status", err);
+    }
+  };
+
+  const handleLaundryStatusChange = async (orderId, statusKey, value) => {
+    // Update local state
+    setLaundryStatus(prev => ({
+      ...prev,
+      [orderId]: { ...prev[orderId], [statusKey]: value }
+    }));
+
+    // Update Firestore
+    try {
+      const orderRef = doc(db, getSingleOrderPath(orderId));
+      await updateDoc(orderRef, {
+        [`laundryStatus.${statusKey}`]: value
+      });
+    } catch (err) {
+      console.error('Failed to update laundry status:', err);
     }
   };
 
@@ -400,88 +455,218 @@ Thank you for your business!
                     {expandedOrder === order.id && (
                       <tr>
                         <td colSpan={10} className="bg-blue-50 p-4">
-                          <div className="flex flex-col md:flex-row gap-6">
-                            {/* Delivery Address (Left) */}
-                            <div className="w-full md:w-96 flex-shrink-0">
-                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                                <h4 className="font-semibold mb-2 text-blue-700">Delivery Address</h4>
-                                <div className="text-sm text-gray-700">
-                                  <div><span className="font-medium">Name:</span> {order.name}</div>
-                                  <div><span className="font-medium">Phone:</span> {order.phone}</div>
-                                  <div><span className="font-medium">Email:</span> {order.email}</div>
-                                  <div><span className="font-medium">Address:</span> {order.address}</div>
-                                  <div><span className="font-medium">City:</span> {order.city}</div>
-                                  <div><span className="font-medium">Zip:</span> {order.zip}</div>
+                          <div className="flex flex-col gap-6">
+                            {/* Row: Delivery Details & Pickup Details */}
+                            <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+                              {/* Delivery Details Card */}
+                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100 flex-1 min-w-0 w-full">
+                                <h4 className="font-semibold mb-2 text-blue-700">Delivery Details</h4>
+                                <div className="text-sm text-gray-700 mb-2">
+                                  <div>
+                                    <span className="font-medium">Customer Name:</span> {order.customer}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Phone:</span> {order.phone}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Email:</span> {order.email}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Address:</span> {order.address}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">City:</span> {order.city}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Zip:</span> {order.zip}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Pickup Time:</span>{" "}
+                                    {PICKUP_TIMES.find(opt => opt.value === order.pickupTime)?.label || 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Delivery Preference:</span>{" "}
+                                    {DELIVERY_PREFS.find(opt => opt.value === order.deliveryPref)?.label || 'N/A'}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  <label className="text-xs font-medium text-blue-700">Assign Delivery Person</label>
+                                  <select
+                                    className="border rounded px-2 py-1"
+                                    value={assignedDeliveryPerson[order.id] || ''}
+                                    onChange={e => setAssignedDeliveryPerson(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                  >
+                                    <option value="">Select</option>
+                                    {DELIVERY_PERSONS.map(name => (
+                                      <option key={name} value={name}>{name}</option>
+                                    ))}
+                                  </select>
+                                  <label className="text-xs font-medium text-blue-700 mt-2">Estimated Delivery Date</label>
+                                  <select
+                                    className="border rounded px-2 py-1"
+                                    value={estimatedDeliveryDate[order.id] || ''}
+                                    onChange={e => setEstimatedDeliveryDate(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                  >
+                                    <option value="">Select</option>
+                                    {ESTIMATED_DATES.map(date => (
+                                      <option key={date} value={date}>{date}</option>
+                                    ))}
+                                  </select>
+                                  <label className="text-xs font-medium text-blue-700 mt-2">Delivery Preference</label>
+                                  <select
+                                    className="border rounded px-2 py-1"
+                                    value={order.deliveryPreference || ''}
+                                    onChange={e => handleStatusChange(order.id, e.target.value)}
+                                  >
+                                    <option value="standard">Standard</option>
+                                    <option value="express">Express (+₹5)</option>
+                                  </select>
+                                </div>
+                                {/* Delivery Statuses */}
+                                <div className="flex flex-col gap-2 mt-4">
+                                  <label className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={laundryStatus[order.id]?.deliveryManDone || false}
+                                      onChange={e =>
+                                        handleLaundryStatusChange(order.id, 'deliveryManDone', e.target.checked)
+                                      }
+                                    />
+                                    <span className="text-sm">Delivery Done by Delivery Man</span>
+                                  </label>
+                                  <label className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={laundryStatus[order.id]?.customerDeliveryConfirmed || false}
+                                      onChange={e =>
+                                        handleLaundryStatusChange(order.id, 'customerDeliveryConfirmed', e.target.checked)
+                                      }
+                                    />
+                                    <span className="text-sm">Delivery & Items Back Confirmed by Customer</span>
+                                  </label>
+                                </div>
+                              </div>
+                              {/* Pickup Details Card */}
+                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100 flex-1 min-w-0 w-full">
+                                <h4 className="font-semibold mb-2 text-blue-700">Pickup Details</h4>
+                                <div className="flex flex-col gap-2">
+                                  <label className="text-xs font-medium text-blue-700">Assign Pickup Person</label>
+                                  <select
+                                    className="border rounded px-2 py-1"
+                                    value={assignedPickupPerson[order.id] || ''}
+                                    onChange={e => setAssignedPickupPerson(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                  >
+                                    <option value="">Select</option>
+                                    {PICKUP_PERSONS.map(name => (
+                                      <option key={name} value={name}>{name}</option>
+                                    ))}
+                                  </select>
+                                  <label className="text-xs font-medium text-blue-700 mt-2">Estimated Pickup Date</label>
+                                  <select
+                                    className="border rounded px-2 py-1"
+                                    value={estimatedPickupDate[order.id] || ''}
+                                    onChange={e => setEstimatedPickupDate(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                  >
+                                    <option value="">Select</option>
+                                    {ESTIMATED_DATES.map(date => (
+                                      <option key={date} value={date}>{date}</option>
+                                    ))}
+                                  </select>
+                                  <label className="text-xs font-medium text-blue-700 mt-2">Pickup Time</label>
+                                  <div className="border rounded px-2 py-1 bg-gray-50 mb-2">
+                                    {PICKUP_TIMES.find(opt => opt.value === order.pickupTime)?.label || 'N/A'}
+                                  </div>
+                                  {/* Pickup Statuses */}
+                                  <div className="flex flex-col gap-2">
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={laundryStatus[order.id]?.pickupManVerified || false}
+                                        onChange={e =>
+                                          handleLaundryStatusChange(order.id, 'pickupManVerified', e.target.checked)
+                                        }
+                                      />
+                                      <span className="text-sm">Items Verified by Pickup Man</span>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={laundryStatus[order.id]?.customerPickupVerified || false}
+                                        onChange={e =>
+                                          handleLaundryStatusChange(order.id, 'customerPickupVerified', e.target.checked)
+                                        }
+                                      />
+                                      <span className="text-sm">Pickup Verified by Customer</span>
+                                    </label>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-
-                            {/* Order Items (Right) */}
-                            <div className="flex-1 flex flex-col justify-between">
-                              <div>
-                                {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
-                                  const catImage = items[0]?.categoriesimage || items[0]?.categoryImage || null;
-                                  return (
-                                    <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50">
-                                      <div className="flex items-center gap-3 px-4 py-2 border-b border-blue-200">
-                                        {catImage ? (
-                                          <div className="relative w-8 h-8 rounded-full overflow-hidden bg-white border border-blue-200">
-                                            <img src={catImage} alt={catName} className="w-full h-full object-cover" />
-                                          </div>
-                                        ) : (
-                                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200" />
-                                        )}
-                                        <span className="font-semibold text-blue-700">{catName}</span>
-                                      </div>
-                                      <div className="p-4 space-y-2">
-                                        {items.map((item, idx) => (
-                                          <div key={idx} className="flex items-start gap-4">
-                                            <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                                              {item.image ? (
-                                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                                              ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gray-200" />
-                                              )}
-                                            </div>
-                                            <div className="flex-grow">
-                                              <h5 className="font-medium text-blue-600">{item.name}</h5>
-                                              <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                                              <p className="text-sm text-gray-600">
-                                                Price: ₹{Number(item.price).toFixed(2)}
-                                              </p>
-                                            </div>
-                                            <div className="text-right">
-                                              <p className="font-medium text-blue-600">
-                                                ₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}
-                                              </p>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
+                            {/* Row: Order Items (full width) */}
+                            <div>
+                              {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
+                                const catImage = items[0]?.categoriesimage || items[0]?.categoryImage || null;
+                                return (
+                                  <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50">
+                                    <div className="flex items-center gap-3 px-4 py-2 border-b border-blue-200">
+                                      {catImage ? (
+                                        <div className="relative w-8 h-8 rounded-full overflow-hidden bg-white border border-blue-200">
+                                          <img src={catImage} alt={catName} className="w-full h-full object-cover" />
+                                        </div>
+                                      ) : (
+                                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200" />
+                                      )}
+                                      <span className="font-semibold text-blue-700">{catName}</span>
                                     </div>
-                                  );
-                                })}
-                              </div>
-                              {/* Final total at bottom */}
-                              <div className="mt-4 flex justify-end">
-                                <div className="text-xl font-bold text-blue-700">
-                                  Total: ₹{order.items.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
-                                </div>
+                                    <div className="p-4 space-y-2">
+                                      {items.map((item, idx) => (
+                                        <div key={idx} className="flex items-start gap-4">
+                                          <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                                            {item.image ? (
+                                              <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center bg-gray-200" />
+                                            )}
+                                          </div>
+                                          <div className="flex-grow">
+                                            <h5 className="font-medium text-blue-600">{item.name}</h5>
+                                            <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                                            <p className="text-sm text-gray-600">
+                                              Price: ₹{Number(item.price).toFixed(2)}
+                                            </p>
+                                          </div>
+                                          <div className="text-right">
+                                            <p className="font-medium text-blue-600">
+                                              ₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {/* Final total at bottom */}
+                            <div className="mt-4 flex justify-end">
+                              <div className="text-xl font-bold text-blue-700">
+                                Total: ₹{order.items.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
                               </div>
                             </div>
-                          </div>
-                          <div className="mt-4">
-                            {!order.billNumber && (
-                              <button 
-                                className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700"
-                                onClick={() => setShowPreviewDialog(order)}
-                              >
-                                Generate Bill
-                              </button>
-                            )}
-                            {order.billNumber && (
-                              <p className="text-sm text-gray-700">Bill Number: {order.billNumber}</p>
-                            )}
+                            {/* Generate Bill/Show Bill Number as before */}
+                            <div className="mt-4">
+                              {!order.billNumber && (
+                                <button 
+                                  className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700"
+                                  onClick={() => setShowPreviewDialog(order)}
+                                >
+                                  Generate Bill
+                                </button>
+                              )}
+                              {order.billNumber && (
+                                <p className="text-sm text-gray-700">Bill Number: {order.billNumber}</p>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
