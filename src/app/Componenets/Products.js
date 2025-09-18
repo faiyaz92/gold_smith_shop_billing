@@ -10,6 +10,7 @@ export default function Products({
   removeFromCart,
   cart,
   onActiveCategoryChange,
+  onActiveSubcategoryChange, // <-- add this
   searchQuery = '',
   activeSubcategory,
 }) {
@@ -160,8 +161,13 @@ export default function Products({
           }
         });
 
-        if (mostVisible && onActiveCategoryChange) {
-          onActiveCategoryChange(mostVisible.target.dataset.categoryid);
+        if (mostVisible) {
+          if (onActiveCategoryChange) {
+            onActiveCategoryChange(mostVisible.target.dataset.categoryid);
+          }
+          if (onActiveSubcategoryChange && mostVisible.target.dataset.subcategoryid) {
+            onActiveSubcategoryChange(mostVisible.target.dataset.subcategoryid);
+          }
         }
       },
       { threshold: [0.4, 0.6, 0.8] }
@@ -172,7 +178,7 @@ export default function Products({
     });
 
     return () => observer.disconnect();
-  }, [products, categories, onActiveCategoryChange]);
+  }, [products, categories, onActiveCategoryChange, onActiveSubcategoryChange]);
 
   const getQuantity = (productId) => {
     const found = cart.find((item) => item.id === productId);

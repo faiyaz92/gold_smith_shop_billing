@@ -8,6 +8,18 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { motion } from 'framer-motion';
 import Navbar from '@/app/Componenets/Navbar';
 import { groupItemsByCategory } from '@/app/utils/utils';
+
+export const PICKUP_TIMES = [
+  { value: 'morning', label: 'Morning (9-12 PM)' },
+  { value: 'afternoon', label: 'Afternoon (12-5 PM)' },
+  { value: 'evening', label: 'Evening (5-8 PM)' },
+];
+
+export const DELIVERY_PREFS = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'express', label: 'Express (+₹5)' },
+];
+
 export default function CheckoutPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -28,6 +40,10 @@ export default function CheckoutPage() {
     city: '',
     zip: '',
     address: ''
+  });
+  const [schedule, setSchedule] = useState({
+    pickupTime: 'morning',
+    deliveryPref: 'standard',
   });
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -74,6 +90,11 @@ export default function CheckoutPage() {
   // Handle input change for address form
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  // Handle schedule change
+  const handleScheduleChange = (e) => {
+    setSchedule({ ...schedule, [e.target.name]: e.target.value });
   };
 
   // Save address to Firestore
@@ -131,6 +152,8 @@ export default function CheckoutPage() {
         paymentMethod: method === 'cod' ? 'COD' : 'razorpay',
         status: method === 'cod' ? 'Pending' : 'Completed',
         timestamp: serverTimestamp(),
+        pickupTime: schedule.pickupTime,
+        deliveryPref: schedule.deliveryPref,
         ...(method !== 'cod' && { deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) })
       });
 
@@ -163,66 +186,114 @@ export default function CheckoutPage() {
       <div className="max-w-6xl mx-auto p-4 md:p-8">
         <h1 className="text-2xl font-bold mb-6 text-blue-700">Checkout</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <motion.div
-            className="bg-white p-6 rounded-lg shadow-md border border-blue-100"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            <h2 className="text-lg font-semibold mb-4 text-blue-800">Delivery Details</h2>
-            <div className="space-y-4">
-              <input
-                name="name"
-                placeholder="Full Name"
-                value={form.name}
-                onChange={handleChange}
-                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <input
-                name="email"
-                type="email"
-                placeholder="Email Address"
-                value={form.email}
-                onChange={handleChange}
-                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <input
-                name="phone"
-                placeholder="Phone Number"
-                value={form.phone}
-                onChange={handleChange}
-                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <input
-                name="city"
-                placeholder="City"
-                value={form.city}
-                onChange={handleChange}
-                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <input
-                name="zip"
-                placeholder="Zip Code"
-                value={form.zip}
-                onChange={handleChange}
-                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <textarea
-                name="address"
-                placeholder="Address"
-                value={form.address}
-                onChange={handleChange}
-                className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows="3"
-                required
-              />
-            </div>
-          </motion.div>
+          {/* Left column: Delivery Details, then Schedule */}
+          <div className="flex flex-col gap-8">
+            <motion.div
+              className="bg-white p-6 rounded-lg shadow-md border border-blue-100"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              <h2 className="text-lg font-semibold mb-4 text-blue-800">Delivery Details</h2>
+              <div className="space-y-4">
+                <input
+                  name="name"
+                  placeholder="Full Name"
+                  value={form.name}
+                  onChange={handleChange}
+                  className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+                <input
+                  name="email"
+                  type="email"
+                  placeholder="Email Address"
+                  value={form.email}
+                  onChange={handleChange}
+                  className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+                <input
+                  name="phone"
+                  placeholder="Phone Number"
+                  value={form.phone}
+                  onChange={handleChange}
+                  className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+                <input
+                  name="city"
+                  placeholder="City"
+                  value={form.city}
+                  onChange={handleChange}
+                  className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+                <input
+                  name="zip"
+                  placeholder="Zip Code"
+                  value={form.zip}
+                  onChange={handleChange}
+                  className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+                <textarea
+                  name="address"
+                  placeholder="Address"
+                  value={form.address}
+                  onChange={handleChange}
+                  className="w-full border border-blue-200 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows="3"
+                  required
+                />
+              </div>
+            </motion.div>
 
+            <motion.div
+              className="bg-white p-6 rounded-lg shadow-md border border-blue-100"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              <h2 className="text-lg font-semibold mb-4 text-blue-800">Schedule</h2>
+              <div className="mb-4">
+                <div className="font-medium mb-2 text-blue-700">Pickup Time</div>
+                <div className="flex gap-4">
+                  {PICKUP_TIMES.map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="pickupTime"
+                        value={opt.value}
+                        checked={schedule.pickupTime === opt.value}
+                        onChange={handleScheduleChange}
+                        className="accent-blue-600"
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="font-medium mb-2 text-blue-700">Delivery Preference</div>
+                <div className="flex gap-4">
+                  {DELIVERY_PREFS.map(opt => (
+                    <label key={opt.value} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="deliveryPref"
+                        value={opt.value}
+                        checked={schedule.deliveryPref === opt.value}
+                        onChange={handleScheduleChange}
+                        className="accent-blue-600"
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Right column: Order Summary */}
           <motion.div
             className="bg-white p-6 rounded-lg shadow-md border border-blue-100 flex flex-col"
             initial={{ opacity: 0, x: 20 }}
@@ -246,7 +317,7 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                 ))
-            )  }
+              )}
             </div>
 
             <div className="mt-4 border-t border-blue-100 pt-4">
