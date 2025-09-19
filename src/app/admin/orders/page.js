@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { LogOut, ChevronDown, ChevronUp, Package, ShoppingBag, Users, Home } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AdminHeader from '../Componenets/AdminHeader';
-import { onSnapshot, query, collection, orderBy, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { onSnapshot, query, collection, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import AdminLayout from '../AdminLayout';
 import jsPDF from 'jspdf';
@@ -13,20 +13,28 @@ import jsPDF from 'jspdf';
 // Status color mapping
 const statusColors = {
   Pending: 'bg-orange-100 text-orange-800',
-  Processing: 'bg-blue-100 text-blue-800',
-  Shipped: 'bg-purple-100 text-purple-800',
-  Completed: 'bg-green-100 text-green-800',
+  Confirmed: 'bg-yellow-100 text-yellow-800',
+  'Scheduled for Pickup': 'bg-blue-100 text-blue-800',
+  'Out for Pickup': 'bg-blue-200 text-blue-900',
+  'Picked Up': 'bg-blue-300 text-blue-900',
+  'Received at Facility': 'bg-purple-100 text-purple-800',
+  'In Sorting/Inspection': 'bg-purple-200 text-purple-800',
+  'In Washing': 'bg-teal-100 text-teal-800',
+  'In Drying': 'bg-teal-200 text-teal-800',
+  'In Ironing/Pressing': 'bg-teal-300 text-teal-800',
+  'In Folding/Packaging': 'bg-teal-400 text-teal-800',
+  'Quality Check': 'bg-indigo-100 text-indigo-800',
+  'Ready for Delivery': 'bg-indigo-200 text-indigo-800',
+  'Out for Delivery': 'bg-indigo-300 text-indigo-800',
+  Delivered: 'bg-green-100 text-green-800',
   Cancelled: 'bg-red-100 text-red-800',
+  'Refunded/Returned': 'bg-red-200 text-red-800',
+  'On Hold': 'bg-gray-100 text-gray-800',
 };
 
 const DELIVERY_PERSONS = ['Ramesh', 'Suresh', 'Priya'];
 const PICKUP_PERSONS = ['Amit', 'Sunita', 'Vijay'];
-const ESTIMATED_DATES = [
-  'Today',
-  'Tomorrow',
-  'In 2 Days',
-  'In 3 Days'
-];
+const ESTIMATED_DATES = ['Today', 'Tomorrow', 'In 2 Days', 'In 3 Days'];
 const PICKUP_TIMES = [
   { value: 'morning', label: 'Morning (9-12 PM)' },
   { value: 'afternoon', label: 'Afternoon (12-5 PM)' },
@@ -74,7 +82,6 @@ export default function AdminOrders() {
           const orderDate = data.timestamp?.toDate();
           const items = data.items || [];
 
-          // Calculate total if not provided
           const calculatedTotal = items.reduce((sum, item) =>
             sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
 
@@ -109,8 +116,15 @@ export default function AdminOrders() {
             laundryStatus: data.laundryStatus || {
               pickupManVerified: false,
               customerPickupVerified: false,
+              receivedAtFacility: false,
+              sortingDone: false,
+              washingDone: false,
+              dryingDone: false,
+              ironingDone: false,
+              foldingDone: false,
+              qualityCheckDone: false,
               deliveryManDone: false,
-              customerDeliveryConfirmed: false
+              customerDeliveryConfirmed: false,
             },
           };
         });
@@ -154,13 +168,11 @@ export default function AdminOrders() {
   };
 
   const handleLaundryStatusChange = async (orderId, statusKey, value) => {
-    // Update local state
     setLaundryStatus(prev => ({
       ...prev,
       [orderId]: { ...prev[orderId], [statusKey]: value }
     }));
 
-    // Update Firestore
     try {
       const orderRef = doc(db, getSingleOrderPath(orderId));
       await updateDoc(orderRef, {
@@ -219,7 +231,6 @@ export default function AdminOrders() {
 
     const doc = new jsPDF();
 
-    // Header
     doc.setFontSize(20);
     doc.setFont("helvetica", "bold");
     doc.text('EASY2 Solutions', 105, 20, { align: 'center' });
@@ -227,14 +238,12 @@ export default function AdminOrders() {
     doc.setFontSize(16);
     doc.text('INVOICE', 105, 35, { align: 'center' });
 
-    // Bill info
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
     doc.text(`Bill Number: ${finalBillNumber}`, 20, 50);
     doc.text(`Issued on: ${date}`, 20, 60);
     doc.text(`Estimated Delivery: ${deliveryDate}`, 20, 70);
 
-    // Customer Details
     doc.setFont("helvetica", "bold");
     doc.text('Customer Details:', 20, 90);
     doc.setFont("helvetica", "normal");
@@ -243,14 +252,12 @@ export default function AdminOrders() {
     doc.text(`Email: ${customer.email || 'N/A'}`, 20, 120);
     doc.text(`Address: ${customer.address || 'N/A'}, ${customer.city || 'N/A'}, ${customer.pincode || 'N/A'}`, 20, 130);
 
-    // Items Table
     doc.setFont("helvetica", "bold");
     doc.text('Order Items:', 20, 150);
 
     let yPosition = 160;
     doc.setFont("helvetica", "normal");
 
-    // Table headers
     doc.setFillColor(230, 230, 230);
     doc.rect(20, yPosition, 170, 8, 'F');
     doc.setFont("helvetica", "bold");
@@ -259,7 +266,6 @@ export default function AdminOrders() {
     doc.text('Price (₹)', 140, yPosition + 5);
     yPosition += 10;
 
-    // Items
     doc.setFont("helvetica", "normal");
     order.items.forEach((item) => {
       if (yPosition > 270) {
@@ -279,7 +285,6 @@ export default function AdminOrders() {
       yPosition += 8;
     });
 
-    // Total
     if (yPosition > 270) {
       doc.addPage();
       yPosition = 20;
@@ -293,13 +298,11 @@ export default function AdminOrders() {
     doc.setFontSize(14);
     doc.text(`Total: ₹${total}`, 140, yPosition);
 
-    // Payment Status
     yPosition += 15;
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
     doc.text(`Payment Status: ${order.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}`, 20, yPosition);
 
-    // Footer
     doc.setFontSize(10);
     doc.text('Thank you for your business!', 105, 290, { align: 'center' });
 
@@ -363,7 +366,6 @@ Thank you for your business!
       <div className="p-4 sm:p-6 max-w-7xl mx-auto">
         <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent mb-6">Orders Management</h2>
 
-        {/* Filters */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <input
             type="text"
@@ -372,7 +374,6 @@ Thank you for your business!
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 p-2 rounded bg-gray-50 border border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200 text-sm"
           />
-
           <div className="flex flex-col sm:flex-row gap-2">
             <select
               value={statusFilter}
@@ -381,12 +382,24 @@ Thank you for your business!
             >
               <option value="">All Status</option>
               <option value="Pending">Pending</option>
-              <option value="Processing">Processing</option>
-              <option value="Shipped">Shipped</option>
-              <option value="Completed">Completed</option>
+              <option value="Confirmed">Confirmed</option>
+              <option value="Scheduled for Pickup">Scheduled for Pickup</option>
+              <option value="Out for Pickup">Out for Pickup</option>
+              <option value="Picked Up">Picked Up</option>
+              <option value="Received at Facility">Received at Facility</option>
+              <option value="In Sorting/Inspection">In Sorting/Inspection</option>
+              <option value="In Washing">In Washing</option>
+              <option value="In Drying">In Drying</option>
+              <option value="In Ironing/Pressing">In Ironing/Pressing</option>
+              <option value="In Folding/Packaging">In Folding/Packaging</option>
+              <option value="Quality Check">Quality Check</option>
+              <option value="Ready for Delivery">Ready for Delivery</option>
+              <option value="Out for Delivery">Out for Delivery</option>
+              <option value="Delivered">Delivered</option>
               <option value="Cancelled">Cancelled</option>
+              <option value="Refunded/Returned">Refunded/Returned</option>
+              <option value="On Hold">On Hold</option>
             </select>
-
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
@@ -399,7 +412,6 @@ Thank you for your business!
           </div>
         </div>
 
-        {/* Orders Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full border border-gray-200 rounded-lg">
             <thead className="bg-blue-50 text-blue-800 text-xs sm:text-sm">
@@ -439,10 +451,23 @@ Thank you for your business!
                           className={`border-none text-xs sm:text-sm rounded px-2 py-1 focus:ring-1 focus:ring-blue-200 ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}
                         >
                           <option value="Pending" className="bg-orange-100 text-orange-800">Pending</option>
-                          <option value="Processing" className="bg-blue-100 text-blue-800">Processing</option>
-                          <option value="Shipped" className="bg-purple-100 text-purple-800">Shipped</option>
-                          <option value="Completed" className="bg-green-100 text-green-800">Completed</option>
+                          <option value="Confirmed" className="bg-yellow-100 text-yellow-800">Confirmed</option>
+                          <option value="Scheduled for Pickup" className="bg-blue-100 text-blue-800">Scheduled for Pickup</option>
+                          <option value="Out for Pickup" className="bg-blue-200 text-blue-900">Out for Pickup</option>
+                          <option value="Picked Up" className="bg-blue-300 text-blue-900">Picked Up</option>
+                          <option value="Received at Facility" className="bg-purple-100 text-purple-800">Received at Facility</option>
+                          <option value="In Sorting/Inspection" className="bg-purple-200 text-purple-800">In Sorting/Inspection</option>
+                          <option value="In Washing" className="bg-teal-100 text-teal-800">In Washing</option>
+                          <option value="In Drying" className="bg-teal-200 text-teal-800">In Drying</option>
+                          <option value="In Ironing/Pressing" className="bg-teal-300 text-teal-800">In Ironing/Pressing</option>
+                          <option value="In Folding/Packaging" className="bg-teal-400 text-teal-800">In Folding/Packaging</option>
+                          <option value="Quality Check" className="bg-indigo-100 text-indigo-800">Quality Check</option>
+                          <option value="Ready for Delivery" className="bg-indigo-200 text-indigo-800">Ready for Delivery</option>
+                          <option value="Out for Delivery" className="bg-indigo-300 text-indigo-800">Out for Delivery</option>
+                          <option value="Delivered" className="bg-green-100 text-green-800">Delivered</option>
                           <option value="Cancelled" className="bg-red-100 text-red-800">Cancelled</option>
+                          <option value="Refunded/Returned" className="bg-red-200 text-red-800">Refunded/Returned</option>
+                          <option value="On Hold" className="bg-gray-100 text-gray-800">On Hold</option>
                         </select>
                       </td>
                       <td className="p-3 hidden md:table-cell">{order.date}</td>
@@ -456,38 +481,20 @@ Thank you for your business!
                       <tr>
                         <td colSpan={10} className="bg-blue-50 p-4">
                           <div className="flex flex-col gap-6">
-                            {/* Row: Delivery Details & Pickup Details */}
                             <div className="flex flex-col md:flex-row gap-4 md:gap-6">
-                              {/* Delivery Details Card */}
                               <div className="bg-white rounded-lg shadow p-4 border border-gray-100 flex-1 min-w-0 w-full">
                                 <h4 className="font-semibold mb-2 text-blue-700">Delivery Details</h4>
                                 <div className="text-sm text-gray-700 mb-2">
-                                  <div>
-                                    <span className="font-medium">Customer Name:</span> {order.customer}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Phone:</span> {order.phone}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Email:</span> {order.email}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Address:</span> {order.address}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">City:</span> {order.city}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Zip:</span> {order.zip}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Pickup Time:</span>{" "}
-                                    {PICKUP_TIMES.find(opt => opt.value === order.pickupTime)?.label || 'N/A'}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Delivery Preference:</span>{" "}
-                                    {DELIVERY_PREFS.find(opt => opt.value === order.deliveryPref)?.label || 'N/A'}
-                                  </div>
+                                  <div><span className="font-medium">Customer Name:</span> {order.customer}</div>
+                                  <div><span className="font-medium">Phone:</span> {order.phone}</div>
+                                  <div><span className="font-medium">Email:</span> {order.email}</div>
+                                  <div><span className="font-medium">Address:</span> {order.address}</div>
+                                  <div><span className="font-medium">City:</span> {order.city}</div>
+                                  <div><span className="font-medium">Zip:</span> {order.zip}</div>
+                                  <div><span className="font-medium">Pickup Time:</span>{" "}
+                                    {PICKUP_TIMES.find(opt => opt.value === order.pickupTime)?.label || 'N/A'}</div>
+                                  <div><span className="font-medium">Delivery Preference:</span>{" "}
+                                    {DELIVERY_PREFS.find(opt => opt.value === order.deliveryPref)?.label || 'N/A'}</div>
                                 </div>
                                 <div className="flex flex-col gap-2">
                                   <label className="text-xs font-medium text-blue-700">Assign Delivery Person</label>
@@ -515,14 +522,23 @@ Thank you for your business!
                                   <label className="text-xs font-medium text-blue-700 mt-2">Delivery Preference</label>
                                   <select
                                     className="border rounded px-2 py-1"
-                                    value={order.deliveryPreference || ''}
-                                    onChange={e => handleStatusChange(order.id, e.target.value)}
+                                    value={order.deliveryPref || ''}
+                                    onChange={async e => {
+                                      const newPref = e.target.value;
+                                      // Update only deliveryPref in Firestore
+                                      try {
+                                        const orderRef = doc(db, getSingleOrderPath(order.id));
+                                        await updateDoc(orderRef, { deliveryPref: newPref });
+                                        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, deliveryPref: newPref } : o));
+                                      } catch (err) {
+                                        console.error("Failed to update delivery preference", err);
+                                      }
+                                    }}
                                   >
                                     <option value="standard">Standard</option>
                                     <option value="express">Express (+₹5)</option>
                                   </select>
                                 </div>
-                                {/* Delivery Statuses */}
                                 <div className="flex flex-col gap-2 mt-4">
                                   <label className="flex items-center gap-2">
                                     <input
@@ -546,7 +562,6 @@ Thank you for your business!
                                   </label>
                                 </div>
                               </div>
-                              {/* Pickup Details Card */}
                               <div className="bg-white rounded-lg shadow p-4 border border-gray-100 flex-1 min-w-0 w-full">
                                 <h4 className="font-semibold mb-2 text-blue-700">Pickup Details</h4>
                                 <div className="flex flex-col gap-2">
@@ -576,7 +591,6 @@ Thank you for your business!
                                   <div className="border rounded px-2 py-1 bg-gray-50 mb-2">
                                     {PICKUP_TIMES.find(opt => opt.value === order.pickupTime)?.label || 'N/A'}
                                   </div>
-                                  {/* Pickup Statuses */}
                                   <div className="flex flex-col gap-2">
                                     <label className="flex items-center gap-2">
                                       <input
@@ -598,11 +612,80 @@ Thank you for your business!
                                       />
                                       <span className="text-sm">Pickup Verified by Customer</span>
                                     </label>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={laundryStatus[order.id]?.receivedAtFacility || false}
+                                        onChange={e =>
+                                          handleLaundryStatusChange(order.id, 'receivedAtFacility', e.target.checked)
+                                        }
+                                      />
+                                      <span className="text-sm">Received at Facility</span>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={laundryStatus[order.id]?.sortingDone || false}
+                                        onChange={e =>
+                                          handleLaundryStatusChange(order.id, 'sortingDone', e.target.checked)
+                                        }
+                                      />
+                                      <span className="text-sm">Sorting/Inspection Done</span>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={laundryStatus[order.id]?.washingDone || false}
+                                        onChange={e =>
+                                          handleLaundryStatusChange(order.id, 'washingDone', e.target.checked)
+                                        }
+                                      />
+                                      <span className="text-sm">Washing Done</span>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={laundryStatus[order.id]?.dryingDone || false}
+                                        onChange={e =>
+                                          handleLaundryStatusChange(order.id, 'dryingDone', e.target.checked)
+                                        }
+                                      />
+                                      <span className="text-sm">Drying Done</span>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={laundryStatus[order.id]?.ironingDone || false}
+                                        onChange={e =>
+                                          handleLaundryStatusChange(order.id, 'ironingDone', e.target.checked)
+                                        }
+                                      />
+                                      <span className="text-sm">Ironing/Pressing Done</span>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={laundryStatus[order.id]?.foldingDone || false}
+                                        onChange={e =>
+                                          handleLaundryStatusChange(order.id, 'foldingDone', e.target.checked)
+                                        }
+                                      />
+                                      <span className="text-sm">Folding/Packaging Done</span>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={laundryStatus[order.id]?.qualityCheckDone || false}
+                                        onChange={e =>
+                                          handleLaundryStatusChange(order.id, 'qualityCheckDone', e.target.checked)
+                                        }
+                                      />
+                                      <span className="text-sm">Quality Check Done</span>
+                                    </label>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                            {/* Row: Order Items (full width) */}
                             <div>
                               {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
                                 const catImage = items[0]?.categoriesimage || items[0]?.categoryImage || null;
@@ -647,13 +730,11 @@ Thank you for your business!
                                 );
                               })}
                             </div>
-                            {/* Final total at bottom */}
                             <div className="mt-4 flex justify-end">
                               <div className="text-xl font-bold text-blue-700">
                                 Total: ₹{order.items.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
                               </div>
                             </div>
-                            {/* Generate Bill/Show Bill Number as before */}
                             <div className="mt-4">
                               {!order.billNumber && (
                                 <button 
@@ -679,7 +760,6 @@ Thank you for your business!
         </div>
       </div>
 
-      {/* Preview Dialog */}
       {showPreviewDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
@@ -712,7 +792,6 @@ Thank you for your business!
         </div>
       )}
 
-      {/* Success Dialog */}
       {showSuccessDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
