@@ -132,7 +132,8 @@ const Page = () => {
             const items = (data.items || []).map(item => ({
               ...item,
               price: Number(item.price || 0),
-              quantity: Number(item.quantity || 1)
+              quantity: Number(item.quantity || 1),
+              categoryName: item.categoryName || item.category || 'Uncategorized',
             }));
 
             return {
@@ -291,71 +292,59 @@ const Page = () => {
       : 'Invalid Date';
   }, []);
 
+  const toggleTrail = (orderId) => {
+    setExpandedTrails(prev => ({
+      ...prev,
+      [orderId]: !prev[orderId]
+    }));
+  };
+
+  // Helper to get status color (case-insensitive)
   const getStatusColor = (status) => {
     if (!status) return 'bg-gray-100 text-gray-800';
-    // Normalize: trim and lowercase
     const normalized = status.trim().toLowerCase();
-    // Find the first key in statusColors that matches normalized
     const foundKey = Object.keys(statusColors).find(
       key => key.trim().toLowerCase() === normalized
     );
     return foundKey ? statusColors[foundKey] : 'bg-gray-100 text-gray-800';
   };
 
-  const groupItemsByCategory = useCallback((items) => {
-    const groups = {};
-    (items || []).forEach(item => {
-      const catName = item.categoryName || 'Other';
-      if (!groups[catName]) groups[catName] = [];
-      groups[catName].push(item);
-    });
-    return groups;
-  }, []);
-
-  const renderProgressTrail = useCallback((status, collapsed = true) => {
+  // Trail rendering logic: show up to 5 steps, if more than 5, show 1-3, ..., prev, current
+  // In expanded mode, show ALL steps (completed, current, and upcoming)
+  const renderProgressTrail = (order, collapsed = true) => {
+    const status = order.status;
     const currentIndex = statusProgression.indexOf(status);
-
-    if (status === 'Cancelled') {
-      return (
-        <div className="flex flex-wrap gap-2 mt-4 justify-center sm:justify-start">
-          <div className="flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium bg-red-100 text-red-800">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <span className="text-xs mt-1 text-center w-20 sm:w-24">Cancelled</span>
-          </div>
-        </div>
-      );
-    }
-
-    // If collapsed, only show the current step
+    let steps = [];
     if (collapsed) {
-      const step = statusProgression[currentIndex] || status;
-      return (
-        <div className="flex flex-wrap gap-1 sm:gap-2 mt-4 justify-center sm:justify-start">
-          <div className="flex items-center">
-            <div className="flex flex-col items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${getStatusColor(step)}`}>
-                {currentIndex + 1}
-              </div>
-              <span className="text-xs mt-1 text-center w-20 sm:w-24">{step}</span>
-            </div>
-          </div>
-        </div>
-      );
+      if (currentIndex < 5) {
+        steps = statusProgression.slice(0, Math.max(currentIndex + 1, 5));
+      } else {
+        // Show 1-3, ..., prev, current
+        steps = [
+          ...statusProgression.slice(0, 3),
+          '...',
+          statusProgression[currentIndex - 1],
+          statusProgression[currentIndex]
+        ];
+      }
+    } else {
+      // Show ALL steps in expanded mode
+      steps = statusProgression;
     }
 
-    // Expanded: show full trail
     return (
-      <div className="flex flex-wrap gap-1 sm:gap-2 mt-4 justify-center sm:justify-start">
-        {statusProgression.map((step, index) => {
-          const isCompleted = index < currentIndex || (index === currentIndex && status === 'Delivered');
-          const isCurrent = index === currentIndex;
-          const isTerminated = status === 'Refunded/Returned' || status === 'On Hold';
-          if (isTerminated && index > currentIndex) return null;
-
+      <div className="flex flex-wrap gap-1 sm:gap-2 mt-4 justify-start">
+        {steps.map((step, index) => {
+          if (step === '...') {
+            return (
+              <div key="ellipsis" className="flex items-center">
+                <span className="text-gray-400 px-2">...</span>
+              </div>
+            );
+          }
+          const realIndex = statusProgression.indexOf(step);
+          const isCompleted = realIndex < currentIndex;
+          const isCurrent = realIndex === currentIndex;
           return (
             <div key={step} className="flex items-center">
               <div className="flex flex-col items-center">
@@ -369,19 +358,39 @@ const Page = () => {
                     <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                  ) : index + 1}
+                  ) : realIndex + 1}
                 </div>
                 <span className="text-[10px] sm:text-xs mt-1 text-center w-16 sm:w-24">{step}</span>
               </div>
-              {index < statusProgression.length - 1 && !isTerminated && (
+              {index < steps.length - 1 && step !== '...' && (
                 <div className={`h-1 w-4 sm:w-8 mt-2 sm:mt-3 ${isCompleted ? 'bg-green-100' : 'bg-gray-200'}`} />
               )}
             </div>
           );
         })}
+        {collapsed && statusProgression.length > steps.length && (
+          <button
+            className="ml-2 text-xs text-blue-600 underline"
+            onClick={() => setExpandedTrails(prev => ({ ...prev, [order.id]: true }))
+            }
+            type="button"
+          >
+            + More
+          </button>
+        )}
+        {!collapsed && (
+          <button
+            className="ml-2 text-xs text-blue-600 underline"
+            onClick={() => setExpandedTrails(prev => ({ ...prev, [order.id]: false }))
+            }
+            type="button"
+          >
+            Less
+          </button>
+        )}
       </div>
     );
-  }, [getStatusColor, statusProgression]);
+  };
 
   if (error) {
     return (
@@ -523,7 +532,10 @@ const Page = () => {
                 >
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
                     <div>
-                      <h4 className="font-medium text-blue-600">Order #{order.srNo}</h4>
+                      {/* Use order.orderNumber if exists, else fallback to order.id */}
+                      <h4 className="font-medium text-blue-600">
+                        Order #{order.srNo}
+                      </h4>
                       <p className="text-sm text-gray-600">Placed on {formatDateTime(order.date)}</p>
                     </div>
                     <div className="mt-2 sm:mt-0 flex flex-col items-end">
@@ -535,12 +547,13 @@ const Page = () => {
                         onClick={() => toggleTrail(order.id)}
                         type="button"
                       >
-                        {expandedTrails[order.id] ? 'Collapse Progress' : 'Show Full Progress'}
                       </button>
                     </div>
                   </div>
 
-                  {renderProgressTrail(order.status, !expandedTrails[order.id])}
+                  {/* Progress trail below, collapsed by default, expandable */}
+                  {renderProgressTrail(order, !expandedTrails[order.id])}
+                
 
                   <div className="mb-4">
                     <p className="text-sm text-gray-600">
@@ -683,8 +696,8 @@ const Page = () => {
             ) : (
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 006 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 006 0z" />
                 </svg>
                 <h3 className="mt-2 text-sm font-medium text-gray-900">No saved addresses</h3>
                 <p className="mt-1 text-sm text-gray-500">Add your first shipping address.</p>
@@ -707,7 +720,7 @@ const Page = () => {
             <h2 className="text-xl font-semibold text-blue-600 mb-6">My Wishlist</h2>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
               </svg>
               <h3 className="mt-2 text-sm font-medium text-gray-900">Your wishlist is empty</h3>
               <p className="mt-1 text-sm text-gray-500">Save your favorite items here</p>
@@ -723,13 +736,6 @@ const Page = () => {
       default:
         return null;
     }
-  };
-
-  const toggleTrail = (orderId) => {
-    setExpandedTrails(prev => ({
-      ...prev,
-      [orderId]: !prev[orderId]
-    }));
   };
 
   return (
@@ -915,5 +921,15 @@ const Page = () => {
     </>
   );
 };
+
+function groupItemsByCategory(items) {
+  const groups = {};
+  (items || []).forEach(item => {
+    const catName = item.categoryName || 'Other';
+    if (!groups[catName]) groups[catName] = [];
+    groups[catName].push(item);
+  });
+  return groups;
+}
 
 export default Page;
