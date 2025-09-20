@@ -490,8 +490,8 @@ const handleSubmit = async () => {
                       />
                     </td>
                     <td className="p-3">{p.name}</td>
-                    <td className="p-3">₹{p.price}</td>
-                    <td className="p-3">{p.discountedPrice ? `₹${p.discountedPrice}` : '-'}</td>
+                    <td className="p-3">KWD {p.price}</td>
+                    <td className="p-3">{p.discountedPrice ? `KWD ${p.discountedPrice}` : '-'}</td>
                     <td className="p-3 text-gray-500">{p.categoryName}</td>
                     <td className="p-3 text-gray-500">{p.subcategoryName}</td>
                     <td className="p-3">

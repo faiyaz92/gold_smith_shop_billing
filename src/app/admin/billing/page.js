@@ -256,7 +256,7 @@ function BillingPage() {
     doc.setFont(undefined, 'bold');
     doc.text('Item', 25, yPosition + 5);
     doc.text('Qty', 100, yPosition + 5);
-    doc.text('Price (₹)', 140, yPosition + 5);
+    doc.text('Price (KWD)', 140, yPosition + 5);
     yPosition += 10;
 
     // Items
@@ -269,7 +269,7 @@ function BillingPage() {
 
       const itemText = item.name;
       const qtyText = item.quantity.toString();
-      const priceText = `₹${(Number(item.price) * Number(item.quantity)).toFixed(2)}`;
+      const priceText = `KWD ${(Number(item.price) * Number(item.quantity)).toFixed(2)}`;
 
       const splitName = doc.splitTextToSize(itemText, 70);
       doc.text(splitName, 25, yPosition);
@@ -291,7 +291,7 @@ function BillingPage() {
 
     doc.setFont(undefined, 'bold');
     doc.setFontSize(14);
-    doc.text(`Total: ₹${total}`, 140, yPosition);
+    doc.text(`Total: KWD ${total}`, 140, yPosition);
 
     // Payment Status
     yPosition += 15;
@@ -534,13 +534,13 @@ function BillingPage() {
                 {cart.map((item, idx) => (
                   <li key={idx} className="flex justify-between items-center py-2 border-b text-sm sm:text-base">
                     <span>{item.name} x {item.quantity}</span>
-                    <span>₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
+                    <span>KWD {(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
                   </li>
                 ))}
               </ul>
             )}
             <div className="font-bold text-lg text-right mb-4">
-              Total: ₹{cart.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
+              Total: KWD {cart.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
             </div>
             <div className="mb-4">
               <label className="flex items-center gap-2 text-sm sm:text-base">

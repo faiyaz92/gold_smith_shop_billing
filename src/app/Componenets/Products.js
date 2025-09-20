@@ -291,11 +291,11 @@ export default function Products({
                               <div className="flex gap-2">
                                 {product.discountedPrice ? (
                                   <>
-                                    <p className="text-gray-500 line-through">₹{product.price}</p>
-                                    <p className="text-gray-600 font-medium">₹{product.discountedPrice}</p>
+                                    <p className="text-gray-500 line-through">KWD {product.price}</p>
+                                    <p className="text-gray-600 font-medium">KWD {product.discountedPrice}</p>
                                   </>
                                 ) : (
-                                  <p className="text-gray-600">₹{product.price}</p>
+                                  <p className="text-gray-600">KWD {product.price}</p>
                                 )}
                               </div>
                             </div>

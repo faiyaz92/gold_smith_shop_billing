@@ -17,7 +17,7 @@ export const PICKUP_TIMES = [
 
 export const DELIVERY_PREFS = [
   { value: 'standard', label: 'Standard' },
-  { value: 'express', label: 'Express (+₹5)' },
+  { value: 'express', label: 'Express (+KWD5)' },
 ];
 
 export default function CheckoutPage() {
@@ -311,7 +311,7 @@ export default function CheckoutPage() {
                       {items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span>{item.name} x{item.quantity}</span>
-                          <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                          <span>KWD {(item.price * item.quantity).toFixed(2)}</span>
                         </div>
                       ))}
                     </div>
@@ -323,7 +323,7 @@ export default function CheckoutPage() {
             <div className="mt-4 border-t border-blue-100 pt-4">
               <div className="flex justify-between mb-2 text-blue-900">
                 <span>Subtotal</span>
-                <span>₹{total}</span>
+                <span>KWD {total}</span>
               </div>
               <div className="flex justify-between mb-2 text-blue-500 text-sm">
                 <span>Shipping</span>
@@ -331,7 +331,7 @@ export default function CheckoutPage() {
               </div>
               <div className="flex justify-between font-semibold text-lg text-blue-700">
                 <span>Total</span>
-                <span>₹{total}</span>
+                <span>KWD {total}</span>
               </div>
             </div>
 

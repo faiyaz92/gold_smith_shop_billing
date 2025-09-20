@@ -113,9 +113,9 @@ export default function Cart({ cart, isMobile, onClose }) {
                             >
                               <div>
                                 <p className="font-medium">{item.name}</p>
-                                <p className="text-xs text-gray-500">Qty: {item.quantity} × ₹{item.price}</p>
+                                <p className="text-xs text-gray-500">Qty: {item.quantity} × KWD {item.price}</p>
                               </div>
-                              <span className="font-medium">₹{item.price * item.quantity}</span>
+                              <span className="font-medium">KWD  {item.price * item.quantity}</span>
                             </motion.li>
                           ))}
                         </div>
@@ -128,7 +128,7 @@ export default function Cart({ cart, isMobile, onClose }) {
               <motion.div className="border-t pt-4 mt-4 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
                 <div className="flex justify-between mb-3">
                   <span className="font-medium">Total</span>
-                  <span className="font-semibold">₹{total}</span>
+                  <span className="font-semibold">KWD {total}</span>
                 </div>
                 <motion.button 
                   whileTap={{ scale: 0.98 }}
@@ -195,9 +195,9 @@ export default function Cart({ cart, isMobile, onClose }) {
                         >
                           <div>
                             <p className="font-medium">{item.name}</p>
-                            <p className="text-xs text-gray-500">Qty: {item.quantity} × ₹{item.price}</p>
+                            <p className="text-xs text-gray-500">Qty: {item.quantity} × KWD {item.price}</p>
                           </div>
-                          <span className="font-medium">₹{item.price * item.quantity}</span>
+                          <span className="font-medium">KWD {item.price * item.quantity}</span>
                         </motion.li>
                       ))}
                     </div>
@@ -210,7 +210,7 @@ export default function Cart({ cart, isMobile, onClose }) {
           <motion.div className="border-t pt-4 mt-4 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
             <div className="flex justify-between mb-3">
               <span className="font-medium">Subtotal</span>
-              <span className="font-semibold">₹{total}</span>
+              <span className="font-semibold">KWD {total}</span>
             </div>
             <div className="flex justify-between mb-3 text-xs text-gray-500">
               <span>Shipping</span>

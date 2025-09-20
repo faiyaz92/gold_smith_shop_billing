@@ -560,7 +560,7 @@ const Page = () => {
                       <span className="font-medium text-blue-600">Estimated Delivery:</span> {formatDate(order.estimatedDelivery)}
                     </p>
                     <p className="text-sm text-gray-600">
-                      <span className="font-medium text-blue-600">Order Total:</span> ₹{order.total.toFixed(2)}
+                      <span className="font-medium text-blue-600">Order Total:</span> KWD {order.total.toFixed(2)}
                     </p>
                   </div>
 
@@ -618,12 +618,12 @@ const Page = () => {
                                     Quantity: {item.quantity}
                                   </p>
                                   <p className="text-sm text-gray-600">
-                                    Price: ₹{item.price.toFixed(2)}
+                                    Price: KWD {item.price.toFixed(2)}
                                   </p>
                                 </div>
                                 <div className="text-right">
                                   <p className="font-medium text-blue-600">
-                                    ₹{(item.price * item.quantity).toFixed(2)}
+                                    KWD {(item.price * item.quantity).toFixed(2)}
                                   </p>
                                 </div>
                               </div>

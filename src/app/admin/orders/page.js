@@ -42,7 +42,7 @@ const PICKUP_TIMES = [
 ];
 const DELIVERY_PREFS = [
   { value: 'standard', label: 'Standard' },
-  { value: 'express', label: 'Express (+₹5)' },
+  { value: 'express', label: 'Express (+KWD 5)' },
 ];
 
 export default function AdminOrders() {
@@ -263,7 +263,7 @@ export default function AdminOrders() {
     doc.setFont("helvetica", "bold");
     doc.text('Item', 25, yPosition + 5);
     doc.text('Qty', 100, yPosition + 5);
-    doc.text('Price (₹)', 140, yPosition + 5);
+    doc.text('Price (KWD)', 140, yPosition + 5);
     yPosition += 10;
 
     doc.setFont("helvetica", "normal");
@@ -275,7 +275,7 @@ export default function AdminOrders() {
 
       const itemText = item.name;
       const qtyText = item.quantity.toString();
-      const priceText = `₹${(Number(item.price) * Number(item.quantity)).toFixed(2)}`;
+      const priceText = `KWD ${(Number(item.price) * Number(item.quantity)).toFixed(2)}`;
 
       const splitName = doc.splitTextToSize(itemText, 70);
       doc.text(splitName, 25, yPosition);
@@ -296,7 +296,7 @@ export default function AdminOrders() {
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.text(`Total: ₹${total}`, 140, yPosition);
+    doc.text(`Total: KWD ${total}`, 140, yPosition);
 
     yPosition += 15;
     doc.setFontSize(12);
@@ -339,9 +339,9 @@ Email: ${order.email}
 Address: ${order.address}
 
 Items:
-${order.items.map(item => `${item.name} x ${item.quantity} - ₹${(Number(item.price) * item.quantity).toFixed(2)}`).join('\n')}
+${order.items.map(item => `${item.name} x ${item.quantity} - KWD ${(Number(item.price) * item.quantity).toFixed(2)}`).join('\n')}
 
-Total: ₹${order.amount.toFixed(2)}
+Total: KWD ${order.amount.toFixed(2)}
 Payment Status: ${order.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
 Estimated Delivery: ${deliveryDate}
 Thank you for your business!
@@ -443,7 +443,7 @@ Thank you for your business!
                       <td className="p-3 hidden md:table-cell">{order.phone}</td>
                       <td className="p-3 hidden lg:table-cell">{order.address}</td>
                       <td className="p-3 hidden lg:table-cell">{order.paymentMethod}</td>
-                      <td className="p-3">₹{order.amount.toFixed(2)}</td>
+                      <td className="p-3">KWD {order.amount.toFixed(2)}</td>
                       <td className="p-3">
                         <select
                           value={order.status}
@@ -536,7 +536,7 @@ Thank you for your business!
                                     }}
                                   >
                                     <option value="standard">Standard</option>
-                                    <option value="express">Express (+₹5)</option>
+                                    <option value="express">Express (+KWD 5)</option>
                                   </select>
                                 </div>
                                 <div className="flex flex-col gap-2 mt-4">
@@ -715,12 +715,12 @@ Thank you for your business!
                                             <h5 className="font-medium text-blue-600">{item.name}</h5>
                                             <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
                                             <p className="text-sm text-gray-600">
-                                              Price: ₹{Number(item.price).toFixed(2)}
+                                              Price: KWD {Number(item.price).toFixed(2)}
                                             </p>
                                           </div>
                                           <div className="text-right">
                                             <p className="font-medium text-blue-600">
-                                              ₹{(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                                              KWD {(Number(item.price) * Number(item.quantity)).toFixed(2)}
                                             </p>
                                           </div>
                                         </div>
@@ -732,7 +732,7 @@ Thank you for your business!
                             </div>
                             <div className="mt-4 flex justify-end">
                               <div className="text-xl font-bold text-blue-700">
-                                Total: ₹{order.items.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
+                                Total: KWD {order.items.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
                               </div>
                             </div>
                             <div className="mt-4">
@@ -767,11 +767,11 @@ Thank you for your business!
             <p className="text-sm mb-2">Order ID: {showPreviewDialog.id}</p>
             <p className="text-sm mb-2">Customer: {showPreviewDialog.customer}</p>
             <p className="text-sm mb-2">Phone: {showPreviewDialog.phone}</p>
-            <p className="text-sm mb-2">Total: ₹{showPreviewDialog.amount.toFixed(2)}</p>
+            <p className="text-sm mb-2">Total: KWD {showPreviewDialog.amount.toFixed(2)}</p>
             <p className="font-medium mt-4 mb-2 text-sm">Items:</p>
             {showPreviewDialog.items.map((item, idx) => (
               <div key={idx} className="text-sm mb-1 text-gray-700">
-                {item.name} x {item.quantity} - ₹{(Number(item.price) * item.quantity).toFixed(2)}
+                {item.name} x {item.quantity} - KWD {(Number(item.price) * item.quantity).toFixed(2)}
               </div>
             ))}
             <div className="mt-6 flex justify-end gap-3">
