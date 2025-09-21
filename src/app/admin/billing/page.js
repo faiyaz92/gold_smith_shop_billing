@@ -4,28 +4,28 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AdminLayout from '../AdminLayout';
 import { db } from '@/app/firebase';
-import { 
-  collection, 
-  addDoc, 
-  doc, 
-  getDoc, 
-  updateDoc, 
-  query, 
-  where, 
-  getDocs, 
-  setDoc, 
+import {
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  updateDoc,
+  query,
+  where,
+  getDocs,
+  setDoc,
   serverTimestamp,
-  onSnapshot 
+  onSnapshot
 } from 'firebase/firestore';
-import { 
-  ShoppingCart, 
-  Plus, 
-  Minus, 
-  Search, 
-  Trash2, 
-  Receipt, 
-  CreditCard, 
-  Banknote, 
+import {
+  ShoppingCart,
+  Plus,
+  Minus,
+  Search,
+  Trash2,
+  Receipt,
+  CreditCard,
+  Banknote,
   UserPlus,
   Check
 } from 'lucide-react';
@@ -92,7 +92,7 @@ const Button = ({ children, onClick, disabled, variant = 'default', size = 'defa
     default: 'px-4 py-2 text-sm',
     lg: 'px-6 py-3 text-base'
   };
-  
+
   return (
     <button
       onClick={onClick}
@@ -130,7 +130,7 @@ const Badge = ({ children, variant = 'default' }) => {
     secondary: 'bg-yellow-100 text-yellow-800',
     destructive: 'bg-red-100 text-red-800'
   };
-  
+
   return (
     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${variants[variant]}`}>
       {children}
@@ -150,7 +150,7 @@ const Separator = () => (
 
 const Dialog = ({ open, onOpenChange, children }) => {
   if (!open) return null;
-  
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto relative">
@@ -184,7 +184,7 @@ const DialogContent = ({ children }) => (
 
 const LoadingDialog = ({ isOpen, title, description }) => {
   if (!isOpen) return null;
-  
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
@@ -235,7 +235,7 @@ function BillingPage() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId');
   const { toast } = useToast();
-  
+
   // Define Firestore paths
   const usersPath = `${tenantCompaniesPath}/${companyId}/users`;
   const ordersPath = `${tenantCompaniesPath}/${companyId}/orders`;
@@ -295,13 +295,13 @@ function BillingPage() {
     const userName = localStorage.getItem('userName') || '';
     const userRole = localStorage.getItem('userRole') || '';
     const branchId = localStorage.getItem('userBranchId') || '';
-    
+
     setPosUser({ userId, userName, userRole, branchId, branchName: '' });
-    
+
     // Determine if user can edit branch selection
     const canEdit = userRole === 'company_admin' || userRole === 'general_manager' || userRole === 'branch_manager';
     setCanEditBranch(canEdit);
-    
+
     if (!canEdit) {
       setSelectedBranch(branchId);
     }
@@ -318,13 +318,13 @@ function BillingPage() {
           ...doc.data(),
         }));
         setBranches(branchesData.filter(b => b.isActive));
-        
+
         // Set branch name for current user
         const currentBranch = branchesData.find(b => b.storeId === posUser.branchId);
         if (currentBranch) {
           setPosUser(prev => ({ ...prev, branchName: currentBranch.name }));
         }
-        
+
         // Set default selected branch if user can edit
         if (canEditBranch && !selectedBranch && branchesData.length > 0) {
           setSelectedBranch(branchesData[0].storeId);
@@ -341,7 +341,7 @@ function BillingPage() {
     const fetchProducts = async () => {
       try {
         setIsLoading(true);
-        
+
         const unsubProducts = onSnapshot(
           collection(db, productsPath),
           async (productsSnapshot) => {
@@ -385,10 +385,10 @@ function BillingPage() {
               );
 
               // Sort products by sortOrder as in your Products.js
-              const sortedProductsData = productsData.sort((a, b) => 
+              const sortedProductsData = productsData.sort((a, b) =>
                 (a.sortOrder ?? a.createdAt) < (b.sortOrder ?? b.createdAt) ? -1 : 1
               );
-              
+
               setProducts(sortedProductsData);
               setIsLoading(false);
             } catch (err) {
@@ -474,9 +474,9 @@ function BillingPage() {
 
   const filteredCustomers = customers.filter(
     customer =>
-      (customer.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-       customer.userName?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-       customer.phone?.toLowerCase().includes(customerSearch.toLowerCase()))
+    (customer.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      customer.userName?.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      customer.phone?.toLowerCase().includes(customerSearch.toLowerCase()))
   );
 
   const addToCart = (product) => {
@@ -491,7 +491,7 @@ function BillingPage() {
 
     const productPrice = getProductPrice(product);
     const existingItem = cart.find(item => item.id === product.id); // Using 'id' as in your structure
-    
+
     if (existingItem) {
       updateQuantity(product.id, existingItem.quantity + 1);
     } else {
@@ -568,7 +568,7 @@ function BillingPage() {
       };
       const userRef = doc(db, usersPath, newCustomer.userId);
       await setDoc(userRef, newCustomer);
-      
+
       setCustomers([...customers, newCustomer]);
       setCustomer(newCustomer);
       setNewCustomerName('');
@@ -629,11 +629,11 @@ function BillingPage() {
       const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity) + item.taxAmount, 0);
       const finalBillNumber = existingBillNumber || `BILL-${Date.now()}`;
       const finalBranchId = selectedBranch || posUser.branchId;
-      
+
       // Save customer info first
       const customerId = customer.userId || customer.phone || `CUST-${Date.now()}`;
       const userRef = doc(db, usersPath, customerId);
-      
+
       await setDoc(userRef, {
         name: customer.name || customer.userName,
         userName: customer.userName || customer.name,
@@ -688,7 +688,7 @@ function BillingPage() {
       };
 
       let finalOrderId = orderId;
-      
+
       if (orderId) {
         // Update existing order
         const orderRef = doc(db, ordersPath, orderId);
@@ -785,11 +785,11 @@ function BillingPage() {
     const pdf = generatePDF();
     const finalBillNumber = billNumber || 'BILL-' + Date.now();
     pdf.save(`laundry_invoice_${finalBillNumber}.pdf`);
-    
+
     setCart([]);
     setCustomer(null);
     setShowSuccessDialog(false);
-    
+
     if (newOrderId) {
       router.push(`/admin/orders?orderId=${newOrderId}`);
     } else {
@@ -804,7 +804,7 @@ function BillingPage() {
   return (
     <AdminLayout>
       <div className="space-y-2 p-1">
-        <LoadingDialog 
+        <LoadingDialog
           isOpen={isLoading}
           title="Processing Bill..."
           description="Generating invoice and updating records."
@@ -888,8 +888,8 @@ function BillingPage() {
                     filteredProducts.map(product => {
                       const inCart = cart.some(item => item.id === product.id);
                       return (
-                        <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow h-full flex flex-col">
-                          <CardContent className="flex-1 flex flex-col justify-between">
+                        <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow flex flex-col">
+                          <CardContent className="flex flex-col justify-between h-auto">
                             <div>
                               <div className="flex justify-between items-start">
                                 <div className="min-h-[2.5rem]">
@@ -989,7 +989,7 @@ function BillingPage() {
                           <p className="text-sm font-medium truncate flex-1">{item.name}</p>
                           <span className="text-xs text-gray-500">KWD {formatPrice(item.price)} each</span>
                         </div>
-                        
+
                         {/* Second Row: Quantity controls and total price */}
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-2">
@@ -997,7 +997,6 @@ function BillingPage() {
                               size="sm"
                               variant="outline"
                               onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                              disabled={item.quantity <= 1}
                             >
                               <Minus className="w-4 h-4" />
                             </Button>
@@ -1009,6 +1008,14 @@ function BillingPage() {
                             >
                               <Plus className="w-4 h-4" />
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => removeFromCart(item.id)}
+                              className="text-red-600 hover:text-red-700 ml-2"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
                           <span className="text-sm font-bold">KWD {formatPrice(item.price * item.quantity)}</span>
                         </div>
@@ -1016,15 +1023,27 @@ function BillingPage() {
                     ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Billing Summary & Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Billing Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+                {cart.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Subtotal:</span>
+                        <span>KWD {formatPrice(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Tax:</span>
+                        <span>KWD {formatPrice(taxAmount)}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between font-bold">
+                        <span>Total:</span>
+                        <span>KWD {formatPrice(total)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {/* Move payment and order status here */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Payment Method</Label>
@@ -1211,7 +1230,8 @@ function BillingPage() {
                           {c.phone && <p className="text-xs text-gray-500">Phone: {c.phone}</p>}
                         </div>
                       ))
-                    )}
+                    )
+                  }
                   </div>
                 </div>
               )}
@@ -1242,7 +1262,7 @@ function BillingPage() {
                   <Button onClick={handleDownloadPDF} className="flex-1">
                     Download PDF
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => {
                       setShowSuccessDialog(false);
                       setCart([]);
