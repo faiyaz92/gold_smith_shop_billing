@@ -888,8 +888,8 @@ function BillingPage() {
                     filteredProducts.map(product => {
                       const inCart = cart.some(item => item.id === product.id);
                       return (
-                        <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow flex flex-col">
-                          <CardContent className="flex flex-col justify-between h-auto">
+                        <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow flex flex-col h-full">
+                          <CardContent className="flex flex-col justify-between flex-1">
                             <div>
                               <div className="flex justify-between items-start">
                                 <div className="min-h-[2.5rem]">
