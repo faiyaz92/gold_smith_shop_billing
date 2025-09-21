@@ -323,7 +323,7 @@ export default function CheckoutPage() {
               <h3 className="font-medium text-blue-800">Guest Checkout</h3>
             </div>
             <p className="text-blue-700 text-sm">
-              You're checking out as a guest. Our admin will call you to confirm your order details. 
+              You&apos;re checking out as a guest. Our admin will call you to confirm your order details. 
               <button 
                 onClick={() => router.push('/User/Auth/')}
                 className="text-blue-600 hover:text-blue-800 underline ml-1"

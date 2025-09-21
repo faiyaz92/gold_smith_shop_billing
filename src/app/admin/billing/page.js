@@ -742,7 +742,7 @@ function BillingPage() {
     }
   };
 
-  // Generate PDF using jsPDF
+  // Generate PDF using jsPDF with improved design from reference
   const generatePDF = () => {
     const customerData = customer || {};
     const date = new Date().toLocaleDateString();
@@ -752,52 +752,163 @@ function BillingPage() {
 
     const doc = new jsPDF();
 
-    // Header
-    doc.setFontSize(20);
+    // Colors and styling
+    const primaryColor = [41, 98, 255]; // Blue
+    const secondaryColor = [107, 114, 128]; // Gray
+    const textColor = [17, 24, 39]; // Dark gray
+
+    // Header with company branding
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, 210, 25, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
     doc.setFont(undefined, 'bold');
-    doc.text('EASY2 Solutions Laundry', 105, 20, { align: 'center' });
+    doc.text('EASY2 Solutions Laundry', 105, 16, { align: 'center' });
 
-    doc.setFontSize(16);
-    doc.text('INVOICE', 105, 35, { align: 'center' });
-
-    // Bill info
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Bill Number: ${finalBillNumber}`, 20, 50);
-    doc.text(`Date: ${date}`, 20, 60);
-    doc.text(`Estimated Delivery: ${deliveryDate}`, 20, 70);
-    doc.text(`Processed by: ${posUser.userName} (${posUser.userRole})`, 20, 80);
-    doc.text(`Branch: ${currentBranchName}`, 20, 90);
-
-    // Customer Details
+    // Invoice title
+    doc.setTextColor(...textColor);
+    doc.setFontSize(18);
     doc.setFont(undefined, 'bold');
-    doc.text('Customer Details:', 20, 110);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Name: ${customerData.name || customerData.userName || 'N/A'}`, 20, 120);
-    doc.text(`Phone: ${customerData.phone || 'N/A'}`, 20, 130);
+    doc.text('INVOICE', 105, 40, { align: 'center' });
 
-    // Items Table
+    // Invoice details section
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...secondaryColor);
+
+    // Left side - Bill info
     doc.setFont(undefined, 'bold');
-    doc.text('Services:', 20, 150);
-
-    let yPosition = 160;
+    doc.text('Bill Information:', 20, 55);
     doc.setFont(undefined, 'normal');
+    doc.text(`Bill Number: ${finalBillNumber}`, 20, 63);
+    doc.text(`Date: ${date}`, 20, 71);
+    doc.text(`Estimated Delivery: ${deliveryDate}`, 20, 79);
+    doc.text(`Payment Method: ${paymentMethod}`, 20, 87);
 
-    cart.forEach((item) => {
+    // Right side - Branch & Staff info
+    doc.setFont(undefined, 'bold');
+    doc.text('Service Information:', 110, 55);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Branch: ${currentBranchName}`, 110, 63);
+    doc.text(`Processed by: ${posUser.userName}`, 110, 71);
+    doc.text(`Role: ${posUser.userRole}`, 110, 79);
+    doc.text(`Pickup Time: ${schedule.pickupTime}`, 110, 87);
+    doc.text(`Delivery Pref: ${schedule.deliveryPref}`, 110, 95);
+
+    // Customer Details section
+    doc.setFillColor(248, 250, 252);
+    doc.rect(15, 105, 180, 25, 'F');
+    
+    doc.setTextColor(...textColor);
+    doc.setFont(undefined, 'bold');
+    doc.text('CUSTOMER DETAILS', 20, 115);
+    
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...secondaryColor);
+    doc.text(`Name: ${customerData.name || customerData.userName || 'N/A'}`, 20, 123);
+    doc.text(`Phone: ${customerData.phone || 'N/A'}`, 110, 123);
+
+    // Services Table Header
+    const tableStartY = 145;
+    doc.setFillColor(...primaryColor);
+    doc.rect(15, tableStartY, 180, 10, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(9);
+    doc.text('SERVICE', 20, tableStartY + 7);
+    doc.text('CATEGORY', 70, tableStartY + 7);
+    doc.text('QTY', 115, tableStartY + 7);
+    doc.text('UNIT PRICE', 135, tableStartY + 7);
+    doc.text('TOTAL', 170, tableStartY + 7);
+
+    // Services Table Content
+    let yPosition = tableStartY + 15;
+    doc.setTextColor(...textColor);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8);
+
+    cart.forEach((item, index) => {
       if (yPosition > 270) {
         doc.addPage();
         yPosition = 20;
       }
 
-      doc.text(`${item.name} x ${item.quantity}`, 25, yPosition);
-      doc.text(`KWD ${formatPrice(item.price * item.quantity)}`, 140, yPosition);
-      yPosition += 8;
+      // Alternate row background
+      if (index % 2 === 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, yPosition - 5, 180, 10, 'F');
+      }
+
+      const itemTotal = item.price * item.quantity;
+      
+      doc.text(item.name.substring(0, 25), 20, yPosition);
+      doc.text(item.categoryName || 'General', 70, yPosition);
+      doc.text(item.quantity.toString(), 115, yPosition);
+      doc.text(`KWD ${formatPrice(item.price)}`, 135, yPosition);
+      doc.text(`KWD ${formatPrice(itemTotal)}`, 170, yPosition);
+      
+      yPosition += 10;
     });
 
-    // Total
-    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    // Summary section
+    const summaryStartY = yPosition + 10;
+    
+    // Summary background
+    doc.setFillColor(248, 250, 252);
+    doc.rect(120, summaryStartY, 75, 35, 'F');
+
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...secondaryColor);
+    
+    const subtotalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const taxAmountTotal = cart.reduce((sum, item) => sum + item.taxAmount, 0);
+    const totalAmount = subtotalAmount + taxAmountTotal;
+    const expressCharge = schedule.deliveryPref === 'express' ? 5 : 0;
+    const finalTotal = totalAmount + expressCharge;
+
+    doc.text('Subtotal:', 125, summaryStartY + 8);
+    doc.text(`KWD ${formatPrice(subtotalAmount)}`, 170, summaryStartY + 8);
+    
+    if (taxAmountTotal > 0) {
+      doc.text('Tax:', 125, summaryStartY + 16);
+      doc.text(`KWD ${formatPrice(taxAmountTotal)}`, 170, summaryStartY + 16);
+    }
+    
+    if (expressCharge > 0) {
+      doc.text('Express Delivery:', 125, summaryStartY + 24);
+      doc.text(`KWD ${formatPrice(expressCharge)}`, 170, summaryStartY + 24);
+    }
+
+    // Total line with emphasis
     doc.setFont(undefined, 'bold');
-    doc.text(`Total: KWD ${formatPrice(total)}`, 140, yPosition + 10);
+    doc.setFontSize(11);
+    doc.setTextColor(...primaryColor);
+    doc.text('TOTAL:', 125, summaryStartY + 32);
+    doc.text(`KWD ${formatPrice(finalTotal)}`, 165, summaryStartY + 32);
+
+    // Footer section
+    const footerY = summaryStartY + 50;
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...secondaryColor);
+    
+    doc.text('Terms & Conditions:', 20, footerY);
+    doc.text('• Items are cleaned with care but company is not liable for damages to delicate items', 20, footerY + 8);
+    doc.text('• Unclaimed items after 30 days will be donated', 20, footerY + 16);
+    doc.text('• Payment due upon delivery for credit orders', 20, footerY + 24);
+    
+    // Company footer
+    doc.setTextColor(...primaryColor);
+    doc.setFont(undefined, 'bold');
+    doc.text('Thank you for choosing EASY2 Solutions Laundry!', 105, footerY + 40, { align: 'center' });
+    
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...secondaryColor);
+    doc.text('For support: support@easy2solutions.com | Phone: +965-XXXX-XXXX', 105, footerY + 48, { align: 'center' });
 
     return doc;
   };

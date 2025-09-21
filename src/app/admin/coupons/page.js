@@ -581,7 +581,7 @@ export default function AdminCoupons() {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-medium mb-4 text-gray-900">Delete Coupon</h3>
             <p className="text-sm text-gray-600 mb-6">
-              Are you sure you want to delete the coupon "{showDeleteDialog.code}"? This action cannot be undone.
+              Are you sure you want to delete the coupon &quot;{showDeleteDialog.code}&quot;? This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button

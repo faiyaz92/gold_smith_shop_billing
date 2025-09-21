@@ -791,7 +791,7 @@ export default function AdminAreas() {
               <h3 className="text-lg font-medium text-gray-900">Delete {showDeleteDialog.type}</h3>
             </div>
             <p className="text-sm text-gray-600 mb-6">
-              Are you sure you want to delete "{showDeleteDialog.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{showDeleteDialog.name}&quot;? This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
