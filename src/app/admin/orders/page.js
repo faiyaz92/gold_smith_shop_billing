@@ -58,8 +58,8 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
-  const [branchFilter, setBranchFilter] = useState(''); // New branch filter
-  const [orderTakenByFilter, setOrderTakenByFilter] = useState(''); // New order taken by filter
+  const [branchFilter, setBranchFilter] = useState('');
+  const [orderTakenByFilter, setOrderTakenByFilter] = useState('');
   const [showPreviewDialog, setShowPreviewDialog] = useState(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successOrder, setSuccessOrder] = useState(null);
@@ -79,7 +79,7 @@ export default function AdminOrders() {
 
   // Add branches state to store branch data
   const [branches, setBranches] = useState([]);
-  const [users, setUsers] = useState([]); // For order taken by filter
+  const [users, setUsers] = useState([]);
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
@@ -764,45 +764,6 @@ Thank you for your business!
                                 </div>
                               </div>
 
-                              {/* Pricing Breakdown Section */}
-                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                                <h4 className="font-semibold mb-3 text-blue-700">Pricing Breakdown</h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span>Subtotal:</span>
-                                    <span>KWD {(order.subtotal || 0).toFixed(2)}</span>
-                                  </div>
-                                  {order.expressDeliveryFee > 0 && (
-                                    <div className="flex justify-between">
-                                      <span>Express Delivery Fee:</span>
-                                      <span>KWD {order.expressDeliveryFee.toFixed(2)}</span>
-                                    </div>
-                                  )}
-                                  {order.appliedCoupon && (
-                                    <div className="bg-green-50 p-2 rounded border border-green-200">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <div className="flex items-center gap-2">
-                                          <Tag className="w-4 h-4 text-green-600" />
-                                          <span className="font-medium text-green-800">Applied Coupon:</span>
-                                        </div>
-                                        <span className="text-green-600 font-medium">{order.appliedCoupon.code}</span>
-                                      </div>
-                                      <div className="text-xs text-green-700 mb-1">
-                                        {order.appliedCoupon.name} ({order.appliedCoupon.type})
-                                      </div>
-                                      <div className="flex justify-between text-sm">
-                                        <span className="text-green-700">Discount Amount:</span>
-                                        <span className="text-green-600 font-medium">-KWD {order.discountAmount.toFixed(2)}</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                  <div className="border-t pt-2 flex justify-between font-semibold text-lg">
-                                    <span>Final Total:</span>
-                                    <span className="text-blue-700">KWD {order.amount.toFixed(2)}</span>
-                                  </div>
-                                </div>
-                              </div>
-
                               {/* Items section */}
                               <div className="w-full">
                                 {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
@@ -847,6 +808,45 @@ Thank you for your business!
                                     </div>
                                   );
                                 })}
+                              </div>
+
+                              {/* Pricing Breakdown Section */}
+                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                                <h4 className="font-semibold mb-3 text-blue-700">Pricing Breakdown</h4>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span>Subtotal:</span>
+                                    <span>KWD {(order.subtotal || 0).toFixed(2)}</span>
+                                  </div>
+                                  {order.expressDeliveryFee > 0 && (
+                                    <div className="flex justify-between">
+                                      <span>Express Delivery Fee:</span>
+                                      <span>KWD {order.expressDeliveryFee.toFixed(2)}</span>
+                                    </div>
+                                  )}
+                                  {order.appliedCoupon && (
+                                    <div className="bg-green-50 p-2 rounded border border-green-200">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <div className="flex items-center gap-2">
+                                          <Tag className="w-4 h-4 text-green-600" />
+                                          <span className="font-medium text-green-800">Applied Coupon:</span>
+                                        </div>
+                                        <span className="text-green-600 font-medium">{order.appliedCoupon.code}</span>
+                                      </div>
+                                      <div className="text-xs text-green-700 mb-1">
+                                        {order.appliedCoupon.name} ({order.appliedCoupon.type})
+                                      </div>
+                                      <div className="flex justify-between text-sm">
+                                        <span className="text-green-700">Discount Amount:</span>
+                                        <span className="text-green-600 font-medium">-KWD {order.discountAmount.toFixed(2)}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="border-t pt-2 flex justify-between font-semibold text-lg">
+                                    <span>Final Total:</span>
+                                    <span className="text-blue-700">KWD {order.amount.toFixed(2)}</span>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>
