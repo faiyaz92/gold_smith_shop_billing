@@ -17,6 +17,7 @@ import {
   Truck,
   Building,
   Shield,
+  BarChart3,  // Added for Analytics
 } from 'lucide-react';
 
 const allMenuItems = [
@@ -26,6 +27,13 @@ const allMenuItems = [
     icon: <Home className="w-4 h-4" />, 
     href: '/admin/dashboard',
     roles: ['company_admin', 'general_manager', 'branch_manager']
+  },
+  { 
+    id: 'analytics', 
+    label: 'Analytics', 
+    icon: <BarChart3 className="w-4 h-4" />, 
+    href: '/admin/analytics',
+    roles: ['company_admin', 'general_manager']  // Only for top-level management
   },
   { 
     id: 'billing', 

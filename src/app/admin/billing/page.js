@@ -255,7 +255,7 @@ function BillingPage() {
   const [newCustomerName, setNewCustomerName] = useState('');
   const [customers, setCustomers] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [orderStatus, setOrderStatus] = useState('pending');
+  const [orderStatus, setOrderStatus] = useState('Received at Facility'); // Changed from 'pending'
   const [existingBillNumber, setExistingBillNumber] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
@@ -647,7 +647,7 @@ function BillingPage() {
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      // Create order data
+      // Create order data with proper status and tracking fields
       const orderData = {
         userId: customerId,
         name: customer.name || customer.userName,
@@ -662,20 +662,41 @@ function BillingPage() {
         billNumber: finalBillNumber,
         paymentStatus: paymentMethod === 'Cash' ? 'paid' : 'unpaid',
         paymentMethod: paymentMethod,
-        status: orderStatus,
+        status: orderStatus, // This will now be "Received at Facility"
         pickupTime: schedule.pickupTime,
         deliveryPref: schedule.deliveryPref,
         timestamp: serverTimestamp(),
         deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        
+        // Order tracking - who took the order
         orderTakenBy: posUser.userId,
         orderTakenByName: posUser.userName,
         orderTakenByRole: posUser.userRole,
+        orderTakenAt: serverTimestamp(),
+        
+        // Branch info
         branchId: finalBranchId,
+        branchName: getBranchName(finalBranchId),
         orderSource: 'POS',
+        
+        // Initialize pickup/delivery tracking (empty initially)
+        pickedUpBy: '',
+        pickedUpByName: '',
+        pickedUpAt: null,
+        deliveredBy: '',
+        deliveredByName: '',
+        deliveredAt: null,
+        
+        // Last updated tracking
+        lastUpdatedBy: posUser.userId,
+        lastUpdatedByName: posUser.userName,
+        lastUpdatedAt: serverTimestamp(),
+        
+        // Laundry status
         laundryStatus: {
           pickupManVerified: false,
           customerPickupVerified: false,
-          receivedAtFacility: false,
+          receivedAtFacility: true, // Set to true since default status is "Received at Facility"
           sortingDone: false,
           washingDone: false,
           dryingDone: false,
@@ -810,22 +831,26 @@ function BillingPage() {
           description="Generating invoice and updating records."
         />
 
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <Receipt className="w-8 h-8 text-blue-600" />
-              Billing System
-            </h1>
-            <p className="text-gray-600 mt-2">Generate bills and manage customer transactions</p>
-            {posUser.userName && (
-              <div className="text-sm text-gray-600 mt-1">
-                Operator: <span className="font-medium">{posUser.userName}</span> ({posUser.userRole})
-                | Branch: <span className="font-medium">{getBranchName(selectedBranch || posUser.branchId)}</span>
+        {/* Header Card */}
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <Receipt className="w-8 h-8 text-blue-600" />
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground">Billing System</h1>
+                  <p className="text-gray-600 text-sm">Generate bills and manage customer transactions</p>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
+              {posUser.userName && (
+                <div className="text-sm text-gray-600 sm:text-right">
+                  <div>Operator: <span className="font-medium">{posUser.userName}</span> ({posUser.userRole})</div>
+                  <div>Branch: <span className="font-medium">{getBranchName(selectedBranch || posUser.branchId)}</span></div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm border border-red-200">{error}</div>}
 
@@ -1062,10 +1087,11 @@ function BillingPage() {
                   <div>
                     <Label>Order Status</Label>
                     <Select value={orderStatus} onChange={setOrderStatus}>
-                      <option value="pending">Pending</option>
-                      <option value="processing">Processing</option>
-                      <option value="shipped">Shipped</option>
-                      <option value="completed">Completed</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Received at Facility">Received at Facility</option>
+                      <option value="In Sorting/Inspection">In Sorting/Inspection</option>
+                      <option value="In Washing">In Washing</option>
+                      <option value="Ready for Delivery">Ready for Delivery</option>
                     </Select>
                   </div>
                 </div>
