@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LogOut, ChevronDown, ChevronUp, Package, ShoppingBag, Users, Home } from 'lucide-react';
+import { LogOut, ChevronDown, ChevronUp, Package, ShoppingBag, Users, Home, Tag, Truck, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AdminHeader from '../Componenets/AdminHeader';
 import { onSnapshot, query, collection, orderBy, doc, updateDoc, where, serverTimestamp } from 'firebase/firestore';
@@ -44,6 +44,10 @@ const DELIVERY_PREFS = [
   { value: 'standard', label: 'Standard' },
   { value: 'express', label: 'Express (+KWD 5)' },
 ];
+const SERVICE_TYPES = [
+  { value: 'delivery', label: 'Delivery', icon: '🚚' },
+  { value: 'pickup', label: 'Pickup', icon: '🏪' },
+];
 
 export default function AdminOrders() {
   const router = useRouter();
@@ -54,6 +58,8 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
+  const [branchFilter, setBranchFilter] = useState(''); // New branch filter
+  const [orderTakenByFilter, setOrderTakenByFilter] = useState(''); // New order taken by filter
   const [showPreviewDialog, setShowPreviewDialog] = useState(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [successOrder, setSuccessOrder] = useState(null);
@@ -73,12 +79,14 @@ export default function AdminOrders() {
 
   // Add branches state to store branch data
   const [branches, setBranches] = useState([]);
+  const [users, setUsers] = useState([]); // For order taken by filter
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
   const tenantCompaniesPath = `${basePath}/tenantCompanies`;
   const ordersPath = `${tenantCompaniesPath}/${companyId}/orders`;
   const branchesPath = `${tenantCompaniesPath}/${companyId}/branches`;
+  const usersPath = `${tenantCompaniesPath}/${companyId}/users`;
   const getSingleOrderPath = (orderId) => `${tenantCompaniesPath}/${companyId}/orders/${orderId}`;
 
   // Helper function to get branch name by ID
@@ -86,6 +94,24 @@ export default function AdminOrders() {
     if (!branchId) return 'N/A';
     const branch = branches.find(b => b.id === branchId);
     return branch ? branch.name : `Branch ID: ${branchId}`;
+  };
+
+  // Helper function to get pickup time label
+  const getPickupTimeLabel = (value) => {
+    const time = PICKUP_TIMES.find(t => t.value === value);
+    return time ? time.label : value || 'N/A';
+  };
+
+  // Helper function to get delivery preference label
+  const getDeliveryPrefLabel = (value) => {
+    const pref = DELIVERY_PREFS.find(p => p.value === value);
+    return pref ? pref.label : value || 'N/A';
+  };
+
+  // Helper function to get service type info
+  const getServiceTypeInfo = (value) => {
+    const service = SERVICE_TYPES.find(s => s.value === value);
+    return service ? service : { label: value || 'N/A', icon: '❓' };
   };
 
   useEffect(() => {
@@ -102,7 +128,7 @@ export default function AdminOrders() {
       
       setCurrentUser({ userId, userName, userRole, branchId });
 
-      // Fetch branches first
+      // Fetch branches
       const branchesQuery = query(collection(db, branchesPath));
       const unsubscribeBranches = onSnapshot(branchesQuery, (snapshot) => {
         const fetchedBranches = snapshot.docs.map(docSnap => ({
@@ -110,6 +136,16 @@ export default function AdminOrders() {
           ...docSnap.data()
         }));
         setBranches(fetchedBranches);
+      });
+
+      // Fetch users for order taken by filter
+      const usersQuery = query(collection(db, usersPath));
+      const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+        const fetchedUsers = snapshot.docs.map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        }));
+        setUsers(fetchedUsers);
       });
 
       // Build query based on user role
@@ -140,7 +176,7 @@ export default function AdminOrders() {
           const calculatedTotal = items.reduce((sum, item) =>
             sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
 
-          const total = data.total || calculatedTotal;
+          const total = data.finalTotal || data.total || calculatedTotal;
 
           return {
             id: docSnap.id,
@@ -150,6 +186,22 @@ export default function AdminOrders() {
             address: `${data.address || ''}, ${data.city || ''}, ${data.state || ''} - ${data.zip || ''}`,
             items: items,
             amount: Number(total) || 0,
+            
+            // Pricing breakdown
+            subtotal: data.subtotal || 0,
+            expressDeliveryFee: data.expressDeliveryFee || 0,
+            orderTotal: data.orderTotal || 0,
+            discountAmount: data.discountAmount || 0,
+            finalTotal: data.finalTotal || total,
+            
+            // Coupon information
+            appliedCoupon: data.appliedCoupon || null,
+            
+            // Service preferences
+            serviceType: data.serviceType || 'delivery',
+            pickupTime: data.pickupTime || '',
+            deliveryPref: data.deliveryPref || '',
+            
             paymentMethod: data.paymentMethod || "N/A",
             paymentStatus: data.paymentStatus || "unpaid",
             billNumber: data.billNumber || '',
@@ -157,26 +209,24 @@ export default function AdminOrders() {
             date: orderDate?.toLocaleDateString() || 'Invalid/Missing Date',
             rawTimestamp: data.timestamp,
             userId: data.userId || "N/A",
-            pickupTime: data.pickupTime || '',
-            deliveryPref: data.deliveryPref || '',
             
-            // Order tracking fields - distinct from each other
+            // Order tracking fields
             orderTakenBy: data.orderTakenBy || '',
             orderTakenByName: data.orderTakenByName || '',
             orderTakenByRole: data.orderTakenByRole || '',
             orderTakenAt: data.orderTakenAt || null,
             
-            // Pickup tracking - separate from order taking
+            // Pickup tracking
             pickedUpBy: data.pickedUpBy || '',
             pickedUpByName: data.pickedUpByName || '',
             pickedUpAt: data.pickedUpAt || null,
             
-            // Delivery tracking - separate from pickup and order taking
+            // Delivery tracking
             deliveredBy: data.deliveredBy || '',
             deliveredByName: data.deliveredByName || '',
             deliveredAt: data.deliveredAt || null,
             
-            // Last update tracking - can be anyone who last modified
+            // Last update tracking
             lastUpdatedBy: data.lastUpdatedBy || '',
             lastUpdatedByName: data.lastUpdatedByName || '',
             lastUpdatedAt: data.lastUpdatedAt || null,
@@ -232,6 +282,7 @@ export default function AdminOrders() {
 
       return () => {
         unsubscribeBranches();
+        unsubscribeUsers();
         unsubscribeOrders();
       };
     }
@@ -311,6 +362,10 @@ export default function AdminOrders() {
       order.phone?.includes(searchQuery);
 
     const matchesStatus = statusFilter ? order.status === statusFilter : true;
+    
+    const matchesBranch = branchFilter ? order.branchId === branchFilter : true;
+    
+    const matchesOrderTakenBy = orderTakenByFilter ? order.orderTakenBy === orderTakenByFilter : true;
 
     const now = new Date();
     const orderDate = order.rawTimestamp?.toDate() || new Date(0);
@@ -325,7 +380,7 @@ export default function AdminOrders() {
       matchesDate = orderDate >= thirtyDaysAgo;
     }
 
-    return matchesSearch && matchesStatus && matchesDate;
+    return matchesSearch && matchesStatus && matchesBranch && matchesOrderTakenBy && matchesDate;
   });
 
   const handleConfirmBill = async () => {
@@ -487,15 +542,17 @@ Thank you for your business!
       <div className="p-4 sm:p-6 max-w-7xl mx-auto">
         <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent mb-6">Orders Management</h2>
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        {/* Enhanced Filters */}
+        <div className="flex flex-col gap-4 mb-6">
           <input
             type="text"
             placeholder="Search by Order ID, Customer or Phone"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 p-2 rounded bg-gray-50 border border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200 text-sm"
+            className="p-2 rounded bg-gray-50 border border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200 text-sm"
           />
-          <div className="flex flex-col sm:flex-row gap-2">
+          
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -506,6 +563,29 @@ Thank you for your business!
                 <option key={status} value={status}>{status}</option>
               ))}
             </select>
+            
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-2 text-blue-600 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+            >
+              <option value="">All Branches</option>
+              {branches.map(branch => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
+            
+            <select
+              value={orderTakenByFilter}
+              onChange={(e) => setOrderTakenByFilter(e.target.value)}
+              className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-2 text-blue-600 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+            >
+              <option value="">All Order Takers</option>
+              {users.filter(user => user.userRole !== 'customer').map(user => (
+                <option key={user.id} value={user.id}>{user.name} ({user.userRole})</option>
+              ))}
+            </select>
+            
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
@@ -515,6 +595,10 @@ Thank you for your business!
               <option value="7days">Last 7 Days</option>
               <option value="30days">Last 30 Days</option>
             </select>
+            
+            <div className="text-sm text-gray-600 px-3 py-2 bg-blue-50 rounded border">
+              Total: {filteredOrders.length} orders
+            </div>
           </div>
         </div>
 
@@ -527,8 +611,8 @@ Thank you for your business!
                 <th className="p-3 text-left border-b border-gray-200 hidden sm:table-cell">Customer</th>
                 <th className="p-3 text-left border-b border-gray-200 hidden md:table-cell">Phone</th>
                 <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Branch</th>
-                <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Address</th>
-                <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Payment</th>
+                <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Service</th>
+                <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Discount</th>
                 <th className="p-3 text-left border-b border-gray-200">Amount</th>
                 <th className="p-3 text-left border-b border-gray-200">Status</th>
                 <th className="p-3 text-left border-b border-gray-200 hidden md:table-cell">Order Date</th>
@@ -545,7 +629,7 @@ Thank you for your business!
                   <>
                     <tr key={order.id} className="border-b hover:bg-blue-50 text-xs sm:text-sm">
                       <td className="p-3">{index + 1}</td>
-                      <td className="p-3">{order.id}</td>
+                      <td className="p-3 font-mono text-xs">{order.id.slice(-8)}</td>
                       <td className="p-3 hidden sm:table-cell">{order.customer}</td>
                       <td className="p-3 hidden md:table-cell">{order.phone}</td>
                       <td className="p-3 hidden lg:table-cell">
@@ -553,9 +637,32 @@ Thank you for your business!
                           {getBranchName(order.branchId)}
                         </span>
                       </td>
-                      <td className="p-3 hidden lg:table-cell">{order.address}</td>
-                      <td className="p-3 hidden lg:table-cell">{order.paymentMethod}</td>
-                      <td className="p-3">KWD {order.amount.toFixed(2)}</td>
+                      <td className="p-3 hidden lg:table-cell">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs">{getServiceTypeInfo(order.serviceType).icon}</span>
+                          <span className="text-xs">{getServiceTypeInfo(order.serviceType).label}</span>
+                        </div>
+                      </td>
+                      <td className="p-3 hidden lg:table-cell">
+                        {order.appliedCoupon ? (
+                          <div className="flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-green-600" />
+                            <span className="text-xs text-green-600 font-medium">
+                              KWD {order.discountAmount.toFixed(2)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">No discount</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <div className="text-sm font-medium">KWD {order.amount.toFixed(2)}</div>
+                        {order.discountAmount > 0 && (
+                          <div className="text-xs text-gray-500 line-through">
+                            KWD {(order.amount + order.discountAmount).toFixed(2)}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-3">
                         <select
                           value={order.status}
@@ -582,7 +689,7 @@ Thank you for your business!
                               {/* Order Information Section */}
                               <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
                                 <h4 className="font-semibold mb-2 text-blue-700">Order Information</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-700">
                                   <div>
                                     <span className="font-medium">Order ID:</span> {order.id}
                                   </div>
@@ -623,6 +730,76 @@ Thank you for your business!
                                       <span className="font-medium">Delivered By:</span> {order.deliveredByName}
                                     </div>
                                   )}
+                                </div>
+                              </div>
+
+                              {/* Service Details Section */}
+                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                                <h4 className="font-semibold mb-3 text-blue-700 flex items-center gap-2">
+                                  <Truck className="w-4 h-4" />
+                                  Service Details
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-lg">{getServiceTypeInfo(order.serviceType).icon}</span>
+                                    <div>
+                                      <span className="font-medium text-gray-600">Service Type:</span>
+                                      <div className="text-blue-700 font-medium">{getServiceTypeInfo(order.serviceType).label}</div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-gray-600" />
+                                    <div>
+                                      <span className="font-medium text-gray-600">Pickup Time:</span>
+                                      <div className="text-blue-700">{getPickupTimeLabel(order.pickupTime)}</div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Package className="w-4 h-4 text-gray-600" />
+                                    <div>
+                                      <span className="font-medium text-gray-600">Delivery Preference:</span>
+                                      <div className="text-blue-700">{getDeliveryPrefLabel(order.deliveryPref)}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Pricing Breakdown Section */}
+                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                                <h4 className="font-semibold mb-3 text-blue-700">Pricing Breakdown</h4>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span>Subtotal:</span>
+                                    <span>KWD {(order.subtotal || 0).toFixed(2)}</span>
+                                  </div>
+                                  {order.expressDeliveryFee > 0 && (
+                                    <div className="flex justify-between">
+                                      <span>Express Delivery Fee:</span>
+                                      <span>KWD {order.expressDeliveryFee.toFixed(2)}</span>
+                                    </div>
+                                  )}
+                                  {order.appliedCoupon && (
+                                    <div className="bg-green-50 p-2 rounded border border-green-200">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <div className="flex items-center gap-2">
+                                          <Tag className="w-4 h-4 text-green-600" />
+                                          <span className="font-medium text-green-800">Applied Coupon:</span>
+                                        </div>
+                                        <span className="text-green-600 font-medium">{order.appliedCoupon.code}</span>
+                                      </div>
+                                      <div className="text-xs text-green-700 mb-1">
+                                        {order.appliedCoupon.name} ({order.appliedCoupon.type})
+                                      </div>
+                                      <div className="flex justify-between text-sm">
+                                        <span className="text-green-700">Discount Amount:</span>
+                                        <span className="text-green-600 font-medium">-KWD {order.discountAmount.toFixed(2)}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="border-t pt-2 flex justify-between font-semibold text-lg">
+                                    <span>Final Total:</span>
+                                    <span className="text-blue-700">KWD {order.amount.toFixed(2)}</span>
+                                  </div>
                                 </div>
                               </div>
 
@@ -670,13 +847,6 @@ Thank you for your business!
                                     </div>
                                   );
                                 })}
-                              </div>
-
-                              {/* Total section */}
-                              <div className="mt-4 flex justify-end w-full">
-                                <div className="text-xl font-bold text-blue-700">
-                                  Total: KWD {order.items.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
-                                </div>
                               </div>
                             </div>
                           </div>

@@ -386,6 +386,14 @@ export default function AdminAreas() {
     }
   };
 
+  // Add this function to remove area from selection
+  const removeAreaFromSelection = (areaId) => {
+    setClusterForm({
+      ...clusterForm,
+      areaIds: clusterForm.areaIds.filter(id => id !== areaId)
+    });
+  };
+
   if (!isClient) return null;
 
   return (
@@ -736,206 +744,253 @@ export default function AdminAreas() {
         {/* Cluster Modal (Area-based only) */}
         {showClusterModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-lg font-medium mb-4">
-                {editingItem ? 'Edit Cluster' : 'Add New Cluster'}
-              </h3>
-              <form onSubmit={editingItem ? handleEditCluster : handleCreateCluster}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cluster Name</label>
-                    <input
-                      type="text"
-                      value={clusterForm.name}
-                      onChange={(e) => setClusterForm({...clusterForm, name: e.target.value})}
-                      className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
-                      placeholder="e.g., Central Area Cluster"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea
-                      value={clusterForm.description}
-                      onChange={(e) => setClusterForm({...clusterForm, description: e.target.value})}
-                      className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
-                      rows="2"
-                      placeholder="Brief description of this cluster"
-                    />
-                  </div>
-                  
-                  {/* Improved Areas Selection */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Areas by State
-                      <span className="text-red-500 text-xs ml-1">*Areas can only be in one cluster</span>
-                    </label>
-                    <div className="border rounded-lg p-4 max-h-96 overflow-y-auto bg-gray-50">
-                      {states.filter(s => s.isActive).map(state => {
-                        const stateAreas = getAllAreasForState(state.id);
-                        const availableAreas = getAvailableAreasForState(state.id);
-                        const occupiedAreas = stateAreas.filter(area => 
-                          isAreaInCluster(area.id) && !clusterForm.areaIds?.includes(area.id)
-                        );
-                        
-                        if (stateAreas.length === 0) return null;
-                        
-                        const isFullySelected = isStateFullySelected(state.id);
-                        const isPartiallySelected = isStatePartiallySelected(state.id);
-                        const hasAvailableAreas = availableAreas.length > 0;
-                        
-                        return (
-                          <div key={state.id} className="mb-4 p-3 bg-white rounded-lg border">
-                            {/* State Header with Checkbox */}
-                            <div className="flex items-center gap-3 mb-3 pb-2 border-b">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={isFullySelected}
-                                  ref={checkbox => {
-                                    if (checkbox) checkbox.indeterminate = isPartiallySelected;
-                                  }}
-                                  onChange={(e) => handleStateToggle(state.id, e.target.checked)}
-                                  disabled={!hasAvailableAreas}
-                                  className="w-4 h-4"
-                                />
-                                <Globe size={16} className="text-blue-600" />
-                                <span className="font-medium text-gray-900 text-base">{state.name}</span>
-                              </div>
-                              <div className="flex gap-2 text-xs">
-                                {availableAreas.length > 0 && (
-                                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
-                                    {availableAreas.length} available
-                                  </span>
-                                )}
-                                {occupiedAreas.length > 0 && (
-                                  <span className="px-2 py-1 bg-red-100 text-red-700 rounded">
-                                    {occupiedAreas.length} occupied
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Areas List */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pl-6">
-                              {stateAreas.map(area => {
-                                const isInOtherCluster = isAreaInCluster(area.id) && !clusterForm.areaIds?.includes(area.id);
-                                const isSelected = clusterForm.areaIds?.includes(area.id);
-                                
-                                return (
-                                  <label 
-                                    key={area.id} 
-                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
-                                      isInOtherCluster 
-                                        ? 'opacity-50 cursor-not-allowed bg-gray-100' 
-                                        : isSelected
-                                          ? 'bg-blue-50 border border-blue-200'
-                                          : 'hover:bg-gray-50'
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      disabled={isInOtherCluster}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setClusterForm({
-                                            ...clusterForm,
-                                            areaIds: [...(clusterForm.areaIds || []), area.id]
-                                          });
-                                        } else {
-                                          setClusterForm({
-                                            ...clusterForm,
-                                            areaIds: (clusterForm.areaIds || []).filter(id => id !== area.id)
-                                          });
-                                        }
-                                      }}
-                                      className="w-3 h-3"
-                                    />
-                                    <MapPin size={12} className={isInOtherCluster ? 'text-gray-400' : 'text-gray-600'} />
-                                    <span className={`text-sm ${
-                                      isInOtherCluster 
-                                        ? 'line-through text-gray-400' 
-                                        : isSelected
-                                          ? 'text-blue-700 font-medium'
-                                          : 'text-gray-700'
-                                    }`}>
-                                      {area.name}
-                                    </span>
-                                    {isInOtherCluster && (
-                                      <span className="text-xs text-red-500 ml-auto">(In use)</span>
-                                    )}
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
+            <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full h-[90vh] flex flex-col overflow-hidden">
+              <div className="p-6 border-b flex-shrink-0">
+                <h3 className="text-lg font-medium">
+                  {editingItem ? 'Edit Cluster' : 'Add New Cluster'}
+                </h3>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
+                <form onSubmit={editingItem ? handleEditCluster : handleCreateCluster}>
+                  <div className="space-y-4">
+                    {/* Basic Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Cluster Name</label>
+                        <input
+                          type="text"
+                          value={clusterForm.name}
+                          onChange={(e) => setClusterForm({...clusterForm, name: e.target.value})}
+                          className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
+                          placeholder="e.g., Central Area Cluster"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Assign Branch</label>
+                        <select
+                          value={clusterForm.branchId}
+                          onChange={(e) => setClusterForm({...clusterForm, branchId: e.target.value})}
+                          className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
+                          required
+                        >
+                          <option value="">Select Branch</option>
+                          {branches.filter(b => b.isActive && (!isBranchAssigned(b.id) || (editingItem && editingItem.branchId === b.id))).map(branch => (
+                            <option key={branch.id} value={branch.id}>{branch.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    
-                    {/* Selection Summary */}
-                    {clusterForm.areaIds?.length > 0 && (
-                      <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                        <p className="text-sm font-medium text-blue-800 mb-2">
-                          Selected Areas ({clusterForm.areaIds.length}):
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {clusterForm.areaIds.map(areaId => {
-                            const area = areas.find(a => a.id === areaId);
-                            const state = states.find(s => s.id === area?.stateId);
-                            return (
-                              <span 
-                                key={areaId} 
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded"
-                              >
-                                <MapPin size={10} />
-                                {area?.name}
-                                <span className="text-blue-600">({state?.name})</span>
-                                <button
-                                  type="button"
-                                  onClick={() => setClusterForm({
-                                    ...clusterForm,
-                                    areaIds: clusterForm.areaIds.filter(id => id !== areaId)
-                                  })}
-                                  className="ml-1 text-blue-600 hover:text-blue-800"
-                                >
-                                  ×
-                                </button>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <textarea
+                        value={clusterForm.description}
+                        onChange={(e) => setClusterForm({...clusterForm, description: e.target.value})}
+                        className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
+                        rows="2"
+                        placeholder="Brief description of this cluster"
+                      />
+                    </div>
+
+                    {/* Split Screen Layout */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Areas by State
+                        <span className="text-red-500 text-xs ml-1">*Areas can only be in one cluster</span>
+                      </label>
+                      
+                      <div className="flex gap-4 h-80 border rounded-lg overflow-hidden">
+                        {/* Left Half - Area Selection List */}
+                        <div className="w-1/2 border-r bg-gray-50 flex flex-col">
+                          <div className="p-3 border-b bg-white flex-shrink-0">
+                            <h4 className="font-medium text-gray-900">Available Areas</h4>
+                            <p className="text-xs text-gray-600">Select states to choose areas</p>
+                          </div>
+                          <div className="flex-1 overflow-y-auto p-3">
+                            {states.filter(s => s.isActive).map(state => {
+                              const stateAreas = getAllAreasForState(state.id);
+                              const availableAreas = getAvailableAreasForState(state.id);
+                              const occupiedAreas = stateAreas.filter(area => 
+                                isAreaInCluster(area.id) && !clusterForm.areaIds?.includes(area.id)
+                              );
+                              
+                              if (stateAreas.length === 0) return null;
+                              
+                              const isFullySelected = isStateFullySelected(state.id);
+                              const isPartiallySelected = isStatePartiallySelected(state.id);
+                              const hasAvailableAreas = availableAreas.length > 0;
+                              
+                              return (
+                                <div key={state.id} className="mb-3 bg-white rounded-lg border">
+                                  {/* State Header */}
+                                  <div className="p-3 border-b">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={isFullySelected}
+                                        ref={checkbox => {
+                                          if (checkbox) checkbox.indeterminate = isPartiallySelected;
+                                        }}
+                                        onChange={(e) => handleStateToggle(state.id, e.target.checked)}
+                                        disabled={!hasAvailableAreas}
+                                        className="w-4 h-4"
+                                      />
+                                      <Globe size={14} className="text-blue-600" />
+                                      <span className="font-medium text-sm text-gray-900">{state.name}</span>
+                                    </div>
+                                    <div className="flex gap-2 text-xs">
+                                      {availableAreas.length > 0 && (
+                                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
+                                          {availableAreas.length} available
+                                        </span>
+                                      )}
+                                      {occupiedAreas.length > 0 && (
+                                        <span className="px-2 py-1 bg-red-100 text-red-700 rounded">
+                                          {occupiedAreas.length} occupied
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Areas List */}
+                                  <div className="p-2 space-y-1">
+                                    {stateAreas.map(area => {
+                                      const isInOtherCluster = isAreaInCluster(area.id) && !clusterForm.areaIds?.includes(area.id);
+                                      const isSelected = clusterForm.areaIds?.includes(area.id);
+                                      
+                                      return (
+                                        <label 
+                                          key={area.id} 
+                                          className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors text-sm ${
+                                            isInOtherCluster 
+                                              ? 'opacity-50 cursor-not-allowed bg-gray-100' 
+                                              : isSelected
+                                                ? 'bg-blue-50 border border-blue-200'
+                                                : 'hover:bg-gray-50'
+                                          }`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            disabled={isInOtherCluster}
+                                            onChange={(e) => {
+                                              if (e.target.checked) {
+                                                setClusterForm({
+                                                  ...clusterForm,
+                                                  areaIds: [...(clusterForm.areaIds || []), area.id]
+                                                });
+                                              } else {
+                                                setClusterForm({
+                                                  ...clusterForm,
+                                                  areaIds: (clusterForm.areaIds || []).filter(id => id !== area.id)
+                                                });
+                                              }
+                                            }}
+                                            className="w-3 h-3"
+                                          />
+                                          <MapPin size={10} className={isInOtherCluster ? 'text-gray-400' : 'text-gray-600'} />
+                                          <span className={`flex-1 ${
+                                            isInOtherCluster 
+                                              ? 'line-through text-gray-400' 
+                                              : isSelected
+                                                ? 'text-blue-700 font-medium'
+                                                : 'text-gray-700'
+                                          }`}>
+                                            {area.name}
+                                          </span>
+                                          {isInOtherCluster && (
+                                            <span className="text-xs text-red-500">(In use)</span>
+                                          )}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Right Half - Selected Areas Chips */}
+                        <div className="w-1/2 bg-white flex flex-col">
+                          <div className="p-3 border-b flex-shrink-0">
+                            <div className="flex justify-between items-center">
+                              <h4 className="font-medium text-gray-900">Selected Areas</h4>
+                              <span className="text-sm text-gray-600">
+                                {clusterForm.areaIds?.length || 0} selected
                               </span>
-                            );
-                          })}
+                            </div>
+                            {clusterForm.areaIds?.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setClusterForm({...clusterForm, areaIds: []})}
+                                className="text-xs text-red-600 hover:text-red-800 mt-1"
+                              >
+                                Clear all
+                              </button>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 overflow-y-auto p-3">
+                            {clusterForm.areaIds?.length === 0 ? (
+                              <div className="flex items-center justify-center h-full text-gray-400">
+                                <div className="text-center">
+                                  <MapPin size={24} className="mx-auto mb-2 opacity-50" />
+                                  <p className="text-sm">No areas selected</p>
+                                  <p className="text-xs">Select areas from the left panel</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {clusterForm.areaIds.map(areaId => {
+                                  const area = areas.find(a => a.id === areaId);
+                                  const state = states.find(s => s.id === area?.stateId);
+                                  return (
+                                    <span 
+                                      key={areaId} 
+                                      className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full border border-blue-200 hover:bg-blue-200 transition-colors group"
+                                    >
+                                      <MapPin size={8} />
+                                      <span className="font-medium">{area?.name}</span>
+                                      <span className="text-blue-600 opacity-75">({state?.name})</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeAreaFromSelection(areaId)}
+                                        className="ml-1 text-blue-600 hover:text-red-600 hover:bg-red-100 rounded-full p-0.5 transition-colors opacity-60 group-hover:opacity-100"
+                                        title={`Remove ${area?.name}`}
+                                      >
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                      </button>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    )}
+                    </div>
+                    
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={clusterForm.isActive}
+                          onChange={(e) => setClusterForm({...clusterForm, isActive: e.target.checked})}
+                        />
+                        <span className="text-sm text-gray-700">Active</span>
+                      </label>
+                    </div>
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Assign Branch</label>
-                    <select
-                      value={clusterForm.branchId}
-                      onChange={(e) => setClusterForm({...clusterForm, branchId: e.target.value})}
-                      className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
-                      required
-                    >
-                      <option value="">Select Branch</option>
-                      {branches.filter(b => b.isActive && (!isBranchAssigned(b.id) || (editingItem && editingItem.branchId === b.id))).map(branch => (
-                        <option key={branch.id} value={branch.id}>{branch.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={clusterForm.isActive}
-                        onChange={(e) => setClusterForm({...clusterForm, isActive: e.target.checked})}
-                      />
-                      <span className="text-sm text-gray-700">Active</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="mt-6 flex justify-end gap-3">
+                </form>
+              </div>
+              
+              <div className="p-6 border-t flex-shrink-0">
+                <div className="flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -944,18 +999,19 @@ export default function AdminAreas() {
                       setClusterForm({ name: '', description: '', areaIds: [], branchId: '', isActive: true });
                       setSelectedStateForAreas('');
                     }}
-                    className="bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm"
+                    className="bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-400"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-blue-600 text-white px-4 py-2 rounded text-sm"
+                    onClick={editingItem ? handleEditCluster : handleCreateCluster}
+                    className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700"
                   >
                     {editingItem ? 'Update' : 'Create'}
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         )}
