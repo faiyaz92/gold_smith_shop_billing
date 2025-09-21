@@ -1,12 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-
 import { useState } from 'react';
 import { Lock, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/app/firebase';
 
 export default function AdminLogin() {
@@ -20,28 +19,64 @@ export default function AdminLogin() {
         e.preventDefault();
         setIsLoading(true);
         setError('');
+        
         try {
             // Sign in with Firebase Auth
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
+            
             // Get companyId from env
             const companyId = process.env.NEXT_PUBLIC_COMPANY_ID;
-            // Get user doc from Firestore
+            
+            // Get user doc from Firestore using Firebase Auth UID
             const userDocRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users/${user.uid}`);
             const userDoc = await getDoc(userDocRef);
+            
             if (userDoc.exists()) {
                 const userData = userDoc.data();
-                if (userData.userType === 'Employee') {
-                    localStorage.setItem('adminAuth', 'true');
-                    router.push('/admin/dashboard');
-                } else {
-                    setError('Not authorized as admin/employee.');
+                
+                // Store all user information in localStorage
+                localStorage.setItem('adminAuth', 'true');
+                localStorage.setItem('userId', user.uid);
+                localStorage.setItem('userEmail', userData.email || user.email);
+                localStorage.setItem('userName', userData.name || '');
+                localStorage.setItem('userRole', userData.role || '');
+                localStorage.setItem('userStatus', userData.status || '');
+                localStorage.setItem('userPhone', userData.phone || '');
+                localStorage.setItem('userBranchId', userData.branchId || '');
+                localStorage.setItem('userNotes', userData.notes || '');
+                localStorage.setItem('firebaseUid', user.uid);
+                
+                // Update last login time in Firestore
+                try {
+                    await updateDoc(userDocRef, {
+                        lastLogin: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                } catch (updateError) {
+                    console.log('Could not update last login time:', updateError);
                 }
+                
+                console.log('User logged in successfully:', userData);
+                
+                const roleDefaults = {
+                    company_admin: '/admin/dashboard',
+                    general_manager: '/admin/dashboard',
+                    branch_manager: '/admin/dashboard', 
+                    cashier: '/admin/billing',
+                    delivery_man: '/admin/orders',
+                    pickup_man: '/admin/orders',
+                };
+
+                const defaultPage = roleDefaults[userData.role] || '/admin/dashboard';
+                router.push(defaultPage);
+                
             } else {
-                setError('User not found in admin records.');
+                setError('User not found in company records.');
             }
         } catch (err) {
-            setError('Invalid credentials');
+            console.error('Login error:', err);
+            setError('Invalid credentials or login failed.');
         } finally {
             setIsLoading(false);
         }

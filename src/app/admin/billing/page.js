@@ -179,33 +179,41 @@ function BillingPage() {
     setSelectedCustomer((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Add to cart
-  const addToCart = (name, price) => {
+  // Add to cart - handle product object
+  const addToCart = (product) => {
     setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.name === name);
+      const existingItem = prevCart.find((item) => item.id === product.id);
       let newCart;
       if (existingItem) {
         newCart = prevCart.map((item) =>
-          item.name === name ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       } else {
-        newCart = [...prevCart, { name, price, quantity: 1 }];
+        newCart = [...prevCart, { 
+          id: product.id,
+          name: product.name,
+          price: product.discountedPrice || product.price,
+          quantity: 1,
+          image: product.image,
+          categoryName: product.categoryName,
+          subcategoryName: product.subcategoryName
+        }];
       }
       console.log('New cart state:', newCart);
       return newCart;
     });
   };
 
-  // Remove from cart
-  const removeFromCart = (name) => {
+  // Remove from cart - handle product ID
+  const removeFromCart = (productId) => {
     setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.name === name);
+      const existingItem = prevCart.find((item) => item.id === productId);
       if (existingItem && existingItem.quantity > 1) {
         return prevCart.map((item) =>
-          item.name === name ? { ...item, quantity: item.quantity - 1 } : item
+          item.id === productId ? { ...item, quantity: item.quantity - 1 } : item
         );
       }
-      return prevCart.filter((item) => item.name !== name);
+      return prevCart.filter((item) => item.id !== productId);
     });
   };
 
@@ -532,7 +540,7 @@ function BillingPage() {
             ) : (
               <ul className="mb-4 space-y-2">
                 {cart.map((item, idx) => (
-                  <li key={idx} className="flex justify-between items-center py-2 border-b text-sm sm:text-base">
+                  <li key={`${item.id}-${idx}`} className="flex justify-between items-center py-2 border-b text-sm sm:text-base">
                     <span>{item.name} x {item.quantity}</span>
                     <span>KWD {(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
                   </li>
