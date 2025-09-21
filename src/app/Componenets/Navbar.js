@@ -81,11 +81,14 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
     <>
       <nav className={`sticky top-0 w-full bg-white z-40 transition-all duration-300 ${scrolled ? 'shadow-md' : 'shadow-sm'}`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 h-16">
-          <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center hidden sm:block">
-            <span className="mr-2">🧺</span>
-            <span className="hidden sm:inline">Easy2 Laundry</span>
-            <span className="sm:hidden">E2L</span>
-          </div>
+          {/* Desktop Logo - Make it clickable */}
+          <Link href="/" className="hidden sm:block">
+            <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center hover:text-blue-800 transition-colors cursor-pointer">
+              <span className="mr-2">🧺</span>
+              <span className="hidden sm:inline">Easy2 Laundry</span>
+              <span className="sm:hidden">E2L</span>
+            </div>
+          </Link>
 
           <div className="flex-1 mx-4 hidden sm:block">
             <div className="relative w-full max-w-md mx-auto">
@@ -132,11 +135,15 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            {/* Logo - only once */}
-            <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center">
-              <span className="mr-2">🧺</span>
-              <span className="sm:hidden">E2L</span>
-            </div>
+            
+            {/* Mobile Logo - Make it clickable */}
+            <Link href="/">
+              <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center hover:text-blue-800 transition-colors cursor-pointer">
+                <span className="mr-2">🧺</span>
+                <span className="sm:hidden">E2L</span>
+              </div>
+            </Link>
+            
             {/* Home, search, about, contact, profile */}
             <Link href="/" className="hover:text-blue-600 transition p-2">
               <FiHome size={20} />

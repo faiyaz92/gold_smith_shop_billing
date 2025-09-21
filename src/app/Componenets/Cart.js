@@ -18,14 +18,16 @@ function groupItemsByCategory(items) {
 export default function Cart({ cart, isMobile, onClose }) {
   const [isVisible, setIsVisible] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
   const router = useRouter();
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   // Check authentication
   useEffect(() => {
     const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsAuthenticated(!!user);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setIsAuthenticated(!!currentUser);
+      setUser(currentUser);
     });
     return () => unsubscribe();
   }, []);
@@ -36,16 +38,26 @@ export default function Cart({ cart, isMobile, onClose }) {
     return () => setIsVisible(false);
   }, []);
 
-  // Navigate to checkout with COD
+  // Navigate to checkout - now allows both authenticated and non-authenticated users
   const handleCheckout = () => {
     // Save cart to localStorage
     localStorage.setItem('checkoutCart', JSON.stringify(cart));
-
-    if (isAuthenticated) {
-      router.push('/User/CheckoutPage?method=cod');
-    } else {
-      router.push('/User/Auth/');
+    
+    // Save user authentication status for checkout page
+    localStorage.setItem('isAuthenticatedUser', isAuthenticated.toString());
+    
+    if (user) {
+      // Save user info if authenticated
+      localStorage.setItem('checkoutUserInfo', JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || '',
+        phoneNumber: user.phoneNumber || ''
+      }));
     }
+    
+    // Navigate to checkout page regardless of authentication status
+    router.push('/User/CheckoutPage?method=cod');
   };
 
   // Animation variants
@@ -115,7 +127,7 @@ export default function Cart({ cart, isMobile, onClose }) {
                                 <p className="font-medium">{item.name}</p>
                                 <p className="text-xs text-gray-500">Qty: {item.quantity} × KWD {item.price}</p>
                               </div>
-                              <span className="font-medium">KWD  {item.price * item.quantity}</span>
+                              <span className="font-medium">KWD {item.price * item.quantity}</span>
                             </motion.li>
                           ))}
                         </div>
@@ -130,6 +142,8 @@ export default function Cart({ cart, isMobile, onClose }) {
                   <span className="font-medium">Total</span>
                   <span className="font-semibold">KWD {total}</span>
                 </div>
+                
+                {/* Updated checkout button text and functionality */}
                 <motion.button 
                   whileTap={{ scale: 0.98 }}
                   whileHover={{ scale: 1.02 }}
@@ -137,8 +151,21 @@ export default function Cart({ cart, isMobile, onClose }) {
                   disabled={cart.length === 0}
                   onClick={handleCheckout}
                 >
-                  Checkout (COD)
+                  {isAuthenticated ? 'Checkout (COD)' : 'Continue as Guest (COD)'}
                 </motion.button>
+                
+                {/* Optional login prompt for non-authenticated users */}
+                {!isAuthenticated && cart.length > 0 && (
+                  <div className="mt-2 text-xs text-center text-gray-500">
+                    <p>No account needed! Just provide delivery address.</p>
+                    <button 
+                      onClick={() => router.push('/User/Auth/')}
+                      className="text-blue-600 hover:text-blue-700 underline mt-1"
+                    >
+                      Or login for faster checkout
+                    </button>
+                  </div>
+                )}
               </motion.div>
             </motion.div>
           </div>
@@ -216,6 +243,8 @@ export default function Cart({ cart, isMobile, onClose }) {
               <span>Shipping</span>
               <span>{cart.length > 0 ? 'Calculated at checkout' : '—'}</span>
             </div>
+            
+            {/* Updated checkout button */}
             <motion.button 
               whileTap={{ scale: 0.98 }}
               whileHover={{ scale: 1.02 }}
@@ -223,8 +252,21 @@ export default function Cart({ cart, isMobile, onClose }) {
               disabled={cart.length === 0}
               onClick={handleCheckout}
             >
-              Proceed to Checkout (COD)
+              {isAuthenticated ? 'Proceed to Checkout (COD)' : 'Continue as Guest (COD)'}
             </motion.button>
+            
+            {/* Optional login prompt for non-authenticated users */}
+            {!isAuthenticated && cart.length > 0 && (
+              <div className="mt-3 text-xs text-center text-gray-500">
+                <p className="mb-1">No account needed! Just provide delivery address.</p>
+                <button 
+                  onClick={() => router.push('/User/Auth/')}
+                  className="text-blue-600 hover:text-blue-700 underline"
+                >
+                  Or login for faster checkout →
+                </button>
+              </div>
+            )}
           </motion.div>
         </div>
       </motion.aside>
