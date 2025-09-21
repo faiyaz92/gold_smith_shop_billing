@@ -532,7 +532,6 @@ const Page = () => {
                 >
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
                     <div>
-                      {/* Use order.orderNumber if exists, else fallback to order.id */}
                       <h4 className="font-medium text-blue-600">
                         Order #{order.srNo}
                       </h4>
@@ -542,29 +541,35 @@ const Page = () => {
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
                         {order.status}
                       </span>
-                      <button
-                        className="text-xs text-blue-600 underline mt-1"
-                        onClick={() => toggleTrail(order.id)}
-                        type="button"
-                      >
-                      </button>
                     </div>
                   </div>
 
-                  {/* Progress trail below, collapsed by default, expandable */}
+                  {/* Service Type */}
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="text-lg">
+                      {order.serviceType === 'pickup' ? '🏪' : '🚚'}
+                    </span>
+                    <div>
+                      <span className="font-medium text-blue-700">
+                        {order.serviceType === 'pickup' ? 'Pickup' : 'Delivery'}
+                      </span>
+                      {order.deliveryPref === 'express' && (
+                        <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">Express</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress trail */}
                   {renderProgressTrail(order, !expandedTrails[order.id])}
-                
 
                   <div className="mb-4">
                     <p className="text-sm text-gray-600">
                       <span className="font-medium text-blue-600">Estimated Delivery:</span> {formatDate(order.estimatedDelivery)}
                     </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium text-blue-600">Order Total:</span> KWD {order.total.toFixed(2)}
-                    </p>
                   </div>
 
-                  <div className="space-y-4">
+                  {/* Items section */}
+                  <div className="space-y-4 mb-4">
                     {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
                       const catImage = items[0]?.categoryImage || null;
                       return (
@@ -606,7 +611,7 @@ const Page = () => {
                                           strokeLinecap="round"
                                           strokeLinejoin="round"
                                           strokeWidth={1.5}
-                                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 002 2v12a2 2 0 002 2z"
                                         />
                                       </svg>
                                     </div>
@@ -632,6 +637,47 @@ const Page = () => {
                         </div>
                       );
                     })}
+                  </div>
+
+                  {/* Price Breakdown Section - MOVED AFTER ITEMS */}
+                  <div className="bg-white rounded-lg shadow p-4 border border-gray-100 mb-4">
+                    <h4 className="font-semibold mb-3 text-blue-700">Pricing Breakdown</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span>KWD {(order.subtotal || 0).toFixed(2)}</span>
+                      </div>
+                      {order.expressDeliveryFee > 0 && (
+                        <div className="flex justify-between">
+                          <span>Express Delivery Fee:</span>
+                          <span>KWD {order.expressDeliveryFee.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {order.appliedCoupon && (
+                        <div className="bg-green-50 p-2 rounded border border-green-200">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                              </svg>
+                              <span className="font-medium text-green-800">Applied Coupon:</span>
+                            </div>
+                            <span className="text-green-600 font-medium">{order.appliedCoupon.code}</span>
+                          </div>
+                          <div className="text-xs text-green-700 mb-1">
+                            {order.appliedCoupon.name} ({order.appliedCoupon.type})
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-green-700">Discount Amount:</span>
+                            <span className="text-green-600 font-medium">-KWD {order.discountAmount.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="border-t pt-2 flex justify-between font-semibold text-lg">
+                        <span>Final Total:</span>
+                        <span className="text-blue-700">KWD {(order.finalTotal || order.total || order.amount || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-gray-200">
