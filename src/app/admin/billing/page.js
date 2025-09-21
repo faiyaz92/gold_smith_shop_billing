@@ -864,9 +864,11 @@ function BillingPage() {
                     className="md:w-48 w-full"
                   >
                     <option value="">All Subcategories</option>
-                    {subcategories.map(sub => (
-                      <option key={sub.id} value={sub.id}>{sub.name}</option>
-                    ))}
+                    {subcategories
+                      .filter(sub => !selectedCategory || products.some(p => p.categoryId === selectedCategory && p.subcategoryId === sub.id))
+                      .map(sub => (
+                        <option key={sub.id} value={sub.id}>{sub.name}</option>
+                      ))}
                   </Select>
                   {canEditBranch && (
                     <Select value={selectedBranch} onChange={setSelectedBranch} className="md:w-48 w-full">
@@ -986,7 +988,12 @@ function BillingPage() {
                       <div key={`cart-${item.id}`} className="p-2 border rounded space-y-2">
                         {/* First Row: Product name and price per unit */}
                         <div className="flex justify-between items-center">
-                          <p className="text-sm font-medium truncate flex-1">{item.name}</p>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium truncate">{item.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {item.categoryName || '—'} / {item.subcategoryName || '—'}
+                            </p>
+                          </div>
                           <span className="text-xs text-gray-500">KWD {formatPrice(item.price)} each</span>
                         </div>
 
