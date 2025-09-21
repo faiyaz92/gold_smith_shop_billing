@@ -3,12 +3,206 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AdminLayout from '../AdminLayout';
-import Products from '@/app/Componenets/Products';
 import { db } from '@/app/firebase';
-import { collection, addDoc, doc, getDoc, updateDoc, query, where, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  collection, 
+  addDoc, 
+  doc, 
+  getDoc, 
+  updateDoc, 
+  query, 
+  where, 
+  getDocs, 
+  setDoc, 
+  serverTimestamp,
+  onSnapshot 
+} from 'firebase/firestore';
+import { 
+  ShoppingCart, 
+  Plus, 
+  Minus, 
+  Search, 
+  Trash2, 
+  Receipt, 
+  CreditCard, 
+  Banknote, 
+  UserPlus 
+} from 'lucide-react';
 import jsPDF from 'jspdf';
 
 const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'laundry_q8';
+
+// Define Firestore paths
+const basePath = 'Easy2Solutions/companyDirectory';
+const tenantCompaniesPath = `${basePath}/tenantCompanies`;
+
+// Helper function to safely convert to number and format price
+const formatPrice = (price) => {
+  const numPrice = parseFloat(price) || 0;
+  return numPrice.toFixed(2);
+};
+
+// Helper function to get the actual price from your product structure
+const getProductPrice = (product) => {
+  // Use discountedPrice if available, otherwise use regular price
+  const price = product.discountedPrice || product.price || 0;
+  return parseFloat(price) || 0;
+};
+
+// UI Components (matching your original design)
+const Card = ({ children, className = '' }) => (
+  <div className={`bg-white rounded-lg shadow border border-gray-200 ${className}`}>
+    {children}
+  </div>
+);
+
+const CardHeader = ({ children }) => (
+  <div className="p-6 border-b border-gray-200">
+    {children}
+  </div>
+);
+
+const CardTitle = ({ children, className = '' }) => (
+  <h2 className={`text-xl font-semibold text-gray-900 ${className}`}>
+    {children}
+  </h2>
+);
+
+const CardDescription = ({ children }) => (
+  <p className="text-gray-600 text-sm mt-1">{children}</p>
+);
+
+const CardContent = ({ children, className = '' }) => (
+  <div className={`p-6 ${className}`}>
+    {children}
+  </div>
+);
+
+const Button = ({ children, onClick, disabled, variant = 'default', size = 'default', className = '' }) => {
+  const baseClasses = 'font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const variants = {
+    default: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
+    outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500',
+    professional: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
+    destructive: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500'
+  };
+  const sizes = {
+    sm: 'px-2 py-1 text-xs',
+    default: 'px-4 py-2 text-sm',
+    lg: 'px-6 py-3 text-base'
+  };
+  
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+const Input = ({ placeholder, value, onChange, className = '' }) => (
+  <input
+    type="text"
+    placeholder={placeholder}
+    value={value}
+    onChange={onChange}
+    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${className}`}
+  />
+);
+
+const Select = ({ value, onChange, children, className = '' }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${className}`}
+  >
+    {children}
+  </select>
+);
+
+const Badge = ({ children, variant = 'default' }) => {
+  const variants = {
+    default: 'bg-blue-100 text-blue-800',
+    secondary: 'bg-yellow-100 text-yellow-800',
+    destructive: 'bg-red-100 text-red-800'
+  };
+  
+  return (
+    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${variants[variant]}`}>
+      {children}
+    </span>
+  );
+};
+
+const Label = ({ children, htmlFor }) => (
+  <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1">
+    {children}
+  </label>
+);
+
+const Separator = () => (
+  <hr className="border-gray-200" />
+);
+
+const Dialog = ({ open, onOpenChange, children }) => {
+  if (!open) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto relative">
+        {children}
+        <button
+          onClick={() => onOpenChange(false)}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const DialogHeader = ({ children }) => (
+  <div className="p-6 border-b border-gray-200">
+    {children}
+  </div>
+);
+
+const DialogTitle = ({ children }) => (
+  <h3 className="text-lg font-medium text-gray-900">{children}</h3>
+);
+
+const DialogContent = ({ children }) => (
+  <div className="p-6">
+    {children}
+  </div>
+);
+
+const LoadingDialog = ({ isOpen, title, description }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
+          <p className="text-sm text-gray-600">{description}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Toast hook (simplified)
+const useToast = () => ({
+  toast: ({ title, description, variant }) => {
+    console.log(`Toast: ${title} - ${description} (${variant})`);
+  }
+});
 
 // Custom debounce hook
 function useDebounce(value, delay) {
@@ -39,198 +233,474 @@ function BillingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId');
+  const { toast } = useToast();
+  
+  // Define Firestore paths
+  const usersPath = `${tenantCompaniesPath}/${companyId}/users`;
+  const ordersPath = `${tenantCompaniesPath}/${companyId}/orders`;
+  const branchesPath = `${tenantCompaniesPath}/${companyId}/branches`;
+  const productsPath = `${tenantCompaniesPath}/${companyId}/products`;
+  const categoriesPath = `${tenantCompaniesPath}/${companyId}/categories`;
+  const subcategoriesPath = `${tenantCompaniesPath}/${companyId}/subcategories`;
+
+  // State variables
+  const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [billNumber, setBillNumber] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('');
+  const [branches, setBranches] = useState([]);
+  const [customer, setCustomer] = useState(null);
   const [customerSearch, setCustomerSearch] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
-  const [isPaid, setIsPaid] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [customers, setCustomers] = useState([]);
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [orderStatus, setOrderStatus] = useState('pending');
+  const [existingBillNumber, setExistingBillNumber] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [billNumber, setBillNumber] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [newOrderId, setNewOrderId] = useState(null);
+  const [error, setError] = useState(null);
 
-  const debouncedSearchTerm = useDebounce(customerSearch, 500);
+  // POS user info and branch handling
+  const [posUser, setPosUser] = useState({
+    userId: '',
+    userName: '',
+    userRole: '',
+    branchId: '',
+    branchName: ''
+  });
+  const [canEditBranch, setCanEditBranch] = useState(false);
 
-  // Fetch order if redirected from order list
+  // Schedule preferences
+  const [schedule, setSchedule] = useState({
+    pickupTime: 'morning',
+    deliveryPref: 'standard',
+  });
+
+  const debouncedCustomerSearch = useDebounce(customerSearch, 500);
+
+  // Get POS user info from localStorage and determine branch permissions
   useEffect(() => {
-    if (orderId) {
-      const fetchOrder = async () => {
-        setLoading(true);
-        try {
-          const orderRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/orders/${orderId}`);
-          const orderSnap = await getDoc(orderRef);
-          if (orderSnap.exists()) {
-            const data = orderSnap.data();
-            setCart(data.items || []);
-            setBillNumber(data.billNumber || '');
-            setIsPaid(data.paymentStatus === 'paid');
-            setSelectedCustomer({
-              userId: data.userId || '',
-              name: data.name || '',
-              phone: data.phone || '',
-              email: data.email || '',
-              address: data.address || '',
-              city: data.city || '',
-              zip: data.zip || ''
-            });
-          } else {
-            setError('Order not found');
-          }
-        } catch (err) {
-          console.error('Error fetching order:', err);
-          setError(`Error fetching order: ${err.message} (Code: ${err.code})`);
-        }
-        setLoading(false);
-      };
-      fetchOrder();
+    const userId = localStorage.getItem('userId') || '';
+    const userName = localStorage.getItem('userName') || '';
+    const userRole = localStorage.getItem('userRole') || '';
+    const branchId = localStorage.getItem('userBranchId') || '';
+    
+    setPosUser({ userId, userName, userRole, branchId, branchName: '' });
+    
+    // Determine if user can edit branch selection
+    const canEdit = userRole === 'company_admin' || userRole === 'general_manager' || userRole === 'branch_manager';
+    setCanEditBranch(canEdit);
+    
+    if (!canEdit) {
+      setSelectedBranch(branchId);
     }
-  }, [orderId]);
+  }, []);
 
-  // Handle customer search and suggestions
+  // Fetch branches and get branch name
   useEffect(() => {
-    const fetchSuggestions = async () => {
-      if (debouncedSearchTerm.length >= 3) {
-        setLoading(true);
-        setError(null);
-        try {
-          const usersRef = collection(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users`);
-          const q = query(
-            usersRef,
-            where('phone', '>=', debouncedSearchTerm),
-            where('phone', '<=', debouncedSearchTerm + '\uf8ff')
-          );
-          const querySnapshot = await getDocs(q);
-          const suggestionsList = querySnapshot.docs.map((doc) => ({
-            userId: doc.id,
-            phone: doc.data().phone,
-            name: doc.data().name || '',
-            email: doc.data().email || '',
-            address: doc.data().address || '',
-            city: doc.data().city || '',
-            zip: doc.data().zip || ''
-          }));
-          setSuggestions(suggestionsList);
-        } catch (err) {
-          console.error('Error fetching suggestions:', err);
-          setError(`Error fetching suggestions: ${err.message} (Code: ${err.code})`);
+    const fetchBranches = () => {
+      const branchesCollection = collection(db, branchesPath);
+      const unsubscribe = onSnapshot(branchesCollection, (snapshot) => {
+        const branchesData = snapshot.docs.map((doc) => ({
+          storeId: doc.id,
+          name: doc.data().name,
+          ...doc.data(),
+        }));
+        setBranches(branchesData.filter(b => b.isActive));
+        
+        // Set branch name for current user
+        const currentBranch = branchesData.find(b => b.storeId === posUser.branchId);
+        if (currentBranch) {
+          setPosUser(prev => ({ ...prev, branchName: currentBranch.name }));
         }
-        setLoading(false);
-      } else {
-        setSuggestions([]);
+        
+        // Set default selected branch if user can edit
+        if (canEditBranch && !selectedBranch && branchesData.length > 0) {
+          setSelectedBranch(branchesData[0].storeId);
+        }
+      });
+      return unsubscribe;
+    };
+
+    return fetchBranches();
+  }, [posUser.branchId, canEditBranch, selectedBranch]);
+
+  // Fetch products (using same structure as your Products.js component)
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        
+        const unsubProducts = onSnapshot(
+          collection(db, productsPath),
+          async (productsSnapshot) => {
+            try {
+              const productsData = await Promise.all(
+                productsSnapshot.docs.map(async (docSnap) => {
+                  const data = docSnap.data();
+                  let categoryName = 'Uncategorized';
+                  let subcategoryName = 'None';
+
+                  // Fetch category name if categoryId exists
+                  if (data.categoryId) {
+                    const categoryDoc = await getDoc(doc(db, categoriesPath, data.categoryId));
+                    if (categoryDoc.exists()) {
+                      categoryName = categoryDoc.data().categoriesname || 'Uncategorized';
+                    }
+                  }
+
+                  // Fetch subcategory name if subcategoryId exists
+                  if (data.subcategoryId) {
+                    const subcategoryDoc = await getDoc(doc(db, subcategoriesPath, data.subcategoryId));
+                    if (subcategoryDoc.exists()) {
+                      subcategoryName = subcategoryDoc.data().name || 'None';
+                    }
+                  }
+
+                  return {
+                    id: docSnap.id, // Using 'id' as in your Products.js
+                    name: data.name || '',
+                    price: parseFloat(data.price) || 0,
+                    discountedPrice: data.discountedPrice ? parseFloat(data.discountedPrice) : null,
+                    image: data.image || '/placeholder.png',
+                    categoryId: data.categoryId || '',
+                    subcategoryId: data.subcategoryId || '',
+                    categoryName,
+                    subcategoryName,
+                    sortOrder: data.sortOrder ?? 999,
+                    createdAt: data.createdAt || new Date().toISOString(),
+                  };
+                })
+              );
+
+              // Sort products by sortOrder as in your Products.js
+              const sortedProductsData = productsData.sort((a, b) => 
+                (a.sortOrder ?? a.createdAt) < (b.sortOrder ?? b.createdAt) ? -1 : 1
+              );
+              
+              setProducts(sortedProductsData);
+              setIsLoading(false);
+            } catch (err) {
+              setError('Failed to load products: ' + err.message);
+              setIsLoading(false);
+            }
+          },
+          (err) => {
+            setError('Error fetching products: ' + err.message);
+            setIsLoading(false);
+          }
+        );
+
+        return unsubProducts;
+      } catch (err) {
+        console.error('Error setting up products listener:', err);
+        setError('Failed to fetch products');
+        setIsLoading(false);
       }
     };
 
-    fetchSuggestions();
-  }, [debouncedSearchTerm]);
+    fetchProducts();
+  }, []);
 
-  // Handle customer selection from suggestions
-  const handleSelectCustomer = (customer) => {
-    setSelectedCustomer(customer);
-    setCustomerSearch(customer.phone);
-    setSuggestions([]);
-  };
+  // Fetch customers
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const usersRef = collection(db, usersPath);
+        const querySnapshot = await getDocs(usersRef);
+        const customersList = querySnapshot.docs.map((doc) => ({
+          userId: doc.id,
+          name: doc.data().name || '',
+          userName: doc.data().userName || '',
+          phone: doc.data().phone || '',
+          email: doc.data().email || '',
+          address: doc.data().address || '',
+          city: doc.data().city || '',
+          zip: doc.data().zip || ''
+        }));
+        setCustomers(customersList);
+      } catch (err) {
+        console.error('Error fetching customers:', err);
+      }
+    };
 
-  // Handle customer search (exact match when clicking Search button)
-  const handleCustomerSearch = async () => {
-    if (!customerSearch) {
-      setError('Please enter a phone number');
+    fetchCustomers();
+  }, []);
+
+  // Filter products based on search term
+  const filteredProducts = products.filter(
+    product =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.categoryName && product.categoryName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (product.subcategoryName && product.subcategoryName.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const filteredCustomers = customers.filter(
+    customer =>
+      (customer.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
+       customer.userName?.toLowerCase().includes(customerSearch.toLowerCase()) ||
+       customer.phone?.toLowerCase().includes(customerSearch.toLowerCase()))
+  );
+
+  const addToCart = (product) => {
+    if (existingBillNumber) {
+      toast({
+        title: "Cannot Add",
+        description: "Cannot add new items to an existing bill.",
+        variant: "destructive",
+      });
       return;
     }
-    setLoading(true);
-    setError(null);
-    try {
-      const usersRef = collection(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users`);
-      const q = query(usersRef, where('phone', '==', customerSearch));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const customerData = querySnapshot.docs[0].data();
-        setSelectedCustomer({
-          userId: querySnapshot.docs[0].id,
-          name: customerData.name || '',
-          phone: customerData.phone || '',
-          email: customerData.email || '',
-          address: customerData.address || '',
-          city: customerData.city || '',
-          zip: customerData.zip || ''
-        });
-      } else {
-        setSelectedCustomer({
-          userId: '',
-          phone: customerSearch,
-          name: '',
-          email: '',
-          address: '',
-          city: '',
-          zip: ''
-        });
-      }
-      setSuggestions([]);
-    } catch (err) {
-      console.error('Error searching customer:', err);
-      setError(`Error searching customer: ${err.message} (Code: ${err.code})`);
+
+    const productPrice = getProductPrice(product);
+    const existingItem = cart.find(item => item.id === product.id); // Using 'id' as in your structure
+    
+    if (existingItem) {
+      updateQuantity(product.id, existingItem.quantity + 1);
+    } else {
+      const newItem = {
+        id: product.id, // Using 'id' as in your structure
+        productId: product.id, // Also keep productId for compatibility
+        name: product.name, // Using 'name' as in your structure
+        productName: product.name, // Also keep productName for compatibility
+        price: productPrice,
+        originalPrice: parseFloat(product.price) || 0,
+        discountedPrice: product.discountedPrice ? parseFloat(product.discountedPrice) : null,
+        categoryName: product.categoryName,
+        subcategoryName: product.subcategoryName,
+        quantity: 1,
+        tax: 0, // No tax for laundry services
+        taxAmount: 0,
+      };
+      setCart([...cart, newItem]);
     }
-    setLoading(false);
   };
 
-  // Handle customer details change
-  const handleCustomerChange = (e) => {
-    const { name, value } = e.target;
-    setSelectedCustomer((prev) => ({ ...prev, [name]: value }));
+  const updateQuantity = (productId, newQuantity) => {
+    if (existingBillNumber && newQuantity > cart.find(item => item.id === productId).quantity) {
+      toast({
+        title: "Cannot Increase",
+        description: "Cannot increase quantity for an existing bill.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newQuantity <= 0) {
+      setCart(cart.filter(item => item.id !== productId));
+      return;
+    }
+
+    setCart(
+      cart.map(item => {
+        if (item.id === productId) {
+          return {
+            ...item,
+            quantity: newQuantity,
+            taxAmount: (item.price * newQuantity * item.tax) / 100,
+          };
+        }
+        return item;
+      })
+    );
   };
 
-  // Add to cart - handle product object
-  const addToCart = (product) => {
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.id === product.id);
-      let newCart;
-      if (existingItem) {
-        newCart = prevCart.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      } else {
-        newCart = [...prevCart, { 
-          id: product.id,
-          name: product.name,
-          price: product.discountedPrice || product.price,
-          quantity: 1,
-          image: product.image,
-          categoryName: product.categoryName,
-          subcategoryName: product.subcategoryName
-        }];
-      }
-      console.log('New cart state:', newCart);
-      return newCart;
-    });
-  };
-
-  // Remove from cart - handle product ID
   const removeFromCart = (productId) => {
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.id === productId);
-      if (existingItem && existingItem.quantity > 1) {
-        return prevCart.map((item) =>
-          item.id === productId ? { ...item, quantity: item.quantity - 1 } : item
-        );
+    setCart(cart.filter(item => item.id !== productId));
+  };
+
+  const addNewCustomer = async () => {
+    if (!newCustomerName) {
+      toast({
+        title: "Error",
+        description: "Customer name is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const newCustomer = {
+        userId: `CUST-${Date.now()}`,
+        name: newCustomerName,
+        userName: newCustomerName,
+        userType: 'Customer',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      const userRef = doc(db, usersPath, newCustomer.userId);
+      await setDoc(userRef, newCustomer);
+      
+      setCustomers([...customers, newCustomer]);
+      setCustomer(newCustomer);
+      setNewCustomerName('');
+      setCustomerSearch('');
+      setIsCustomerDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Customer added successfully.",
+      });
+    } catch (e) {
+      console.error('Add customer error:', e);
+      toast({
+        title: "Error",
+        description: `Failed to add customer: ${e.message || e}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Get branch name
+  const getBranchName = (branchId) => {
+    const branch = branches.find(b => b.storeId === branchId);
+    return branch ? branch.name : 'Unknown Branch';
+  };
+
+  const generateBill = async () => {
+    if (cart.length === 0 && !existingBillNumber) {
+      toast({
+        title: "Empty Cart",
+        description: "Please add items to cart before generating bill.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedBranch && !posUser.branchId) {
+      toast({
+        title: "Select Branch",
+        description: "Please select a branch before generating bill.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!customer) {
+      toast({
+        title: "Select Customer",
+        description: "Please select a customer before generating bill.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity) + item.taxAmount, 0);
+      const finalBillNumber = existingBillNumber || `BILL-${Date.now()}`;
+      const finalBranchId = selectedBranch || posUser.branchId;
+      
+      // Save customer info first
+      const customerId = customer.userId || customer.phone || `CUST-${Date.now()}`;
+      const userRef = doc(db, usersPath, customerId);
+      
+      await setDoc(userRef, {
+        name: customer.name || customer.userName,
+        userName: customer.userName || customer.name,
+        email: customer.email || '',
+        phone: customer.phone || '',
+        address: customer.address || '',
+        city: customer.city || '',
+        zip: customer.zip || '',
+        userType: 'Customer',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      // Create order data
+      const orderData = {
+        userId: customerId,
+        name: customer.name || customer.userName,
+        userName: customer.userName || customer.name,
+        email: customer.email || '',
+        phone: customer.phone || '',
+        address: customer.address || '',
+        city: customer.city || '',
+        zip: customer.zip || '',
+        items: cart,
+        total: totalAmount,
+        billNumber: finalBillNumber,
+        paymentStatus: paymentMethod === 'Cash' ? 'paid' : 'unpaid',
+        paymentMethod: paymentMethod,
+        status: orderStatus,
+        pickupTime: schedule.pickupTime,
+        deliveryPref: schedule.deliveryPref,
+        timestamp: serverTimestamp(),
+        deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        orderTakenBy: posUser.userId,
+        orderTakenByName: posUser.userName,
+        orderTakenByRole: posUser.userRole,
+        branchId: finalBranchId,
+        orderSource: 'POS',
+        laundryStatus: {
+          pickupManVerified: false,
+          customerPickupVerified: false,
+          receivedAtFacility: false,
+          sortingDone: false,
+          washingDone: false,
+          dryingDone: false,
+          ironingDone: false,
+          foldingDone: false,
+          qualityCheckDone: false,
+          deliveryManDone: false,
+          customerDeliveryConfirmed: false,
+        }
+      };
+
+      let finalOrderId = orderId;
+      
+      if (orderId) {
+        // Update existing order
+        const orderRef = doc(db, ordersPath, orderId);
+        await updateDoc(orderRef, orderData);
+        console.log('Order updated:', orderId);
+      } else {
+        // Create new order
+        const orderRef = await addDoc(collection(db, ordersPath), orderData);
+        finalOrderId = orderRef.id;
+        setNewOrderId(finalOrderId);
+        console.log('Order created:', finalOrderId);
       }
-      return prevCart.filter((item) => item.id !== productId);
-    });
+
+      setBillNumber(finalBillNumber);
+      setShowSuccessDialog(true);
+
+      toast({
+        title: "Success",
+        description: `Bill generated successfully. ${paymentMethod === "Cash" ? "Payment recorded." : "Credit sale recorded."}`,
+      });
+    } catch (e) {
+      console.error('Generate bill error:', e);
+      toast({
+        title: "Error",
+        description: `Failed to generate bill: ${e.message || e}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Generate PDF using jsPDF
   const generatePDF = () => {
-    const customer = selectedCustomer || {};
-    const total = cart.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2);
+    const customerData = customer || {};
     const date = new Date().toLocaleDateString();
     const deliveryDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString();
     const finalBillNumber = billNumber || 'BILL-' + Date.now();
+    const currentBranchName = getBranchName(selectedBranch || posUser.branchId);
 
     const doc = new jsPDF();
 
     // Header
     doc.setFontSize(20);
     doc.setFont(undefined, 'bold');
-    doc.text('EASY2 Solutions', 105, 20, { align: 'center' });
+    doc.text('EASY2 Solutions Laundry', 105, 20, { align: 'center' });
 
     doc.setFontSize(16);
     doc.text('INVOICE', 105, 35, { align: 'center' });
@@ -239,88 +709,53 @@ function BillingPage() {
     doc.setFontSize(12);
     doc.setFont(undefined, 'normal');
     doc.text(`Bill Number: ${finalBillNumber}`, 20, 50);
-    doc.text(`Issued on: ${date}`, 20, 60);
+    doc.text(`Date: ${date}`, 20, 60);
     doc.text(`Estimated Delivery: ${deliveryDate}`, 20, 70);
+    doc.text(`Processed by: ${posUser.userName} (${posUser.userRole})`, 20, 80);
+    doc.text(`Branch: ${currentBranchName}`, 20, 90);
 
     // Customer Details
     doc.setFont(undefined, 'bold');
-    doc.text('Customer Details:', 20, 90);
+    doc.text('Customer Details:', 20, 110);
     doc.setFont(undefined, 'normal');
-    doc.text(`Name: ${customer.name || 'N/A'}`, 20, 100);
-    doc.text(`Phone: ${customer.phone || 'N/A'}`, 20, 110);
-    doc.text(`Email: ${customer.email || 'N/A'}`, 20, 120);
-    doc.text(`Address: ${customer.address || 'N/A'}, ${customer.city || 'N/A'}, ${customer.zip || 'N/A'}`, 20, 130);
+    doc.text(`Name: ${customerData.name || customerData.userName || 'N/A'}`, 20, 120);
+    doc.text(`Phone: ${customerData.phone || 'N/A'}`, 20, 130);
 
     // Items Table
     doc.setFont(undefined, 'bold');
-    doc.text('Order Items:', 20, 150);
+    doc.text('Services:', 20, 150);
 
     let yPosition = 160;
     doc.setFont(undefined, 'normal');
 
-    // Table headers
-    doc.setFillColor(230, 230, 230);
-    doc.rect(20, yPosition, 170, 8, 'F');
-    doc.setFont(undefined, 'bold');
-    doc.text('Item', 25, yPosition + 5);
-    doc.text('Qty', 100, yPosition + 5);
-    doc.text('Price (KWD)', 140, yPosition + 5);
-    yPosition += 10;
-
-    // Items
-    doc.setFont(undefined, 'normal');
     cart.forEach((item) => {
       if (yPosition > 270) {
         doc.addPage();
         yPosition = 20;
       }
 
-      const itemText = item.name;
-      const qtyText = item.quantity.toString();
-      const priceText = `KWD ${(Number(item.price) * Number(item.quantity)).toFixed(2)}`;
-
-      const splitName = doc.splitTextToSize(itemText, 70);
-      doc.text(splitName, 25, yPosition);
-      doc.text(qtyText, 100, yPosition);
-      doc.text(priceText, 140, yPosition);
-
+      doc.text(`${item.name} x ${item.quantity}`, 25, yPosition);
+      doc.text(`KWD ${formatPrice(item.price * item.quantity)}`, 140, yPosition);
       yPosition += 8;
     });
 
     // Total
-    if (yPosition > 270) {
-      doc.addPage();
-      yPosition = 20;
-    }
-
-    doc.setLineWidth(0.5);
-    doc.line(20, yPosition, 190, yPosition);
-    yPosition += 5;
-
+    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     doc.setFont(undefined, 'bold');
-    doc.setFontSize(14);
-    doc.text(`Total: KWD ${total}`, 140, yPosition);
-
-    // Payment Status
-    yPosition += 15;
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Payment Status: ${isPaid ? 'Paid' : 'Unpaid'}`, 20, yPosition);
-
-    // Footer
-    doc.setFontSize(10);
-    doc.text('Thank you for your business!', 105, 290, { align: 'center' });
+    doc.text(`Total: KWD ${formatPrice(total)}`, 140, yPosition + 10);
 
     return doc;
   };
 
-  // Download PDF and clear cart
   const handleDownloadPDF = () => {
     const pdf = generatePDF();
     const finalBillNumber = billNumber || 'BILL-' + Date.now();
-    pdf.save(`invoice_${finalBillNumber}.pdf`);
+    pdf.save(`laundry_invoice_${finalBillNumber}.pdf`);
+    
     setCart([]);
+    setCustomer(null);
     setShowSuccessDialog(false);
+    
     if (newOrderId) {
       router.push(`/admin/orders?orderId=${newOrderId}`);
     } else {
@@ -328,248 +763,299 @@ function BillingPage() {
     }
   };
 
-  // Generate or update bill
-  const handleGenerateBill = async () => {
-    if (!selectedCustomer || cart.length === 0) {
-      setError('Please select a customer and add items to cart');
-      return;
-    }
-    if (!selectedCustomer.name || !selectedCustomer.phone) {
-      setError('Customer name and phone are required');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    let newBillNumber = billNumber;
-    if (!billNumber) {
-      newBillNumber = 'BILL-' + Date.now();
-      setBillNumber(newBillNumber);
-    }
-
-    const orderData = {
-      userId: selectedCustomer.userId || selectedCustomer.phone,
-      name: selectedCustomer.name,
-      email: selectedCustomer.email || '',
-      phone: selectedCustomer.phone,
-      address: selectedCustomer.address || '',
-      city: selectedCustomer.city || '',
-      zip: selectedCustomer.zip || '',
-      items: cart,
-      total: cart.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0),
-      billNumber: newBillNumber,
-      paymentStatus: isPaid ? 'paid' : 'unpaid',
-      status: 'Pending',
-      timestamp: serverTimestamp(),
-      deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-    };
-
-    try {
-      console.log('Order data:', orderData);
-      const userId = selectedCustomer.userId || selectedCustomer.phone;
-      const userRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users`, userId);
-      await setDoc(userRef, {
-        name: selectedCustomer.name,
-        email: selectedCustomer.email || '',
-        phone: selectedCustomer.phone,
-        address: selectedCustomer.address || '',
-        city: selectedCustomer.city || '',
-        zip: selectedCustomer.zip || ''
-      }, { merge: true });
-      console.log('User document saved/updated for ID:', userId);
-
-      let finalOrderId = orderId;
-      if (orderId) {
-        const orderRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/orders/${orderId}`);
-        await updateDoc(orderRef, orderData);
-        console.log('Order updated:', orderId);
-      } else {
-        const orderRef = await addDoc(
-          collection(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/orders`),
-          orderData
-        );
-        finalOrderId = orderRef.id;
-        setNewOrderId(finalOrderId);
-        console.log('Order created:', finalOrderId);
-      }
-
-      setShowSuccessDialog(true);
-    } catch (err) {
-      console.error('Error generating bill:', err);
-      setError(`Error generating bill: ${err.message} (Code: ${err.code})`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle dialog close without downloading
-  const handleDialogClose = () => {
-    setShowSuccessDialog(false);
-    setCart([]);
-    if (newOrderId) {
-      router.push(`/admin/orders?orderId=${newOrderId}`);
-    } else {
-      router.push('/admin/orders');
-    }
-  };
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const taxAmount = cart.reduce((sum, item) => sum + item.taxAmount, 0);
+  const total = subtotal + taxAmount;
 
   return (
     <AdminLayout>
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
-        <h1 className="text-xl sm:text-2xl font-bold mb-6 text-blue-700">Admin POS / Billing</h1>
-        {error && <div className="mb-4 text-red-500 text-sm sm:text-base">{error}</div>}
-        {loading && <div className="mb-4 text-blue-500 text-sm sm:text-base">Loading...</div>}
+      <div className="space-y-2 p-1">
+        <LoadingDialog 
+          isOpen={isLoading}
+          title="Processing Bill..."
+          description="Generating invoice and updating records."
+        />
 
-        {/* Customer Selection */}
-        <div className="mb-6 bg-white rounded-lg shadow p-4 sm:p-6">
-          <h2 className="text-lg sm:text-xl font-semibold mb-4 text-blue-600">Customer Details</h2>
-          <div className="flex flex-col md:flex-row gap-4 items-start">
-            <div className="flex-1 relative">
-              <label className="block text-sm font-medium mb-1">Search by Phone</label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter phone number"
-                  value={customerSearch}
-                  onChange={(e) => setCustomerSearch(e.target.value)}
-                  className="flex-1 border border-gray-200 rounded px-3 py-2 text-sm sm:text-base"
-                />
-                <button
-                  onClick={handleCustomerSearch}
-                  className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 text-sm sm:text-base"
-                  disabled={loading}
-                >
-                  Search
-                </button>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
+              <Receipt className="w-8 h-8 text-blue-600" />
+              Billing System
+            </h1>
+            <p className="text-gray-600 mt-2">Generate bills and manage customer transactions</p>
+            {posUser.userName && (
+              <div className="text-sm text-gray-600 mt-1">
+                Operator: <span className="font-medium">{posUser.userName}</span> ({posUser.userRole})
+                | Branch: <span className="font-medium">{getBranchName(selectedBranch || posUser.branchId)}</span>
               </div>
-              {suggestions.length > 0 && (
-                <ul className="absolute z-10 bg-white border border-gray-200 rounded-lg mt-1 w-full max-h-60 overflow-y-auto shadow-lg">
-                  {suggestions.map((suggestion, index) => (
-                    <li
-                      key={index}
-                      className="px-4 py-2 hover:bg-blue-50 cursor-pointer flex justify-between items-center text-sm sm:text-base"
-                      onClick={() => handleSelectCustomer(suggestion)}
-                    >
-                      <span>{suggestion.phone}</span>
-                      <span className="text-gray-500">{suggestion.name || 'Unknown'}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-          {selectedCustomer && (
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Name</label>
-                <input
-                  name="name"
-                  value={selectedCustomer.name}
-                  onChange={handleCustomerChange}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm sm:text-base"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Email</label>
-                <input
-                  name="email"
-                  value={selectedCustomer.email}
-                  onChange={handleCustomerChange}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm sm:text-base"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Phone</label>
-                <input
-                  name="phone"
-                  value={selectedCustomer.phone}
-                  onChange={handleCustomerChange}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm sm:text-base"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">City</label>
-                <input
-                  name="city"
-                  value={selectedCustomer.city}
-                  onChange={handleCustomerChange}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm sm:text-base"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">ZIP</label>
-                <input
-                  name="zip"
-                  value={selectedCustomer.zip}
-                  onChange={handleCustomerChange}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm sm:text-base"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium mb-1">Address</label>
-                <textarea
-                  name="address"
-                  value={selectedCustomer.address}
-                  onChange={handleCustomerChange}
-                  className="w-full border border-gray-200 rounded px-3 py-2 text-sm sm:text-base"
-                  rows="3"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* POS Cart Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-lg shadow p-4 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-semibold mb-4 text-blue-600">Select Services / Products</h2>
-            <Products
-              cart={cart}
-              addToCart={addToCart}
-              removeFromCart={removeFromCart}
-              onActiveCategoryChange={() => {}}
-              searchQuery=""
-            />
-          </div>
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-semibold mb-4 text-blue-600">Cart Summary</h2>
-            {cart.length === 0 ? (
-              <div className="text-gray-500 text-sm sm:text-base">No items in cart</div>
-            ) : (
-              <ul className="mb-4 space-y-2">
-                {cart.map((item, idx) => (
-                  <li key={`${item.id}-${idx}`} className="flex justify-between items-center py-2 border-b text-sm sm:text-base">
-                    <span>{item.name} x {item.quantity}</span>
-                    <span>KWD {(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
-                  </li>
-                ))}
-              </ul>
             )}
-            <div className="font-bold text-lg text-right mb-4">
-              Total: KWD {cart.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0).toFixed(2)}
-            </div>
-            <div className="mb-4">
-              <label className="flex items-center gap-2 text-sm sm:text-base">
-                <input
-                  type="checkbox"
-                  checked={isPaid}
-                  onChange={(e) => setIsPaid(e.target.checked)}
-                  className="form-checkbox"
-                />
-                <span>Mark as Paid Now</span>
-              </label>
-            </div>
-            <button
-              className="w-full bg-green-600 text-white py-2 rounded shadow hover:bg-green-700 disabled:opacity-50 text-sm sm:text-base"
-              onClick={handleGenerateBill}
-              disabled={!selectedCustomer || cart.length === 0 || loading}
-            >
-              {orderId ? 'Update Bill' : 'Generate Bill'}
-            </button>
           </div>
         </div>
+
+        {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm border border-red-200">{error}</div>}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
+          {/* Product Search & Selection */}
+          <div className="lg:col-span-2 space-y-4 pr-2">
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Search className="w-5 h-5" />
+                  Service Selection
+                </CardTitle>
+                <CardDescription>Search and add laundry services to cart</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-4">
+                  <Input
+                    placeholder="Search by service name, category..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="flex-1"
+                  />
+                  {canEditBranch && (
+                    <Select value={selectedBranch} onChange={setSelectedBranch} className="w-48">
+                      <option value="">Select Branch</option>
+                      {branches.map(branch => (
+                        <option key={branch.storeId} value={branch.storeId}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto">
+                  {filteredProducts.length === 0 ? (
+                    <div className="col-span-full text-center py-8 text-gray-500">
+                      {searchTerm ? 'No services found matching your search.' : 'No services available.'}
+                    </div>
+                  ) : (
+                    filteredProducts.map(product => (
+                      <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h4 className="font-medium text-sm">{product.name}</h4>
+                                <p className="text-xs text-gray-500">{product.categoryName}</p>
+                                {product.subcategoryName && product.subcategoryName !== 'None' && (
+                                  <p className="text-xs text-gray-500">{product.subcategoryName}</p>
+                                )}
+                              </div>
+                              <Badge variant="default">
+                                Available
+                              </Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                {product.discountedPrice ? (
+                                  <div>
+                                    <span className="font-bold text-green-600">KWD {formatPrice(product.discountedPrice)}</span>
+                                    <div className="text-xs text-gray-400 line-through">
+                                      KWD {formatPrice(product.price)}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="font-bold">KWD {formatPrice(product.price)}</span>
+                                )}
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => addToCart(product)}
+                              >
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Cart & Billing */}
+          <div className="space-y-4 pl-2">
+            {/* Customer Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Customer Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="customer-name">Customer</Label>
+                  <Button
+                    variant="outline"
+                    className="w-full flex justify-between"
+                    onClick={() => setIsCustomerDialogOpen(true)}
+                  >
+                    {customer ? customer.name || customer.userName : "Select Customer"}
+                    <UserPlus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Cart */}
+            <Card className="flex-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5" />
+                  Cart ({cart.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {cart.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">
+                    <ShoppingCart className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p>Cart is empty</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {cart.map(item => (
+                      <div key={`cart-${item.id}`} className="p-2 border rounded space-y-2">
+                        {/* First Row: Product name and price per unit */}
+                        <div className="flex justify-between items-center">
+                          <p className="text-sm font-medium truncate flex-1">{item.name}</p>
+                          <span className="text-xs text-gray-500">KWD {formatPrice(item.price)} each</span>
+                        </div>
+                        
+                        {/* Second Row: Quantity controls and total price */}
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            >
+                              <Minus className="w-3 h-3" />
+                            </Button>
+                            <span className="w-8 text-center text-sm">{item.quantity}</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => removeFromCart(item.id)}
+                              className="text-red-600 hover:text-red-700 ml-2"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">KWD {formatPrice(item.price * item.quantity + item.taxAmount)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {cart.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Subtotal:</span>
+                        <span>KWD {formatPrice(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Tax:</span>
+                        <span>KWD {formatPrice(taxAmount)}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between font-bold">
+                        <span>Total:</span>
+                        <span>KWD {formatPrice(total)}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Payment Method</Label>
+                      <Select value={paymentMethod} onChange={setPaymentMethod}>
+                        <option value="Cash">💵 Cash</option>
+                        <option value="Credit">💳 Credit</option>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Order Status</Label>
+                      <Select value={orderStatus} onChange={setOrderStatus}>
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="shipped">Shipped</option>
+                        <option value="completed">Completed</option>
+                      </Select>
+                    </div>
+                    <Button
+                      onClick={generateBill}
+                      variant="professional"
+                      className="w-full gap-2"
+                      size="lg"
+                      disabled={isLoading}
+                    >
+                      <Receipt className="w-4 h-4" />
+                      {existingBillNumber ? "Update Bill" : "Generate Bill"}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Customer Selection Dialog */}
+        <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
+          <DialogHeader>
+            <DialogTitle>Select or Add Customer</DialogTitle>
+          </DialogHeader>
+          <DialogContent>
+            <div className="space-y-4">
+              <Input
+                placeholder="Search customers..."
+                value={customerSearch}
+                onChange={e => setCustomerSearch(e.target.value)}
+              />
+              <div className="space-y-2">
+                <Label>New Customer Name</Label>
+                <Input
+                  value={newCustomerName}
+                  onChange={e => setNewCustomerName(e.target.value)}
+                  placeholder="Enter new customer name"
+                />
+                <Button onClick={addNewCustomer} disabled={isLoading}>
+                  Add New Customer
+                </Button>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {filteredCustomers.length === 0 ? (
+                  <p className="text-center text-gray-500">No customers available</p>
+                ) : (
+                  filteredCustomers.map(c => (
+                    <div
+                      key={`customer-${c.userId}`}
+                      className="p-2 hover:bg-gray-100 cursor-pointer rounded"
+                      onClick={() => {
+                        setCustomer(c);
+                        setIsCustomerDialogOpen(false);
+                      }}
+                    >
+                      <p className="font-medium">{c.name || c.userName}</p>
+                      <p className="text-xs text-gray-500">ID: {c.userId}</p>
+                      {c.phone && <p className="text-xs text-gray-500">Phone: {c.phone}</p>}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Success Dialog */}
         {showSuccessDialog && (
@@ -582,27 +1068,30 @@ function BillingPage() {
                   </svg>
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {orderId ? 'Bill Updated Successfully!' : 'Order Placed Successfully!'}
+                  {orderId ? 'Order Updated Successfully!' : 'Order Placed Successfully!'}
                 </h3>
-                <p className="text-sm text-gray-500 mb-6">
+                <p className="text-sm text-gray-500 mb-4">
                   Order ID: {newOrderId || orderId}
                 </p>
                 <p className="text-sm text-gray-700 mb-6">
-                  Would you like to download the bill?
+                  Would you like to download the invoice?
                 </p>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={handleDownloadPDF}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 text-sm font-medium"
+                <div className="flex gap-3">
+                  <Button onClick={handleDownloadPDF} className="flex-1">
+                    Download PDF
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setShowSuccessDialog(false);
+                      setCart([]);
+                      setCustomer(null);
+                      router.push('/admin/orders');
+                    }}
+                    variant="outline"
+                    className="flex-1"
                   >
-                    Yes
-                  </button>
-                  <button
-                    onClick={handleDialogClose}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 text-sm font-medium"
-                  >
-                    No
-                  </button>
+                    Skip
+                  </Button>
                 </div>
               </div>
             </div>
