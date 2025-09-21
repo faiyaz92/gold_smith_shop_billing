@@ -5,7 +5,7 @@ import { Home, ShoppingCart, User, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery } from 'react-responsive';
 
-export default function MobileNav({ cart = [], openCart, onSearch }) { // Add onSearch prop
+export default function MobileNav({ cart = [], openCart, onSearch, onHome }) {
   const [activeTab, setActiveTab] = useState('home');
   const [isSearchOpen, setIsSearchOpen] = useState(false); // State for search input
   const [searchQuery, setSearchQuery] = useState(''); // Search query state
@@ -27,10 +27,21 @@ export default function MobileNav({ cart = [], openCart, onSearch }) { // Add on
   }, [onSearch]);
 
   const tabs = [
-    { id: 'home', icon: Home, label: 'Home', action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
+    {
+      id: 'home',
+      icon: Home,
+      label: 'Home',
+      action: () => {
+        if (typeof onHome === 'function') {
+          onHome();
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    },
     { id: 'cart', icon: ShoppingCart, label: 'Cart', action: openCart },
-    { id: 'search', icon: Search, label: 'Search', action: () => setIsSearchOpen(!isSearchOpen) }, // Add search tab
-    { id: 'account', icon: User, label: 'Account', action: () => router.push('../User/Account') },
+    { id: 'search', icon: Search, label: 'Search', action: () => setIsSearchOpen(!isSearchOpen) },
+    { id: 'account', icon: User, label: 'Account', action: () => router.push('/User/Account') },
   ];
 
   if (!isMobile) return null;

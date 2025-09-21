@@ -30,6 +30,14 @@ const statusColors = {
 };
 const Page = () => {
   const router = useRouter();
+
+  // Add these lines to match Home page logic
+  const [cart, setCart] = useState([]);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const onSearch = useCallback((query) => {
+    // Implement search logic if needed, or leave empty
+  }, []);
+
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
@@ -787,7 +795,12 @@ const Page = () => {
   return (
     <>
       <Navbar />
-      <MobileNav />
+      <MobileNav
+        cart={cart}
+        openCart={() => setMobileCartOpen(true)}
+        onSearch={onSearch}
+        onHome={() => router.push('/')}
+      />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-16 mt-14 sm:mt-8 md:mt-12 lg:mt-16 bg-white">
         <h1 className="text-2xl sm:text-3xl font-semibold mb-6 sm:mb-8 text-blue-600">My Account</h1>
 
