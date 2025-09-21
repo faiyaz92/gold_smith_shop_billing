@@ -54,6 +54,11 @@ const STATUS_OPTIONS = [
   { value: 'suspended', label: 'Suspended', color: 'bg-gray-100 text-gray-800' },
 ];
 
+const USER_TYPES = [
+  { value: 'customer', label: 'Customer' },
+  { value: 'staff', label: 'Staff/Employee' },
+];
+
 export default function AdminUsers() {
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
@@ -69,6 +74,10 @@ export default function AdminUsers() {
   const [branches, setBranches] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // Filter states
+  const [userTypeFilter, setUserTypeFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -81,6 +90,7 @@ export default function AdminUsers() {
     name: '',
     email: '',
     password: '',
+    userType: 'customer',
     role: 'cashier',
     status: 'active',
     phone: '',
@@ -109,6 +119,7 @@ export default function AdminUsers() {
       const usersData = usersSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
+        userType: doc.data().userType || 'customer', // Default to customer if not set
         lastLogin: formatLastLogin(doc.data().lastLogin),
         createdAt: doc.data().createdAt?.toDate(),
       }));
@@ -155,6 +166,7 @@ export default function AdminUsers() {
       name: '',
       email: '',
       password: '',
+      userType: 'customer',
       role: 'cashier',
       status: 'active',
       phone: '',
@@ -182,7 +194,8 @@ export default function AdminUsers() {
       await setDoc(userDocRef, {
         name: formData.name,
         email: formData.email,
-        role: formData.role,
+        userType: formData.userType,
+        role: formData.userType === 'staff' ? formData.role : null, // Only set role for staff
         status: formData.status,
         phone: formData.phone || null,
         branchId: formData.branchId || null,
@@ -230,15 +243,22 @@ export default function AdminUsers() {
       const userRef = doc(db, `${usersPath}/${selectedUser.id}`);
       const updateData = {
         name: formData.name,
+        userType: formData.userType,
         phone: formData.phone || null,
         branchId: formData.branchId || null,
         notes: formData.notes || null,
         updatedAt: serverTimestamp(),
       };
 
+      // Only set role if userType is staff
+      if (formData.userType === 'staff') {
+        updateData.role = formData.role;
+      } else {
+        updateData.role = null; // Clear role for customers
+      }
+
       // Only allow role and status changes by company_admin (except for their own role)
       if (currentUser?.role === 'company_admin' && currentUser?.id !== selectedUser?.id) {
-        updateData.role = formData.role;
         updateData.status = formData.status;
       }
 
@@ -296,6 +316,7 @@ export default function AdminUsers() {
       name: user.name || '',
       email: user.email || '',
       password: '', // Never show password
+      userType: user.userType || 'customer',
       role: user.role || 'cashier',
       status: user.status || 'active',
       phone: user.phone || '',
@@ -336,19 +357,27 @@ export default function AdminUsers() {
       user.role !== 'company_admin';
   };
 
-  const filteredUsers = users.filter(
-    (user) =>
+  const filteredUsers = users.filter((user) => {
+    // Always treat missing userType as 'customer'
+    const type = user.userType === 'staff' ? 'staff' : 'customer';
+
+    const matchesSearch =
       user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.role?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      user.role?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesUserType = userTypeFilter ? type === userTypeFilter : true;
+    const matchesRole = roleFilter ? user.role === roleFilter : true;
+
+    return matchesSearch && matchesUserType && matchesRole;
+  });
 
   if (!isClient) return null;
 
   return (
     <AdminLayout>
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto mt-4">
-        <div className="flex justify-between items-center mb-6">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent">
             User Management
           </h2>
@@ -363,8 +392,9 @@ export default function AdminUsers() {
           )}
         </div>
 
-        <div className="mb-6 flex flex-col sm:flex-row justify-between gap-4">
-          <div className="relative w-full sm:w-96">
+        {/* Search, Filters, and Count in one row */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-3 mb-6">
+          <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
@@ -373,6 +403,34 @@ export default function AdminUsers() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+          </div>
+          <select
+            value={userTypeFilter}
+            onChange={(e) => {
+              setUserTypeFilter(e.target.value);
+              if (e.target.value !== 'staff') setRoleFilter('');
+            }}
+            className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-2 text-blue-600 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+          >
+            <option value="">All User Types</option>
+            {USER_TYPES.map(type => (
+              <option key={type.value} value={type.value}>{type.label}</option>
+            ))}
+          </select>
+          {userTypeFilter === 'staff' && (
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-2 text-blue-600 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
+            >
+              <option value="">All Roles</option>
+              {USER_ROLES.map(role => (
+                <option key={role.value} value={role.value}>{role.label}</option>
+              ))}
+            </select>
+          )}
+          <div className="text-sm text-gray-600 px-3 py-2 bg-blue-50 rounded border ml-auto">
+            Total: {filteredUsers.length} users
           </div>
         </div>
 
@@ -383,6 +441,7 @@ export default function AdminUsers() {
                 <th className="p-3 text-left border-b border-gray-200">SR No</th>
                 <th className="p-3 text-left border-b border-gray-200">Name</th>
                 <th className="p-3 text-left border-b border-gray-200 hidden sm:table-cell">Email</th>
+                <th className="p-3 text-left border-b border-gray-200">Type</th>
                 <th className="p-3 text-left border-b border-gray-200">Role</th>
                 <th className="p-3 text-left border-b border-gray-200 hidden md:table-cell">Branch</th>
                 <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Status</th>
@@ -393,13 +452,13 @@ export default function AdminUsers() {
             <tbody className="divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500 text-sm sm:text-base">
+                  <td colSpan={9} className="p-8 text-center text-gray-500 text-sm sm:text-base">
                     <Loader2 className="h-8 w-8 text-blue-500 animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500 text-sm sm:text-base">No users found</td>
+                  <td colSpan={9} className="p-8 text-center text-gray-500 text-sm sm:text-base">No users found</td>
                 </tr>
               ) : (
                 filteredUsers.map((user, index) => {
@@ -422,10 +481,21 @@ export default function AdminUsers() {
                       </td>
                       <td className="p-3 text-gray-700 hidden sm:table-cell">{user.email}</td>
                       <td className="p-3">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${roleInfo.color}`}>
-                          {roleInfo.icon}
-                          {roleInfo.label}
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          (user.userType === 'staff') ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {(user.userType === 'staff') ? 'Staff' : 'Customer'}
                         </span>
+                      </td>
+                      <td className="p-3">
+                        {user.userType === 'staff' && user.role ? (
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${roleInfo.color}`}>
+                            {roleInfo.icon}
+                            {roleInfo.label}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">N/A</span>
+                        )}
                       </td>
                       <td className="p-3 text-gray-700 hidden md:table-cell">
                         {user.branchId ? getBranchName(user.branchId) : 'No Branch'}
@@ -522,18 +592,39 @@ export default function AdminUsers() {
                     placeholder="+965 XXXX XXXX"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value})}
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
-                  >
-                    {USER_ROLES.filter(role => role.value !== 'company_admin').map(role => (
-                      <option key={role.value} value={role.value}>{role.label}</option>
-                    ))}
-                  </select>
+                
+                {/* User Type and Role in same row */}
+                <div className="md:col-span-2 flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">User Type *</label>
+                    <select
+                      value={formData.userType}
+                      onChange={(e) => setFormData({...formData, userType: e.target.value})}
+                      className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
+                      required
+                    >
+                      {USER_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {formData.userType === 'staff' && (
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
+                      <select
+                        value={formData.role}
+                        onChange={(e) => setFormData({...formData, role: e.target.value})}
+                        className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
+                        required
+                      >
+                        {USER_ROLES.filter(role => role.value !== 'company_admin').map(role => (
+                          <option key={role.value} value={role.value}>{role.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Branch (Optional)</label>
                   <select
@@ -632,26 +723,46 @@ export default function AdminUsers() {
                     placeholder="+965 XXXX XXXX"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value})}
-                    className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
-                    disabled={
-                      (selectedUser.role === 'company_admin') ||
-                      (currentUser?.id === selectedUser.id && currentUser?.role === 'company_admin') ||
-                      (currentUser?.role !== 'company_admin')
-                    }
-                  >
-                    {USER_ROLES.map(role => (
-                      <option key={role.value} value={role.value}>{role.label}</option>
-                    ))}
-                  </select>
-                  {(selectedUser.role === 'company_admin' || (currentUser?.id === selectedUser.id && currentUser?.role === 'company_admin')) && (
-                    <p className="text-xs text-gray-500 mt-1">Company Admin role cannot be changed</p>
+                
+                {/* User Type and Role in same row */}
+                <div className="md:col-span-2 flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">User Type *</label>
+                    <select
+                      value={formData.userType}
+                      onChange={(e) => setFormData({...formData, userType: e.target.value})}
+                      className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
+                      required
+                    >
+                      {USER_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {formData.userType === 'staff' && (
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                      <select
+                        value={formData.role}
+                        onChange={(e) => setFormData({...formData, role: e.target.value})}
+                        className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
+                        disabled={
+                          (selectedUser.role === 'company_admin') ||
+                          (currentUser?.id === selectedUser.id && currentUser?.role === 'company_admin') ||
+                          (currentUser?.role !== 'company_admin')
+                        }
+                      >
+                        {USER_ROLES.map(role => (
+                          <option key={role.value} value={role.value}>{role.label}</option>
+                        ))}
+                      </select>
+                      {(selectedUser.role === 'company_admin' || (currentUser?.id === selectedUser.id && currentUser?.role === 'company_admin')) && (
+                        <p className="text-xs text-gray-500 mt-1">Company Admin role cannot be changed</p>
+                      )}
+                    </div>
                   )}
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Branch (Optional)</label>
                   <select
