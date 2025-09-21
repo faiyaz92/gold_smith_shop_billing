@@ -26,7 +26,8 @@ import {
   Receipt, 
   CreditCard, 
   Banknote, 
-  UserPlus 
+  UserPlus,
+  Check
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 
@@ -262,6 +263,9 @@ function BillingPage() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [newOrderId, setNewOrderId] = useState(null);
   const [error, setError] = useState(null);
+  const [customerTab, setCustomerTab] = useState('new'); // Add this line
+  const [walkInMobile, setWalkInMobile] = useState('');
+  const [newCustomerMobile, setNewCustomerMobile] = useState('');
 
   // POS user info and branch handling
   const [posUser, setPosUser] = useState({
@@ -831,23 +835,26 @@ function BillingPage() {
                       {searchTerm ? 'No services found matching your search.' : 'No services available.'}
                     </div>
                   ) : (
-                    filteredProducts.map(product => (
-                      <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                        <CardContent className="p-4">
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-medium text-sm">{product.name}</h4>
-                                <p className="text-xs text-gray-500">{product.categoryName}</p>
-                                {product.subcategoryName && product.subcategoryName !== 'None' && (
-                                  <p className="text-xs text-gray-500">{product.subcategoryName}</p>
-                                )}
+                    filteredProducts.map(product => {
+                      const inCart = cart.some(item => item.id === product.id);
+                      return (
+                        <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow h-full flex flex-col">
+                          <CardContent className="p-4 flex flex-col justify-between h-full">
+                            <div>
+                              <div className="flex justify-between items-start">
+                                <div className="min-h-[2.5rem]">
+                                  <h4 className="font-medium text-sm break-words">{product.name}</h4>
+                                  <p className="text-xs text-gray-500">{product.categoryName}</p>
+                                  {product.subcategoryName && product.subcategoryName !== 'None' && (
+                                    <p className="text-xs text-gray-500">{product.subcategoryName}</p>
+                                  )}
+                                </div>
+                                <Badge variant="default">
+                                  Available
+                                </Badge>
                               </div>
-                              <Badge variant="default">
-                                Available
-                              </Badge>
                             </div>
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between mt-4">
                               <div>
                                 {product.discountedPrice ? (
                                   <div>
@@ -860,18 +867,27 @@ function BillingPage() {
                                   <span className="font-bold">KWD {formatPrice(product.price)}</span>
                                 )}
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => addToCart(product)}
-                              >
-                                <Plus className="w-4 h-4" />
-                              </Button>
+                              <div>
+                                {inCart ? (
+                                  <span className="inline-flex items-center justify-center rounded-full bg-green-100 text-green-700 p-2">
+                                    <Check className="w-5 h-5" />
+                                  </span>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => addToCart(product)}
+                                    className="flex items-center justify-center"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
+                          </CardContent>
+                        </Card>
+                      );
+                    })
                   )}
                 </div>
               </CardContent>
@@ -996,11 +1012,11 @@ function BillingPage() {
                     <Button
                       onClick={generateBill}
                       variant="professional"
-                      className="w-full gap-2"
+                      className="w-full flex items-center justify-center gap-2 py-3 text-base"
                       size="lg"
                       disabled={isLoading}
                     >
-                      <Receipt className="w-4 h-4" />
+                      <Receipt className="w-5 h-5 inline-flex align-middle" />
                       {existingBillNumber ? "Update Bill" : "Generate Bill"}
                     </Button>
                   </>
@@ -1017,42 +1033,156 @@ function BillingPage() {
           </DialogHeader>
           <DialogContent>
             <div className="space-y-4">
-              <Input
-                placeholder="Search customers..."
-                value={customerSearch}
-                onChange={e => setCustomerSearch(e.target.value)}
-              />
-              <div className="space-y-2">
-                <Label>New Customer Name</Label>
-                <Input
-                  value={newCustomerName}
-                  onChange={e => setNewCustomerName(e.target.value)}
-                  placeholder="Enter new customer name"
-                />
-                <Button onClick={addNewCustomer} disabled={isLoading}>
-                  Add New Customer
-                </Button>
+              {/* Tabs */}
+              <div className="flex border-b mb-4">
+                <button
+                  className={`flex-1 py-2 text-center ${customerTab === 'new' ? 'border-b-2 border-blue-600 font-semibold' : 'text-gray-500'}`}
+                  onClick={() => setCustomerTab('new')}
+                >
+                  New Customer
+                </button>
+                <button
+                  className={`flex-1 py-2 text-center ${customerTab === 'walkin' ? 'border-b-2 border-blue-600 font-semibold' : 'text-gray-500'}`}
+                  onClick={() => setCustomerTab('walkin')}
+                >
+                  Walk In
+                </button>
+                <button
+                  className={`flex-1 py-2 text-center ${customerTab === 'list' ? 'border-b-2 border-blue-600 font-semibold' : 'text-gray-500'}`}
+                  onClick={() => setCustomerTab('list')}
+                >
+                  Customers
+                </button>
               </div>
-              <div className="max-h-64 overflow-y-auto">
-                {filteredCustomers.length === 0 ? (
-                  <p className="text-center text-gray-500">No customers available</p>
-                ) : (
-                  filteredCustomers.map(c => (
-                    <div
-                      key={`customer-${c.userId}`}
-                      className="p-2 hover:bg-gray-100 cursor-pointer rounded"
-                      onClick={() => {
-                        setCustomer(c);
-                        setIsCustomerDialogOpen(false);
-                      }}
-                    >
-                      <p className="font-medium">{c.name || c.userName}</p>
-                      <p className="text-xs text-gray-500">ID: {c.userId}</p>
-                      {c.phone && <p className="text-xs text-gray-500">Phone: {c.phone}</p>}
-                    </div>
-                  ))
-                )}
-              </div>
+              {/* Tab Content */}
+              {customerTab === 'walkin' && (
+                <div className="space-y-3">
+                  <Label>Mobile Number <span className="text-red-500">*</span></Label>
+                  <Input
+                    value={walkInMobile}
+                    onChange={e => setWalkInMobile(e.target.value)}
+                    placeholder="Enter mobile number"
+                  />
+                  <Button
+                    onClick={async () => {
+                      if (!walkInMobile) {
+                        toast({ title: "Mobile required", description: "Please enter mobile number.", variant: "destructive" });
+                        return;
+                      }
+                      setIsLoading(true);
+                      const walkInCustomer = {
+                        userId: `WALKIN-${walkInMobile}`,
+                        name: 'Walk In',
+                        userName: 'Walk In',
+                        phone: walkInMobile,
+                        userType: 'walkin',
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                      };
+                      const userRef = doc(db, usersPath, walkInCustomer.userId);
+                      await setDoc(userRef, walkInCustomer, { merge: true });
+                      setCustomers([...customers, walkInCustomer]);
+                      setCustomer(walkInCustomer);
+                      setIsCustomerDialogOpen(false);
+                      setWalkInMobile('');
+                      setIsLoading(false);
+                      toast({ title: "Walk In Added", description: "Walk in customer added.", variant: "default" });
+                    }}
+                    disabled={isLoading}
+                  >
+                    Add Walk In
+                  </Button>
+                </div>
+              )}
+              {customerTab === 'new' && (
+                <div className="space-y-3">
+                  <Label>Name <span className="text-red-500">*</span></Label>
+                  <Input
+                    value={newCustomerName}
+                    onChange={e => setNewCustomerName(e.target.value)}
+                    placeholder="Enter customer name"
+                  />
+                  <Label>Mobile Number <span className="text-red-500">*</span></Label>
+                  <Input
+                    value={newCustomerMobile}
+                    onChange={e => setNewCustomerMobile(e.target.value)}
+                    placeholder="Enter mobile number"
+                  />
+                  <Label>Email</Label>
+                  <Input
+                    value={customer?.email || ''}
+                    onChange={e => setCustomer({ ...customer, email: e.target.value })}
+                    placeholder="Optional"
+                  />
+                  <Label>Address</Label>
+                  <Input
+                    value={customer?.address || ''}
+                    onChange={e => setCustomer({ ...customer, address: e.target.value })}
+                    placeholder="Optional"
+                  />
+                  <Button
+                    onClick={async () => {
+                      if (!newCustomerName || !newCustomerMobile) {
+                        toast({ title: "Required", description: "Name and mobile are required.", variant: "destructive" });
+                        return;
+                      }
+                      setIsLoading(true);
+                      const newCustomer = {
+                        userId: `CUST-${newCustomerMobile}`,
+                        name: newCustomerName,
+                        userName: newCustomerName,
+                        phone: newCustomerMobile,
+                        email: customer?.email || '',
+                        address: customer?.address || '',
+                        userType: 'Customer',
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                      };
+                      const userRef = doc(db, usersPath, newCustomer.userId);
+                      await setDoc(userRef, newCustomer, { merge: true });
+                      setCustomers([...customers, newCustomer]);
+                      setCustomer(newCustomer);
+                      setIsCustomerDialogOpen(false);
+                      setNewCustomerName('');
+                      setNewCustomerMobile('');
+                      setIsLoading(false);
+                      toast({ title: "Customer Added", description: "Customer added successfully.", variant: "default" });
+                    }}
+                    disabled={isLoading}
+                  >
+                    Add Customer
+                  </Button>
+                </div>
+              )}
+              {customerTab === 'list' && (
+                <div>
+                  <Input
+                    placeholder="Search customers..."
+                    value={customerSearch}
+                    onChange={e => setCustomerSearch(e.target.value)}
+                  />
+                  <div className="max-h-64 overflow-y-auto mt-2">
+                    {filteredCustomers.length === 0 ? (
+                      <p className="text-center text-gray-500">No customers available</p>
+                    ) : (
+                      filteredCustomers.map(c => (
+                        <div
+                          key={`customer-${c.userId}`}
+                          className="p-2 hover:bg-gray-100 cursor-pointer rounded"
+                          onClick={() => {
+                            setCustomer(c);
+                            setIsCustomerDialogOpen(false);
+                          }}
+                        >
+                          <p className="font-medium">{c.name || c.userName}</p>
+                          <p className="text-xs text-gray-500">ID: {c.userId}</p>
+                          {c.phone && <p className="text-xs text-gray-500">Phone: {c.phone}</p>}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>
