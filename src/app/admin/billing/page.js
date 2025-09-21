@@ -266,6 +266,10 @@ function BillingPage() {
   const [customerTab, setCustomerTab] = useState('new'); // Add this line
   const [walkInMobile, setWalkInMobile] = useState('');
   const [newCustomerMobile, setNewCustomerMobile] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
 
   // POS user info and branch handling
   const [posUser, setPosUser] = useState({
@@ -434,12 +438,38 @@ function BillingPage() {
     fetchCustomers();
   }, []);
 
+  // Fetch categories and subcategories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const catRef = collection(db, categoriesPath);
+      const catSnap = await getDocs(catRef);
+      setCategories(catSnap.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().categoriesname || doc.data().name || 'Unnamed'
+      })));
+    };
+    const fetchSubcategories = async () => {
+      const subcatRef = collection(db, subcategoriesPath);
+      const subcatSnap = await getDocs(subcatRef);
+      setSubcategories(subcatSnap.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name || 'Unnamed'
+      })));
+    };
+    fetchCategories();
+    fetchSubcategories();
+  }, []);
+
   // Filter products based on search term
   const filteredProducts = products.filter(
     product =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.categoryName && product.categoryName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (product.subcategoryName && product.subcategoryName.toLowerCase().includes(searchTerm.toLowerCase()))
+      (selectedCategory ? product.categoryId === selectedCategory : true) &&
+      (selectedSubcategory ? product.subcategoryId === selectedSubcategory : true) &&
+      (
+        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (product.categoryName && product.categoryName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (product.subcategoryName && product.subcategoryName.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
   );
 
   const filteredCustomers = customers.filter(
@@ -811,15 +841,35 @@ function BillingPage() {
                 <CardDescription>Search and add laundry services to cart</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-4">
+                <div className="flex flex-col md:flex-row gap-2">
                   <Input
                     placeholder="Search by service name, category..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className="flex-1"
                   />
+                  <Select
+                    value={selectedCategory}
+                    onChange={setSelectedCategory}
+                    className="md:w-48 w-full"
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </Select>
+                  <Select
+                    value={selectedSubcategory}
+                    onChange={setSelectedSubcategory}
+                    className="md:w-48 w-full"
+                  >
+                    <option value="">All Subcategories</option>
+                    {subcategories.map(sub => (
+                      <option key={sub.id} value={sub.id}>{sub.name}</option>
+                    ))}
+                  </Select>
                   {canEditBranch && (
-                    <Select value={selectedBranch} onChange={setSelectedBranch} className="w-48">
+                    <Select value={selectedBranch} onChange={setSelectedBranch} className="md:w-48 w-full">
                       <option value="">Select Branch</option>
                       {branches.map(branch => (
                         <option key={branch.storeId} value={branch.storeId}>
@@ -839,7 +889,7 @@ function BillingPage() {
                       const inCart = cart.some(item => item.id === product.id);
                       return (
                         <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow h-full flex flex-col">
-                          <CardContent className="p-4 flex flex-col justify-between h-full">
+                          <CardContent className="flex-1 flex flex-col justify-between">
                             <div>
                               <div className="flex justify-between items-start">
                                 <div className="min-h-[2.5rem]">
@@ -947,80 +997,62 @@ function BillingPage() {
                               size="sm"
                               variant="outline"
                               onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                              disabled={item.quantity <= 1}
                             >
-                              <Minus className="w-3 h-3" />
+                              <Minus className="w-4 h-4" />
                             </Button>
-                            <span className="w-8 text-center text-sm">{item.quantity}</span>
+                            <span className="text-sm font-medium">{item.quantity}</span>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
                             >
-                              <Plus className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => removeFromCart(item.id)}
-                              className="text-red-600 hover:text-red-700 ml-2"
-                            >
-                              <Trash2 className="w-3 h-3" />
+                              <Plus className="w-4 h-4" />
                             </Button>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium">KWD {formatPrice(item.price * item.quantity + item.taxAmount)}</p>
-                          </div>
+                          <span className="text-sm font-bold">KWD {formatPrice(item.price * item.quantity)}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-                {cart.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Subtotal:</span>
-                        <span>KWD {formatPrice(subtotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Tax:</span>
-                        <span>KWD {formatPrice(taxAmount)}</span>
-                      </div>
-                      <Separator />
-                      <div className="flex justify-between font-bold">
-                        <span>Total:</span>
-                        <span>KWD {formatPrice(total)}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Payment Method</Label>
-                      <Select value={paymentMethod} onChange={setPaymentMethod}>
-                        <option value="Cash">💵 Cash</option>
-                        <option value="Credit">💳 Credit</option>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Order Status</Label>
-                      <Select value={orderStatus} onChange={setOrderStatus}>
-                        <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="shipped">Shipped</option>
-                        <option value="completed">Completed</option>
-                      </Select>
-                    </div>
-                    <Button
-                      onClick={generateBill}
-                      variant="professional"
-                      className="w-full flex items-center justify-center gap-2 py-3 text-base"
-                      size="lg"
-                      disabled={isLoading}
-                    >
-                      <Receipt className="w-5 h-5 inline-flex align-middle" />
-                      {existingBillNumber ? "Update Bill" : "Generate Bill"}
-                    </Button>
-                  </>
-                )}
+              </CardContent>
+            </Card>
+
+            {/* Billing Summary & Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Billing Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Payment Method</Label>
+                    <Select value={paymentMethod} onChange={setPaymentMethod}>
+                      <option value="Cash">💵 Cash</option>
+                      <option value="Credit">💳 Credit</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Order Status</Label>
+                    <Select value={orderStatus} onChange={setOrderStatus}>
+                      <option value="pending">Pending</option>
+                      <option value="processing">Processing</option>
+                      <option value="shipped">Shipped</option>
+                      <option value="completed">Completed</option>
+                    </Select>
+                  </div>
+                </div>
+                <Button
+                  onClick={generateBill}
+                  variant="professional"
+                  className="w-full flex items-center justify-center gap-2 py-3 text-base"
+                  size="lg"
+                  disabled={isLoading}
+                >
+                  <Receipt className="w-5 h-5 inline-flex align-middle" />
+                  {existingBillNumber ? "Update Bill" : "Generate Bill"}
+                </Button>
               </CardContent>
             </Card>
           </div>
