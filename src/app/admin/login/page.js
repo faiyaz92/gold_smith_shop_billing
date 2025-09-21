@@ -69,7 +69,7 @@ export default function AdminLogin() {
                 };
 
                 const defaultPage = roleDefaults[userData.role] || '/admin/dashboard';
-                router.push(defaultPage);
+                router.replace(defaultPage);
                 
             } else {
                 setError('User not found in company records.');

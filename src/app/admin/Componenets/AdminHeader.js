@@ -42,7 +42,6 @@ export default function AdminHeader({ toggleSidebar, isSidebarOpen }) {
         >
           {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
         </motion.button>
-        
         {/* Logo */}
         <motion.div
           whileHover={{ scale: 1.05 }}
@@ -74,6 +73,19 @@ export default function AdminHeader({ toggleSidebar, isSidebarOpen }) {
         >
           <LogOut className="w-4 h-4" />
           <span>Logout</span>
+        </motion.button>
+      </div>
+
+      {/* Mobile Logout Button */}
+      <div className="flex lg:hidden">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={handleLogout}
+          className="flex items-center space-x-1 px-3 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-600 border border-red-200"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="text-sm">Logout</span>
         </motion.button>
       </div>
     </motion.nav>
