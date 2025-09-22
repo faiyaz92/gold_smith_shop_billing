@@ -124,7 +124,7 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
             </Link>
           </div>
 
-          <div className="flex items-center gap-2 sm:hidden">
+          <div className="flex items-center sm:hidden w-full">
             {/* Hamburger menu - leftmost */}
             <button
               className="p-2 text-gray-600 hover:text-blue-600 transition"
@@ -135,64 +135,25 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            
-            {/* Mobile Logo - Make it clickable */}
-            <Link href="/">
-              <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center hover:text-blue-800 transition-colors cursor-pointer">
+
+            {/* Mobile Logo - centered */}
+            <Link href="/" className="flex-1 text-center">
+              <div className="font-semibold tracking-tight text-lg text-blue-700 select-none inline-flex items-center hover:text-blue-800 transition-colors cursor-pointer">
                 <span className="mr-2">🧺</span>
-                <span className="sm:hidden">E2L</span>
+                <span>Easy2 Laundry</span>
               </div>
             </Link>
-            
-            {/* Home, search, about, contact, profile */}
-            <Link href="/" className="hover:text-blue-600 transition p-2">
-              <FiHome size={20} />
-            </Link>
-            <button
-              className="p-2 text-gray-600 hover:text-blue-600 transition"
-              onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-            >
-              {isMobileSearchOpen ? <FiX size={20} /> : <FiSearch size={20} />}
-            </button>
-            <button className="p-2 text-gray-600 hover:text-blue-600 transition" onClick={() => setShowAbout(true)}>
-              <span>About</span>
-            </button>
-            <button className="p-2 text-gray-600 hover:text-blue-600 transition" onClick={() => setShowContact(true)}>
-              <span>Contact</span>
-            </button>
-            <Link href="/User/Account">
+
+            {/* Search icon - right aligned and stick to right edge */}
+            <div className="flex-shrink-0">
               <button
-                className={`p-2 text-gray-600 hover:text-${isLoggedIn ? 'green-600' : 'blue-600'} transition`}
+                className="p-2 text-gray-600 hover:text-blue-600 transition"
+                onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+                style={{ marginRight: 0 }}
               >
-                {isLoggedIn ? (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm7.707 3.293a1 1 0 010 1.414L9.414 9H17a1 1 0 110 2H9.414l1.293 1.293a1 1 0 01-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                )}
+                {isMobileSearchOpen ? <FiX size={20} /> : <FiSearch size={20} />}
               </button>
-            </Link>
+            </div>
           </div>
         </div>
 

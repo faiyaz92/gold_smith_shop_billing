@@ -1,8 +1,9 @@
 'use client';
 
+import { AboutUsModal, ContactUsModal } from '@/app/Componenets/AboutContactModals'; // <-- Add this import
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { auth, db } from '@/app/firebase';
 import { doc, collection, query, where, updateDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -54,6 +55,20 @@ const Page = () => {
   });
   const [error, setError] = useState(null);
   const [expandedTrails, setExpandedTrails] = useState({});
+
+  // Add these for mobile drawer and modals
+  const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const [showContact, setShowContact] = useState(false);
+
+  // For ContactUsModal refs and state
+  const contactName = useRef();
+  const contactEmail = useRef();
+  const contactMessage = useRef();
+  const contactPurpose = useRef();
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactError, setContactError] = useState('');
+  const [contactSuccess, setContactSuccess] = useState('');
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'abc_pvt_ltd';
   const tenantUsersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users`;
@@ -792,15 +807,115 @@ const Page = () => {
     }
   };
 
+  // Contact submit handler (copy from Home/Navbar)
+  const handleContactSubmit = async (e) => {
+    e.preventDefault();
+    setContactLoading(true);
+    setContactError('');
+    setContactSuccess('');
+    try {
+      // Example: send to Firestore or your backend
+      setContactSuccess('Message sent successfully!');
+      contactName.current.value = '';
+      contactEmail.current.value = '';
+      contactPurpose.current.value = '';
+      contactMessage.current.value = '';
+    } catch (err) {
+      setContactError('Failed to send message. Please try again.');
+    }
+    setContactLoading(false);
+  };
+
   return (
     <>
-      <Navbar />
+      <Navbar
+        onOpenMobileCategory={() => setMobileCategoryOpen(true)}
+      />
       <MobileNav
         cart={cart}
         openCart={() => setMobileCartOpen(true)}
         onSearch={onSearch}
         onHome={() => router.push('/')}
       />
+
+      {/* Mobile Drawer for Account Page */}
+      {mobileCategoryOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 bg-black/40"
+            onClick={() => setMobileCategoryOpen(false)}
+          />
+          {/* Drawer */}
+          <div className="relative w-72 max-w-full bg-white h-full shadow-lg z-10 flex flex-col">
+            <button
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+              onClick={() => setMobileCategoryOpen(false)}
+              aria-label="Close menu"
+            >
+              ✕
+            </button>
+            <div className="flex flex-col pt-12 px-6 gap-3">
+              {/* My Profile */}
+              <Link
+                href="/User/Account"
+                onClick={() => setMobileCategoryOpen(false)}
+                className="flex items-center gap-2 py-2 px-3 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-medium transition"
+              >
+                <span className="text-lg">👤</span>
+                My Profile
+              </Link>
+              {/* About Us */}
+              <button
+                className="flex items-center gap-2 py-2 px-3 rounded-lg text-blue-700 hover:bg-blue-50 font-medium text-left transition"
+                onClick={() => {
+                  setShowAbout(true);
+                  setMobileCategoryOpen(false);
+                }}
+              >
+                <span className="text-lg">ℹ️</span>
+                About Us
+              </button>
+              {/* Contact Us */}
+              <button
+                className="flex items-center gap-2 py-2 px-3 rounded-lg text-blue-700 hover:bg-blue-50 font-medium text-left transition"
+                onClick={() => {
+                  setShowContact(true);
+                  setMobileCategoryOpen(false);
+                }}
+              >
+                <span className="text-lg">📞</span>
+                Contact Us
+              </button>
+              {/* Logout */}
+              <button
+                className="flex items-center gap-2 py-2 px-3 rounded-lg text-red-600 hover:bg-red-50 font-medium text-left transition mt-2 border-t border-gray-100"
+                onClick={handleLogout}
+              >
+                <span className="text-lg">🚪</span>
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* About Us Modal */}
+      <AboutUsModal open={showAbout} onClose={() => setShowAbout(false)} />
+      {/* Contact Us Modal */}
+      <ContactUsModal
+        open={showContact}
+        onClose={() => setShowContact(false)}
+        contactName={contactName}
+        contactEmail={contactEmail}
+        contactPurpose={contactPurpose}
+        contactMessage={contactMessage}
+        contactLoading={contactLoading}
+        contactError={contactError}
+        contactSuccess={contactSuccess}
+        handleContactSubmit={handleContactSubmit}
+      />
+
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-16 mt-14 sm:mt-8 md:mt-12 lg:mt-16 bg-white">
         <h1 className="text-2xl sm:text-3xl font-semibold mb-6 sm:mb-8 text-blue-600">My Account</h1>
 

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Navbar from '@/app/Componenets/Navbar';
 import Products from '@/app/Componenets/Products';
@@ -8,6 +8,10 @@ import Footer from '@/app/Componenets/Footer';
 import Categories from './Componenets/Categories';
 import MobileNav from '@/app/Componenets/MobileNav';
 import CategoriesHorizontal from '@/app/Componenets/CategoryHorizontal';
+import Link from 'next/link';
+import { auth } from '@/app/firebase';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { AboutUsModal, ContactUsModal } from '@/app/Componenets/AboutContactModals';
 
 export default function Home() {
   const [cart, setCart] = useState([]);
@@ -17,6 +21,23 @@ export default function Home() {
   const [isProgrammaticScroll, setIsProgrammaticScroll] = useState(false); // Track programmatic scrolls
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false); // Track mobile category drawer
+  const [showAbout, setShowAbout] = useState(false);
+  const [showContact, setShowContact] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const contactName = useRef();
+  const contactEmail = useRef();
+  const contactMessage = useRef();
+  const contactPurpose = useRef();
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactError, setContactError] = useState('');
+  const [contactSuccess, setContactSuccess] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsLoggedIn(!!user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const addToCart = (product) => {
     setCart((prev) => {
@@ -56,6 +77,30 @@ export default function Home() {
   const onSearch = useCallback((query) => {
     setSearchQuery(query);
   }, []);
+
+  const handleContactSubmit = async (e) => {
+    e.preventDefault();
+    setContactLoading(true);
+    setContactError('');
+    setContactSuccess('');
+    try {
+      // Example: send to Firestore or your backend
+      // await sendContactMessage({
+      //   name: contactName.current.value,
+      //   email: contactEmail.current.value,
+      //   purpose: contactPurpose.current.value,
+      //   message: contactMessage.current.value,
+      // });
+      setContactSuccess('Message sent successfully!');
+      contactName.current.value = '';
+      contactEmail.current.value = '';
+      contactPurpose.current.value = '';
+      contactMessage.current.value = '';
+    } catch (err) {
+      setContactError('Failed to send message. Please try again.');
+    }
+    setContactLoading(false);
+  };
 
   return (
     <div className="bg-gray-50 text-gray-900 leading-relaxed min-h-screen">
@@ -142,24 +187,88 @@ export default function Home() {
             onClick={() => setMobileCategoryOpen(false)}
           />
           {/* Drawer */}
-          <div className="relative w-72 max-w-full bg-white h-full shadow-lg z-10">
+          <div className="relative w-72 max-w-full bg-white h-full shadow-lg z-10 flex flex-col">
             <button
-              className="absolute top-3 right-3 text-gray-500"
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
               onClick={() => setMobileCategoryOpen(false)}
+              aria-label="Close menu"
             >
               ✕
             </button>
-            <Categories
-              isMobile={true}
-              onCategoryClick={(catId) => {
-                handleCategoryClick(catId);
-                setMobileCategoryOpen(false);
-              }}
-              activeCategory={activeCategory}
-            />
+            <div className="flex flex-col pt-12 px-6 gap-3">
+              {/* My Profile/Login */}
+              <Link
+                href={isLoggedIn ? "/User/Account" : "/User/Auth"}
+                onClick={() => setMobileCategoryOpen(false)}
+                className={`flex items-center gap-2 py-2 px-3 rounded-lg font-medium transition 
+                  ${isLoggedIn 
+                    ? 'bg-green-50 text-green-700 hover:bg-green-100' 
+                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                  }`}
+              >
+                <span className="text-lg">
+                  {isLoggedIn ? "👤" : "🔑"}
+                </span>
+                {isLoggedIn ? "My Profile" : "Login"}
+              </Link>
+              {/* About Us */}
+              <button
+                className="flex items-center gap-2 py-2 px-3 rounded-lg text-blue-700 hover:bg-blue-50 font-medium text-left transition"
+                onClick={() => {
+                  setShowAbout(true);
+                  setMobileCategoryOpen(false);
+                }}
+              >
+                <span className="text-lg">ℹ️</span>
+                About Us
+              </button>
+              {/* Contact Us */}
+              <button
+                className="flex items-center gap-2 py-2 px-3 rounded-lg text-blue-700 hover:bg-blue-50 font-medium text-left transition"
+                onClick={() => {
+                  setShowContact(true);
+                  setMobileCategoryOpen(false);
+                }}
+              >
+                <span className="text-lg">📞</span>
+                Contact Us
+              </button>
+              {/* Logout (only if logged in) */}
+              {isLoggedIn && (
+                <button
+                  className="flex items-center gap-2 py-2 px-3 rounded-lg text-red-600 hover:bg-red-50 font-medium text-left transition mt-2 border-t border-gray-100"
+                  onClick={async () => {
+                    try {
+                      await signOut(auth);
+                      setMobileCategoryOpen(false);
+                      window.location.href = "/";
+                    } catch (error) {
+                      // Optionally handle error
+                    }
+                  }}
+                >
+                  <span className="text-lg">🚪</span>
+                  Log Out
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
+
+      <AboutUsModal open={showAbout} onClose={() => setShowAbout(false)} />
+      <ContactUsModal
+        open={showContact}
+        onClose={() => setShowContact(false)}
+        contactName={contactName}
+        contactEmail={contactEmail}
+        contactPurpose={contactPurpose}
+        contactMessage={contactMessage}
+        contactLoading={contactLoading}
+        contactError={contactError}
+        contactSuccess={contactSuccess}
+        handleContactSubmit={handleContactSubmit}
+      />
     </div>
   );
 }
