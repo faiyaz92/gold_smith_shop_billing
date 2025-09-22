@@ -6,8 +6,9 @@ import Link from 'next/link';
 import { auth, db } from '@/app/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useRef } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { getCompanyId } from '@/app/utils/firestorePaths';
+import Image from 'next/image';
 
 export default function Navbar({ onSearch, onOpenMobileCategory }) {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -19,6 +20,8 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
   const [contactLoading, setContactLoading] = useState(false);
   const [contactError, setContactError] = useState('');
   const [contactSuccess, setContactSuccess] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const contactName = useRef();
   const contactEmail = useRef();
   const contactMessage = useRef();
@@ -77,6 +80,23 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
     };
   }, []); // Empty dependency array to run only once
 
+  useEffect(() => {
+    async function fetchLogoAndName() {
+      const companyId = getCompanyId();
+      const docRef = doc(
+        db,
+        `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/settings/general`
+      );
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.logoUrl) setLogoUrl(data.logoUrl);
+        if (data.companyName) setCompanyName(data.companyName);
+      }
+    }
+    fetchLogoAndName();
+  }, []);
+
   return (
     <>
       <nav className={`sticky top-0 w-full bg-white z-40 transition-all duration-300 ${scrolled ? 'shadow-md' : 'shadow-sm'}`}>
@@ -84,8 +104,14 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
           {/* Desktop Logo - Make it clickable */}
           <Link href="/" className="hidden sm:block">
             <div className="font-semibold tracking-tight text-lg text-blue-700 select-none flex items-center hover:text-blue-800 transition-colors cursor-pointer">
-              <span className="mr-2">🧺</span>
-              <span className="hidden sm:inline">Easy2 Laundry</span>
+              {logoUrl ? (
+                <span className="mr-2 relative w-7 h-7 inline-block align-middle">
+                  <Image src={logoUrl} alt="Logo" fill className="object-contain" />
+                </span>
+              ) : (
+                <span className="mr-2">🧺</span>
+              )}
+              <span className="hidden sm:inline">{companyName || 'Laundry'}</span>
               <span className="sm:hidden">E2L</span>
             </div>
           </Link>
@@ -139,7 +165,13 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
             {/* Mobile Logo - centered */}
             <Link href="/" className="flex-1 text-center">
               <div className="font-semibold tracking-tight text-lg text-blue-700 select-none inline-flex items-center hover:text-blue-800 transition-colors cursor-pointer">
-                <span className="mr-2">🧺</span>
+                {logoUrl ? (
+                  <span className="mr-2 relative w-7 h-7 inline-block align-middle">
+                    <Image src={logoUrl} alt="Logo" fill className="object-contain" />
+                  </span>
+                ) : (
+                  <span className="mr-2">🧺</span>
+                )}
                 <span>Easy2 Laundry</span>
               </div>
             </Link>

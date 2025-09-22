@@ -42,6 +42,7 @@ export default function ProductPage() {
   const [activeTab, setActiveTab] = useState('products');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [filterError, setFilterError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const fetchCategories = async () => {
     try {
@@ -93,6 +94,8 @@ export default function ProductPage() {
     } catch (error) {
       console.error('Error fetching products:', error);
       setFilterError('Failed to load products');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -225,6 +228,27 @@ const handleSubmit = async () => {
   const filteredSubcategories = subcategories.filter(subcat =>
     selectedCategory ? subcat.categoryId === selectedCategory : true
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-24 w-24 border-t-4 border-b-4 border-blue-600 relative mb-6">
+            {/* Laundry basket icon in the center */}
+            <span className="absolute inset-0 flex items-center justify-center text-5xl">
+              🧺
+            </span>
+          </div>
+          <div className="text-blue-700 text-xl font-semibold mt-2 animate-pulse">
+            Loading your laundry products...
+          </div>
+          <div className="text-blue-400 mt-1 text-sm">
+            Please wait while we freshen up your dashboard!
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white text-gray-800">

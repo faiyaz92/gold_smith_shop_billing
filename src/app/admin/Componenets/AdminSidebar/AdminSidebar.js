@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   Home,
@@ -18,6 +18,7 @@ import {
   Building,
   Shield,
   BarChart3,  // Added for Analytics
+  Settings, // Add this import if not already present
 } from 'lucide-react';
 
 const allMenuItems = [
@@ -91,6 +92,13 @@ const allMenuItems = [
     href: '/admin/branches',
     roles: ['company_admin', 'general_manager']
   },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: <Settings className="w-4 h-4" />,
+    href: '/admin/settings',
+    roles: ['company_admin', 'general_manager'] // Only these roles can see it
+  },
 ];
 
 // Define default pages for each role
@@ -105,6 +113,7 @@ const roleDefaults = {
 
 export default function AdminSidebar({ toggleSidebar }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [userRole, setUserRole] = useState('');
   const [filteredMenu, setFilteredMenu] = useState([]);
 

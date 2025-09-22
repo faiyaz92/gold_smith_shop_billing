@@ -222,7 +222,23 @@ export default function Products({
   };
 
   if (loading) {
-    return <div>Loading products...</div>;
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center bg-blue-50">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-blue-600 relative mb-6">
+            <span className="absolute inset-0 flex items-center justify-center text-4xl">
+              🧺
+            </span>
+          </div>
+          <div className="text-blue-700 text-lg font-semibold mt-2 animate-pulse">
+            Loading your laundry products...
+          </div>
+          <div className="text-blue-400 mt-1 text-sm">
+            Please wait while we freshen up your products!
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
