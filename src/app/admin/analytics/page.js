@@ -81,6 +81,10 @@ export default function AdminAnalytics() {
   const [branchStaff, setBranchStaff] = useState([]);
   const [dailyMetrics, setDailyMetrics] = useState({});
 
+  // Add these missing state definitions after your existing state declarations
+  const [branchSpecificData, setBranchSpecificData] = useState({});
+  const [staffSpecificData, setStaffSpecificData] = useState({});
+
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID;
 
   const tabs = [
@@ -327,7 +331,6 @@ export default function AdminAnalytics() {
   // Calculate branch analytics
   const calculateBranchAnalytics = (filteredOrders) => {
     const branchStats = {};
-    const staffStats = {};
     
     branches.forEach(branch => {
       branchStats[branch.id] = {
@@ -343,32 +346,19 @@ export default function AdminAnalytics() {
       if (order.branchId && branchStats[order.branchId]) {
         branchStats[order.branchId].orders += 1;
         branchStats[order.branchId].revenue += order.total || 0;
-        
-        // Staff performance within branch
-        if (order.orderTakenBy) {
-          if (!branchStats[order.branchId].staff[order.orderTakenBy]) {
-            branchStats[order.branchId].staff[order.orderTakenBy] = {
-              name: order.orderTakenByName || 'Unknown',
-              role: order.orderTakenByRole || 'Staff',
-              orders: 0,
-              revenue: 0
-            };
-          }
-          branchStats[order.branchId].staff[order.orderTakenBy].orders += 1;
-          branchStats[order.branchId].staff[order.orderTakenBy].revenue += order.total || 0;
-        }
       }
     });
 
     const branchPerformance = Object.values(branchStats)
+      .filter(branch => branch.orders > 0)
       .sort((a, b) => b.revenue - a.revenue);
 
-    // Branch performance chart data
-    const branchChart = branchPerformance.map(branch => ({
+    // Ensure chart has data
+    const branchChart = branchPerformance.length > 0 ? branchPerformance.map(branch => ({
       name: branch.name,
       orders: branch.orders,
       revenue: branch.revenue
-    }));
+    })) : [];
 
     setBranchAnalytics({ 
       branchPerformance,
@@ -401,23 +391,31 @@ export default function AdminAnalytics() {
 
     // Customer segmentation
     const spendingValues = Object.values(customerSpending);
-    const avgSpending = spendingValues.reduce((sum, val) => sum + val, 0) / spendingValues.length;
-    
-    const highSpenders = spendingValues.filter(spending => spending > avgSpending * 1.5).length;
-    const mediumSpenders = spendingValues.filter(spending => spending >= avgSpending * 0.5 && spending <= avgSpending * 1.5).length;
-    const lowSpenders = spendingValues.filter(spending => spending < avgSpending * 0.5).length;
+    if (spendingValues.length > 0) {
+      const avgSpending = spendingValues.reduce((sum, val) => sum + val, 0) / spendingValues.length;
+      
+      const highSpenders = spendingValues.filter(spending => spending > avgSpending * 1.5).length;
+      const mediumSpenders = spendingValues.filter(spending => spending >= avgSpending * 0.5 && spending <= avgSpending * 1.5).length;
+      const lowSpenders = spendingValues.filter(spending => spending < avgSpending * 0.5).length;
 
-    const customerSegmentation = [
-      { name: 'High Spenders', value: highSpenders, color: '#00C49F' },
-      { name: 'Medium Spenders', value: mediumSpenders, color: '#FFBB28' },
-      { name: 'Low Spenders', value: lowSpenders, color: '#FF8042' }
-    ];
+      const customerSegmentation = [
+        { name: 'High Spenders', value: highSpenders, color: '#00C49F' },
+        { name: 'Medium Spenders', value: mediumSpenders, color: '#FFBB28' },
+        { name: 'Low Spenders', value: lowSpenders, color: '#FF8042' }
+      ].filter(segment => segment.value > 0);
 
-    setCustomerAnalytics({
-      ...customerStats,
-      customerSegmentation,
-      avgSpending: avgSpending || 0
-    });
+      setCustomerAnalytics({
+        ...customerStats,
+        customerSegmentation,
+        avgSpending: avgSpending || 0
+      });
+    } else {
+      setCustomerAnalytics({
+        ...customerStats,
+        customerSegmentation: [],
+        avgSpending: 0
+      });
+    }
   };
 
   // Calculate lost analytics
@@ -462,6 +460,22 @@ export default function AdminAnalytics() {
       calculateCustomerAnalytics(filteredOrders);
       calculateLostAnalytics(filteredOrders);
       calculateDailyMetrics(filteredOrders, selectedBranch, selectedStaff);
+
+      // Calculate branch-specific analytics if branch is selected
+      if (selectedBranch) {
+        const branchData = calculateBranchSpecificAnalytics(filteredOrders, selectedBranch);
+        setBranchSpecificData(branchData);
+      } else {
+        setBranchSpecificData({});
+      }
+
+      // Calculate staff-specific analytics if staff is selected
+      if (selectedStaff) {
+        const staffData = calculateStaffSpecificAnalytics(filteredOrders, selectedStaff);
+        setStaffSpecificData(staffData);
+      } else {
+        setStaffSpecificData({});
+      }
     }
   };
 
@@ -1401,7 +1415,9 @@ export default function AdminAnalytics() {
                               <div key={staffIndex} className="bg-white p-2 rounded border">
                                 <p className="text-xs font-medium">{staff.name}</p>
                                 <p className="text-xs text-gray-500">{staff.role}</p>
-                                <p className="text-xs text-blue-600">{staff.orders} orders • KWD {staff.revenue.toFixed(2)}</p>
+                                <p className="text-xs text-blue-600">
+                                  {staff.orders} orders • KWD {staff.revenue.toFixed(2)}
+                                </p>
                               </div>
                             ))}
                           </div>
