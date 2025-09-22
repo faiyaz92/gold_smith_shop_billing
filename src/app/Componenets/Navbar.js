@@ -172,7 +172,7 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
                 ) : (
                   <span className="mr-2">🧺</span>
                 )}
-                <span>Easy2 Laundry</span>
+                <span>{companyName || 'Laundry'}</span>
               </div>
             </Link>
 
