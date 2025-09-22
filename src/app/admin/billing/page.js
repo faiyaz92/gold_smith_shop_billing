@@ -626,7 +626,15 @@ function BillingPage() {
 
     setIsLoading(true);
     try {
-      const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity) + item.taxAmount, 0);
+      const subtotalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const taxAmountTotal = cart.reduce((sum, item) => sum + item.taxAmount, 0);
+      const expressDeliveryFee = schedule.deliveryPref === 'express' ? 5 : 0;
+      
+      // Calculate consistent with website
+      const orderTotal = subtotalAmount + taxAmountTotal + expressDeliveryFee;
+      const discountAmount = 0; // POS doesn't have coupons yet
+      const finalTotal = orderTotal - discountAmount;
+      
       const finalBillNumber = existingBillNumber || `BILL-${Date.now()}`;
       const finalBranchId = selectedBranch || posUser.branchId;
 
@@ -658,7 +666,18 @@ function BillingPage() {
         city: customer.city || '',
         zip: customer.zip || '',
         items: cart,
-        total: totalAmount,
+        
+        // ✅ Consistent pricing structure
+        subtotal: subtotalAmount,
+        expressDeliveryFee: expressDeliveryFee,
+        orderTotal: orderTotal,
+        discountAmount: discountAmount,
+        finalTotal: finalTotal,
+        
+        // ✅ Keep legacy 'total' for backward compatibility
+        total: finalTotal,
+        amount: finalTotal,
+        
         billNumber: finalBillNumber,
         paymentStatus: paymentMethod === 'Cash' ? 'paid' : 'unpaid',
         paymentMethod: paymentMethod,

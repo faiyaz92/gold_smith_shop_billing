@@ -77,6 +77,7 @@ export default function AdminUsers() {
   // Filter states
   const [userTypeFilter, setUserTypeFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState(''); // Add branch filter state
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -103,13 +104,19 @@ export default function AdminUsers() {
     const authStatus = localStorage.getItem('adminAuth');
     const userRole = localStorage.getItem('userRole') || 'company_admin';
     const userId = localStorage.getItem('userId');
+    const userBranchId = localStorage.getItem('userBranchId'); // Add this line
 
     if (authStatus !== 'true') {
       router.push('/admin/login');
       return;
     }
 
-    setCurrentUser({ role: userRole, id: userId });
+    // Update setCurrentUser to include branchId
+    setCurrentUser({ 
+      role: userRole, 
+      id: userId, 
+      branchId: userBranchId // Add this line
+    });
 
     setIsLoading(true);
 
@@ -348,19 +355,69 @@ export default function AdminUsers() {
   };
 
   const canEdit = (user) => {
-    return currentUser?.role === 'company_admin' || currentUser?.id === user.id;
+    if (currentUser?.role === 'company_admin') return true;
+    if (currentUser?.role === 'general_manager') {
+      if (user.role === 'company_admin') return false;
+      return true;
+    }
+    if (currentUser?.role === 'branch_manager') {
+      if (user.role === 'company_admin' || user.role === 'general_manager') return false;
+      return user.branchId === currentUser.branchId;
+    }
+    return currentUser?.id === user.id;
   };
 
   const canDelete = (user) => {
-    return currentUser?.role === 'company_admin' &&
-      currentUser?.id !== user.id &&
-      user.role !== 'company_admin';
+    if (currentUser?.role === 'company_admin') {
+      return currentUser?.id !== user.id && user.role !== 'company_admin';
+    }
+    if (currentUser?.role === 'general_manager') {
+      return currentUser?.id !== user.id && user.role !== 'company_admin';
+    }
+    if (currentUser?.role === 'branch_manager') {
+      if (user.role === 'company_admin' || user.role === 'general_manager') return false;
+      if (currentUser?.id === user.id) return false;
+      return user.branchId === currentUser.branchId;
+    }
+    return false;
+  };
+
+  // Only allow edit/delete if NOT editing a company_admin
+  const canEditOrDelete = (currentUser, targetUser) => {
+    if (currentUser.role === 'company_admin') return true;
+    if (currentUser.role === 'general_manager') {
+      if (targetUser.role === 'company_admin') return false;
+      if (currentUser.id === targetUser.id) return false; // can't change own role
+      return true;
+    }
+    return false;
   };
 
   const filteredUsers = users.filter((user) => {
-    // Always treat missing userType as 'customer'
     const type = user.userType === 'staff' ? 'staff' : 'customer';
 
+    // Branch Manager: Only see own branch staff + GM + Company Admin
+    if (currentUser?.role === 'branch_manager') {
+      const isOwnBranchStaff = user.branchId === currentUser.branchId && 
+                              user.role !== 'company_admin' && 
+                              user.role !== 'general_manager';
+      const isAdminOrGM = user.role === 'company_admin' || user.role === 'general_manager';
+      
+      if (!(isOwnBranchStaff || isAdminOrGM)) return false;
+      
+      // Apply filters only to visible users
+      const matchesSearch =
+        user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.role?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesUserType = userTypeFilter ? type === userTypeFilter : true;
+      const matchesRole = roleFilter ? user.role === roleFilter : true;
+      
+      return matchesSearch && matchesUserType && matchesRole;
+    }
+
+    // Company Admin & General Manager: Apply all filters including branch filter
     const matchesSearch =
       user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -368,8 +425,9 @@ export default function AdminUsers() {
 
     const matchesUserType = userTypeFilter ? type === userTypeFilter : true;
     const matchesRole = roleFilter ? user.role === roleFilter : true;
+    const matchesBranch = branchFilter ? user.branchId === branchFilter : true;
 
-    return matchesSearch && matchesUserType && matchesRole;
+    return matchesSearch && matchesUserType && matchesRole && matchesBranch;
   });
 
   if (!isClient) return null;
@@ -429,6 +487,18 @@ export default function AdminUsers() {
               ))}
             </select>
           )}
+          {(currentUser?.role === 'company_admin' || currentUser?.role === 'general_manager') && (
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Branches</option>
+              {branches.map(branch => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
+          )}
           <div className="text-sm text-gray-600 px-3 py-2 bg-blue-50 rounded border ml-auto">
             Total: {filteredUsers.length} users
           </div>
@@ -438,6 +508,7 @@ export default function AdminUsers() {
               setSearchQuery('');
               setUserTypeFilter('');
               setRoleFilter('');
+              setBranchFilter(''); // Clear branch filter
             }}
             className="text-sm text-blue-600 hover:text-blue-800 px-3 py-2 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
           >
@@ -759,8 +830,8 @@ export default function AdminUsers() {
                         className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-200"
                         disabled={
                           (selectedUser.role === 'company_admin') ||
-                          (currentUser?.id === selectedUser.id && currentUser?.role === 'company_admin') ||
-                          (currentUser?.role !== 'company_admin')
+                          (currentUser?.id === selectedUser.id && (currentUser?.role === 'company_admin' || currentUser?.role === 'general_manager')) ||
+                          (currentUser?.role !== 'company_admin' && currentUser?.role !== 'general_manager')
                         }
                       >
                         {USER_ROLES.map(role => (

@@ -158,7 +158,12 @@ export default function AdminAnalytics() {
 
   // Calculate sales analytics
   const calculateSalesAnalytics = (filteredOrders) => {
-    const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+    // ✅ Use same fallback logic as orders page
+    const totalRevenue = filteredOrders.reduce((sum, order) => {
+      const orderTotal = order.finalTotal || order.total || 0;
+      return sum + orderTotal;
+    }, 0);
+    
     const totalOrders = filteredOrders.length;
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
@@ -170,11 +175,17 @@ export default function AdminAnalytics() {
 
     const currentMonthRevenue = filteredOrders
       .filter(order => order.timestamp.getMonth() === currentMonth && order.timestamp.getFullYear() === currentYear)
-      .reduce((sum, order) => sum + (order.total || 0), 0);
+      .reduce((sum, order) => {
+        const orderTotal = order.finalTotal || order.total || 0;
+        return sum + orderTotal;
+      }, 0);
 
     const lastMonthRevenue = filteredOrders
       .filter(order => order.timestamp.getMonth() === lastMonth && order.timestamp.getFullYear() === lastMonthYear)
-      .reduce((sum, order) => sum + (order.total || 0), 0);
+      .reduce((sum, order) => {
+        const orderTotal = order.finalTotal || order.total || 0;
+        return sum + orderTotal;
+      }, 0);
 
     const revenueGrowth = lastMonthRevenue > 0 ? ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
 
@@ -182,7 +193,8 @@ export default function AdminAnalytics() {
     const dailySalesMap = {};
     filteredOrders.forEach(order => {
       const day = order.timestamp.toISOString().split('T')[0];
-      dailySalesMap[day] = (dailySalesMap[day] || 0) + (order.total || 0);
+      const orderTotal = order.finalTotal || order.total || 0;
+      dailySalesMap[day] = (dailySalesMap[day] || 0) + orderTotal;
     });
 
     const dailySales = Object.entries(dailySalesMap)
@@ -316,7 +328,9 @@ export default function AdminAnalytics() {
         };
       }
       dailyData[day].orders += 1;
-      dailyData[day].sales += order.total;
+      // ✅ Use same fallback logic
+      const orderTotal = order.finalTotal || order.total || 0;
+      dailyData[day].sales += orderTotal;
       if (order.serviceType === 'pickup') dailyData[day].pickups += 1;
       if (order.serviceType === 'delivery') dailyData[day].deliveries += 1;
     });
@@ -345,7 +359,9 @@ export default function AdminAnalytics() {
     filteredOrders.forEach(order => {
       if (order.branchId && branchStats[order.branchId]) {
         branchStats[order.branchId].orders += 1;
-        branchStats[order.branchId].revenue += order.total || 0;
+        // ✅ Use same fallback logic
+        const orderTotal = order.finalTotal || order.total || 0;
+        branchStats[order.branchId].revenue += orderTotal;
       }
     });
 
@@ -381,7 +397,9 @@ export default function AdminAnalytics() {
       const customerId = order.userId || order.customerId;
       if (customerId) {
         customerOrderCount[customerId] = (customerOrderCount[customerId] || 0) + 1;
-        customerSpending[customerId] = (customerSpending[customerId] || 0) + (order.total || 0);
+        // ✅ Use same fallback logic
+        const orderTotal = order.finalTotal || order.total || 0;
+        customerSpending[customerId] = (customerSpending[customerId] || 0) + orderTotal;
       }
     });
 
@@ -423,7 +441,11 @@ export default function AdminAnalytics() {
     const cancelledOrders = filteredOrders.filter(order => order.status === 'cancelled' || order.status === 'Cancelled').length;
     const lostRevenue = filteredOrders
       .filter(order => order.status === 'cancelled' || order.status === 'Cancelled')
-      .reduce((sum, order) => sum + (order.total || 0), 0);
+      .reduce((sum, order) => {
+        // ✅ Use same fallback logic
+        const orderTotal = order.finalTotal || order.total || 0;
+        return sum + orderTotal;
+      }, 0);
 
     // Loss reasons analysis
     const lossReasons = {
@@ -1200,7 +1222,7 @@ export default function AdminAnalytics() {
                             </td>
                           )}
                           <td className="px-4 py-2 text-sm font-semibold text-green-600">
-                            {day.sales.toFixed(2)}
+                            {(typeof day.sales === 'number' && !isNaN(day.sales) ? day.sales : 0).toFixed(2)}
                           </td>
                         </tr>
                       ))}

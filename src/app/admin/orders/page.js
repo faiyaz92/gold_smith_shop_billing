@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { LogOut, ChevronDown, ChevronUp, Package, ShoppingBag, Users, Home, Tag, Truck, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AdminHeader from '../Componenets/AdminHeader';
@@ -9,6 +9,8 @@ import { onSnapshot, query, collection, orderBy, doc, updateDoc, where, serverTi
 import { db } from '@/app/firebase';
 import AdminLayout from '../AdminLayout';
 import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 // Status color mapping
 const statusColors = {
@@ -355,33 +357,54 @@ export default function AdminOrders() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch =
-      order.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.phone?.includes(searchQuery);
+  const filteredOrders = useMemo(() => {
+    let filtered = orders;
 
-    const matchesStatus = statusFilter ? order.status === statusFilter : true;
-    
-    const matchesBranch = branchFilter ? order.branchId === branchFilter : true;
-    
-    const matchesOrderTakenBy = orderTakenByFilter ? order.orderTakenBy === orderTakenByFilter : true;
-
-    const now = new Date();
-    const orderDate = order.rawTimestamp?.toDate() || new Date(0);
-    let matchesDate = true;
-    if (dateFilter === '7days') {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(now.getDate() - 7);
-      matchesDate = orderDate >= sevenDaysAgo;
-    } else if (dateFilter === '30days') {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(now.getDate() - 30);
-      matchesDate = orderDate >= thirtyDaysAgo;
+    // Role-based filtering
+    if (currentUser?.userRole === 'branch_manager') {
+      filtered = filtered.filter(order => order.branchId === currentUser.branchId);
+    } else if (currentUser?.userRole === 'cashier') {
+      filtered = filtered.filter(order => order.orderTakenBy === currentUser.userId);
     }
 
-    return matchesSearch && matchesStatus && matchesBranch && matchesOrderTakenBy && matchesDate;
-  });
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter(order => 
+        order.customer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        order.id?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter) {
+      filtered = filtered.filter(order => order.status === statusFilter);
+    }
+
+    // Apply branch filter (only for admin/GM)
+    if (branchFilter && (currentUser?.userRole === 'company_admin' || currentUser?.userRole === 'general_manager')) {
+      filtered = filtered.filter(order => order.branchId === branchFilter);
+    }
+
+    // Add the missing Order Taken By filter
+    if (orderTakenByFilter) {
+      filtered = filtered.filter(order => order.orderTakenBy === orderTakenByFilter);
+    }
+
+    // Apply date filter
+    if (dateFilter === '7days') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      filtered = filtered.filter(order => new Date(order.rawTimestamp?.seconds * 1000) >= sevenDaysAgo);
+    } else if (dateFilter === '30days') {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      filtered = filtered.filter(order => new Date(order.rawTimestamp?.seconds * 1000) >= thirtyDaysAgo);
+    }
+
+    return filtered;
+  }, [orders, searchQuery, statusFilter, branchFilter, orderTakenByFilter, dateFilter, currentUser]);
 
   const handleConfirmBill = async () => {
     const order = showPreviewDialog;
@@ -535,12 +558,150 @@ Thank you for your business!
     return groups;
   }
 
+  const exportOrdersToPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Simple PDF export
+      doc.setFontSize(20);
+      doc.text('Orders Report', 20, 20);
+      
+      doc.setFontSize(12);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 40);
+      doc.text(`Total Orders: ${filteredOrders.length}`, 20, 50);
+
+      // Table
+      if (filteredOrders.length > 0) {
+        const tableData = filteredOrders.slice(0, 50).map(order => [
+          order.id?.slice(-8) || 'N/A',
+          order.customer || 'N/A',
+          order.phone || 'N/A',
+          `KWD ${(order.amount || 0).toFixed(2)}`,
+          order.status || 'N/A',
+          order.date || 'N/A'
+        ]);
+
+        doc.autoTable({
+          startY: 60,
+          head: [['Order ID', 'Customer', 'Phone', 'Amount', 'Status', 'Date']],
+          body: tableData,
+        });
+      }
+
+      doc.save(`orders-report-${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('PDF Export Error:', error);
+      alert('Error exporting PDF');
+    }
+  };
+
+  const exportOrdersToExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+      
+      const data = [
+        ['Order ID', 'Customer', 'Phone', 'Email', 'Amount', 'Status', 'Date'],
+        ...filteredOrders.map(order => [
+          order.id || 'N/A',
+          order.customer || 'N/A',
+          order.phone || 'N/A',
+          order.email || 'N/A',
+          (order.amount || 0).toFixed(2),
+          order.status || 'N/A',
+          order.date || 'N/A'
+        ])
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Orders');
+      XLSX.writeFile(wb, `orders-${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error('Excel Export Error:', error);
+      alert('Error exporting Excel');
+    }
+  };
+
   if (!isClient) return null;
 
   return (
     <AdminLayout>
       <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-        <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent mb-6">Orders Management</h2>
+        {/* Updated Header with Export Buttons */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent">
+              Orders Management
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Manage and track all customer orders
+            </p>
+          </div>
+          
+          {/* Export Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={exportOrdersToPDF}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+            >
+              📄 Export PDF
+            </button>
+            <button
+              onClick={exportOrdersToExcel}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              📊 Export Excel
+            </button>
+          </div>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-blue-600 font-medium">Total Orders</p>
+                <p className="text-xl font-bold text-blue-800">{filteredOrders.length}</p>
+              </div>
+              <ShoppingBag className="w-8 h-8 text-blue-500" />
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-green-600 font-medium">Total Revenue</p>
+                <p className="text-xl font-bold text-green-800">
+                  KWD {filteredOrders.reduce((sum, order) => sum + order.amount, 0).toFixed(2)}
+                </p>
+              </div>
+              <div className="text-2xl">💰</div>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-purple-600 font-medium">Avg Order Value</p>
+                <p className="text-xl font-bold text-purple-800">
+                  KWD {filteredOrders.length > 0 ? (filteredOrders.reduce((sum, order) => sum + order.amount, 0) / filteredOrders.length).toFixed(2) : 0}
+                </p>
+              </div>
+              <div className="text-2xl">📊</div>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-orange-600 font-medium">Pending Orders</p>
+                <p className="text-xl font-bold text-orange-800">
+                  {filteredOrders.filter(order => order.status === 'Pending').length}
+                </p>
+              </div>
+              <div className="text-2xl">⏳</div>
+            </div>
+          </div>
+        </div>
 
         {/* Enhanced Filters */}
         <div className="flex flex-col gap-4 mb-6">

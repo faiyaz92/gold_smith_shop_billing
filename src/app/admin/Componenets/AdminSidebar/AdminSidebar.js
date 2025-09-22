@@ -64,11 +64,11 @@ const allMenuItems = [
     roles: ['company_admin', 'general_manager', 'branch_manager']
   },
   { 
-    id: 'users', 
-    label: 'Users', 
-    icon: <Users className="w-4 h-4" />, 
+    id: 'users',
+    label: 'Users',
+    icon: <Users className="w-4 h-4" />,
     href: '/admin/users',
-    roles: ['company_admin']
+    roles: ['company_admin', 'general_manager'] // <-- Add general_manager here
   },
   { 
     id: 'coupons', 
