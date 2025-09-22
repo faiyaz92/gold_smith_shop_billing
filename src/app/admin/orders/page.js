@@ -1,17 +1,17 @@
+// MUST BE AT THE TOP - copy exact imports from analytics.js
 'use client';
-
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+// Then your other imports...
+import React, { useState, useEffect, useMemo } from 'react';
+import AdminLayout from '../AdminLayout';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
 import { LogOut, ChevronDown, ChevronUp, Package, ShoppingBag, Users, Home, Tag, Truck, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AdminHeader from '../Componenets/AdminHeader';
 import { onSnapshot, query, collection, orderBy, doc, updateDoc, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/app/firebase';
-import AdminLayout from '../AdminLayout';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-
 // Status color mapping
 const statusColors = {
   Pending: 'bg-orange-100 text-orange-800',
@@ -558,63 +558,377 @@ Thank you for your business!
     return groups;
   }
 
-  const exportOrdersToPDF = () => {
-    try {
-      const doc = new jsPDF();
-      
-      // Simple PDF export
-      doc.setFontSize(20);
-      doc.text('Orders Report', 20, 20);
-      
-      doc.setFontSize(12);
-      doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 40);
-      doc.text(`Total Orders: ${filteredOrders.length}`, 20, 50);
+const exportOrdersToPDF = () => {
+  try {
+    if (!filteredOrders.length) {
+      alert('No orders to export!');
+      return;
+    }
+    if (!branches.length) {
+      alert('Branches are still loading. Please try again in a moment.');
+      return;
+    }
 
-      // Table
-      if (filteredOrders.length > 0) {
-        const tableData = filteredOrders.slice(0, 50).map(order => [
-          order.id?.slice(-8) || 'N/A',
-          order.customer || 'N/A',
-          order.phone || 'N/A',
-          `KWD ${(order.amount || 0).toFixed(2)}`,
-          order.status || 'N/A',
-          order.date || 'N/A'
-        ]);
+    const doc = new jsPDF();
 
-        doc.autoTable({
-          startY: 60,
-          head: [['Order ID', 'Customer', 'Phone', 'Amount', 'Status', 'Date']],
-          body: tableData,
-        });
+    // Header
+    doc.setFillColor(41, 98, 255);
+    doc.rect(0, 0, 210, 25, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont(undefined, 'bold');
+    doc.text('EASY2 Laundry Orders Report', 105, 16, { align: 'center' });
+
+    doc.setTextColor(17, 24, 39);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text('Complete Orders Management Report', 105, 40, { align: 'center' });
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 105, 50, { align: 'center' });
+    doc.text(`Total Orders: ${filteredOrders.length}`, 105, 58, { align: 'center' });
+
+    let yPos = 75;
+
+    filteredOrders.forEach((order, idx) => {
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
       }
 
-      doc.save(`orders-report-${new Date().toISOString().split('T')[0]}.pdf`);
-    } catch (error) {
-      console.error('PDF Export Error:', error);
-      alert('Error exporting PDF');
-    }
-  };
+      // Order header
+      doc.setFillColor(240, 248, 255);
+      doc.rect(15, yPos - 5, 180, 10, 'F');
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text(`Order #${idx + 1}`, 20, yPos);
+      yPos += 12;
+
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+
+      // Basic Order Info
+      doc.setFont(undefined, 'bold');
+      doc.text('BASIC INFORMATION:', 20, yPos);
+      yPos += 6;
+      doc.setFont(undefined, 'normal');
+      doc.text(`Order ID: ${order.id || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Bill Number: ${order.billNumber || 'Not Generated'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Customer: ${order.customer || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Phone: ${order.phone || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Email: ${order.email || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Address: ${order.address || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Date: ${order.date || 'N/A'}`, 25, yPos);
+      yPos += 8;
+
+      // Order Management
+      doc.setFont(undefined, 'bold');
+      doc.text('ORDER MANAGEMENT:', 20, yPos);
+      yPos += 6;
+      doc.setFont(undefined, 'normal');
+      doc.text(`Branch: ${getBranchName(order.branchId) || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Order Taken By: ${order.orderTakenByName || 'N/A'} (${order.orderTakenByRole || 'N/A'})`, 25, yPos);
+      yPos += 5;
+      doc.text(`Order Source: ${order.orderSource || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Status: ${order.status || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Payment Status: ${order.paymentStatus || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Payment Method: ${order.paymentMethod || 'N/A'}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Last Updated By: ${order.lastUpdatedByName || 'N/A'}`, 25, yPos);
+      yPos += 8;
+
+      // Service Details
+      doc.setFont(undefined, 'bold');
+      doc.text('SERVICE DETAILS:', 20, yPos);
+      yPos += 6;
+      doc.setFont(undefined, 'normal');
+      doc.text(`Service Type: ${getServiceTypeInfo(order.serviceType).label}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Pickup Time: ${getPickupTimeLabel(order.pickupTime)}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Delivery Preference: ${getDeliveryPrefLabel(order.deliveryPref)}`, 25, yPos);
+      yPos += 5;
+      if (order.pickedUpByName) {
+        doc.text(`Picked Up By: ${order.pickedUpByName}`, 25, yPos);
+        yPos += 5;
+      }
+      if (order.deliveredByName) {
+        doc.text(`Delivered By: ${order.deliveredByName}`, 25, yPos);
+        yPos += 5;
+      }
+      yPos += 3;
+
+      // Items Details
+      doc.setFont(undefined, 'bold');
+      doc.text('ITEMS:', 20, yPos);
+      yPos += 6;
+      doc.setFont(undefined, 'normal');
+      
+      if (order.items && order.items.length > 0) {
+        order.items.forEach((item, itemIdx) => {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+          }
+          doc.text(`${itemIdx + 1}. ${item.name || 'N/A'} - Qty: ${item.quantity || 0} - Price: KWD ${(Number(item.price) || 0).toFixed(2)} - Total: KWD ${((Number(item.price) || 0) * (Number(item.quantity) || 0)).toFixed(2)}`, 25, yPos);
+          yPos += 5;
+          if (item.categoryName) {
+            doc.text(`   Category: ${item.categoryName}`, 25, yPos);
+            yPos += 4;
+          }
+        });
+      } else {
+        doc.text('No items found', 25, yPos);
+        yPos += 5;
+      }
+      yPos += 3;
+
+      // Pricing Breakdown
+      doc.setFont(undefined, 'bold');
+      doc.text('PRICING BREAKDOWN:', 20, yPos);
+      yPos += 6;
+      doc.setFont(undefined, 'normal');
+      doc.text(`Subtotal: KWD ${(order.subtotal || 0).toFixed(2)}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Express Delivery Fee: KWD ${(order.expressDeliveryFee || 0).toFixed(2)}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Order Total: KWD ${(order.orderTotal || 0).toFixed(2)}`, 25, yPos);
+      yPos += 5;
+      doc.text(`Discount Amount: KWD ${(order.discountAmount || 0).toFixed(2)}`, 25, yPos);
+      yPos += 5;
+      doc.setFont(undefined, 'bold');
+      doc.text(`Final Total: KWD ${(order.amount || 0).toFixed(2)}`, 25, yPos);
+      yPos += 5;
+
+      // Coupon Info
+      if (order.appliedCoupon) {
+        yPos += 3;
+        doc.setFont(undefined, 'bold');
+        doc.text('COUPON APPLIED:', 20, yPos);
+        yPos += 6;
+        doc.setFont(undefined, 'normal');
+        doc.text(`Code: ${order.appliedCoupon.code || 'N/A'}`, 25, yPos);
+        yPos += 5;
+        doc.text(`Name: ${order.appliedCoupon.name || 'N/A'}`, 25, yPos);
+        yPos += 5;
+        doc.text(`Type: ${order.appliedCoupon.type || 'N/A'}`, 25, yPos);
+        yPos += 5;
+      }
+
+      // Separator line
+      yPos += 8;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, yPos, 190, yPos);
+      yPos += 10;
+    });
+
+    doc.save(`complete-orders-report-${new Date().toISOString().split('T')[0]}.pdf`);
+  } catch (error) {
+    console.error('PDF Export Error:', error);
+    alert('Error exporting PDF');
+  }
+};
 
   const exportOrdersToExcel = () => {
     try {
-      const wb = XLSX.utils.book_new();
+      if (!filteredOrders.length) {
+        alert('No orders to export!');
+        return;
+      }
+      if (!branches.length) {
+        alert('Branches are still loading. Please try again in a moment.');
+        return;
+      }
+
+      // Define status colors for Excel
+      const statusColorMap = {
+        'Pending': { rgb: "FFEB9C" },          // Light Yellow
+        'Confirmed': { rgb: "D4E6F1" },       // Light Blue
+        'Scheduled for Pickup': { rgb: "AED6F1" },  // Blue
+        'Out for Pickup': { rgb: "85C1E9" },  // Medium Blue
+        'Picked Up': { rgb: "5DADE2" },       // Darker Blue
+        'Received at Facility': { rgb: "D2B4DE" }, // Light Purple
+        'In Sorting/Inspection': { rgb: "C39BD3" }, // Purple
+        'In Washing': { rgb: "A3E4D7" },      // Light Teal
+        'In Drying': { rgb: "76D7C4" },       // Teal
+        'In Ironing/Pressing': { rgb: "48C9B0" }, // Medium Teal
+        'In Folding/Packaging': { rgb: "1ABC9C" }, // Dark Teal
+        'Quality Check': { rgb: "AED6F1" },   // Light Blue
+        'Ready for Delivery': { rgb: "85C1E9" }, // Blue
+        'Out for Delivery': { rgb: "5DADE2" }, // Medium Blue
+        'Delivered': { rgb: "C8E6C9" },       // Light Green
+        'Cancelled': { rgb: "FFCDD2" },       // Light Red
+        'Refunded/Returned': { rgb: "FFAB91" }, // Orange Red
+        'On Hold': { rgb: "E0E0E0" }          // Gray
+      };
+
+      // Prepare comprehensive data
+      const data = [];
       
-      const data = [
-        ['Order ID', 'Customer', 'Phone', 'Email', 'Amount', 'Status', 'Date'],
-        ...filteredOrders.map(order => [
+      // Headers
+      const headers = [
+        'Order ID', 'Bill Number', 'Customer Name', 'Phone', 'Email', 'Address',
+        'Branch', 'Order Taken By', 'Order Taken Role', 'Order Source',
+        'Service Type', 'Pickup Time', 'Delivery Preference',
+        'Status', 'Payment Status', 'Payment Method', 'Order Date',
+        'Subtotal (KWD)', 'Express Fee (KWD)', 'Order Total (KWD)', 'Discount (KWD)', 'Final Total (KWD)',
+        'Coupon Code', 'Coupon Name', 'Coupon Type',
+        'Items Details', 'Items Count', 'Last Updated By', 'Picked Up By', 'Delivered By'
+      ];
+      data.push(headers);
+
+      // Add order data
+      filteredOrders.forEach(order => {
+        const itemsDetails = order.items?.map(item => 
+          `${item.name} (Qty: ${item.quantity}, Price: KWD ${(Number(item.price) || 0).toFixed(2)}, Category: ${item.categoryName || 'N/A'})`
+        ).join(' | ') || 'No items';
+
+        const rowData = [
           order.id || 'N/A',
+          order.billNumber || 'Not Generated',
           order.customer || 'N/A',
           order.phone || 'N/A',
           order.email || 'N/A',
-          (order.amount || 0).toFixed(2),
+          order.address || 'N/A',
+          getBranchName(order.branchId) || 'N/A',
+          order.orderTakenByName || 'N/A',
+          order.orderTakenByRole || 'N/A',
+          order.orderSource || 'N/A',
+          getServiceTypeInfo(order.serviceType).label,
+          getPickupTimeLabel(order.pickupTime),
+          getDeliveryPrefLabel(order.deliveryPref),
           order.status || 'N/A',
-          order.date || 'N/A'
-        ])
+          order.paymentStatus || 'N/A',
+          order.paymentMethod || 'N/A',
+          order.date || 'N/A',
+          (order.subtotal || 0).toFixed(2),
+          (order.expressDeliveryFee || 0).toFixed(2),
+          (order.orderTotal || 0).toFixed(2),
+          (order.discountAmount || 0).toFixed(2),
+          (order.amount || 0).toFixed(2),
+          order.appliedCoupon?.code || 'N/A',
+          order.appliedCoupon?.name || 'N/A',
+          order.appliedCoupon?.type || 'N/A',
+          itemsDetails,
+          order.items?.length || 0,
+          order.lastUpdatedByName || 'N/A',
+          order.pickedUpByName || 'N/A',
+          order.deliveredByName || 'N/A'
+        ];
+        data.push(rowData);
+      });
+
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet(data);
+
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 15 }, // Order ID
+        { wch: 15 }, // Bill Number
+        { wch: 20 }, // Customer Name
+        { wch: 15 }, // Phone
+        { wch: 25 }, // Email
+        { wch: 30 }, // Address
+        { wch: 15 }, // Branch
+        { wch: 20 }, // Order Taken By
+        { wch: 15 }, // Order Taken Role
+        { wch: 15 }, // Order Source
+        { wch: 12 }, // Service Type
+        { wch: 20 }, // Pickup Time
+        { wch: 18 }, // Delivery Preference
+        { wch: 20 }, // Status
+        { wch: 15 }, // Payment Status
+        { wch: 15 }, // Payment Method
+        { wch: 12 }, // Order Date
+        { wch: 12 }, // Subtotal
+        { wch: 12 }, // Express Fee
+        { wch: 12 }, // Order Total
+        { wch: 12 }, // Discount
+        { wch: 12 }, // Final Total
+        { wch: 15 }, // Coupon Code
+        { wch: 20 }, // Coupon Name
+        { wch: 15 }, // Coupon Type
+        { wch: 50 }, // Items Details
+        { wch: 10 }, // Items Count
+        { wch: 20 }, // Last Updated By
+        { wch: 15 }, // Picked Up By
+        { wch: 15 }  // Delivered By
       ];
 
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, 'Orders');
-      XLSX.writeFile(wb, `orders-${new Date().toISOString().split('T')[0]}.xlsx`);
+      // Style headers
+      const headerRange = XLSX.utils.decode_range(ws['!ref']);
+      for (let c = 0; c <= headerRange.e.c; ++c) {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c });
+        if (ws[cellRef]) {
+          ws[cellRef].s = {
+            font: { bold: true, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: "2563EB" } }, // Blue header
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+              top: { style: "thin", color: { rgb: "000000" } },
+              bottom: { style: "thin", color: { rgb: "000000" } },
+              left: { style: "thin", color: { rgb: "000000" } },
+              right: { style: "thin", color: { rgb: "000000" } }
+            }
+          };
+        }
+      }
+
+      // Style data rows
+      for (let r = 1; r <= headerRange.e.r; ++r) {
+        const statusCol = 13; // Status column (0-indexed)
+        const statusCellRef = XLSX.utils.encode_cell({ r, c: statusCol });
+        
+        if (ws[statusCellRef]) {
+          const status = ws[statusCellRef].v;
+          const statusColor = statusColorMap[status] || { rgb: "FFFFFF" };
+          
+          // Apply status color to entire row
+          for (let c = 0; c <= headerRange.e.c; ++c) {
+            const cellRef = XLSX.utils.encode_cell({ r, c });
+            if (ws[cellRef]) {
+              ws[cellRef].s = {
+                fill: { fgColor: statusColor },
+                border: {
+                  top: { style: "thin", color: { rgb: "CCCCCC" } },
+                  bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                  left: { style: "thin", color: { rgb: "CCCCCC" } },
+                  right: { style: "thin", color: { rgb: "CCCCCC" } }
+                },
+                alignment: { vertical: "center" }
+              };
+              
+              // Special styling for amount columns
+              if (c >= 17 && c <= 21) { // Amount columns
+                ws[cellRef].s.font = { bold: true };
+                ws[cellRef].s.numFmt = '"KWD "#,##0.00';
+              }
+            }
+          }
+        }
+      }
+
+      // Create workbook and add worksheet
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Complete Orders Report');
+      
+      // Save file
+      XLSX.writeFile(wb, `complete-orders-report-${new Date().toISOString().split('T')[0]}.xlsx`);
+      
     } catch (error) {
       console.error('Excel Export Error:', error);
       alert('Error exporting Excel');
@@ -807,238 +1121,241 @@ Thank you for your business!
   ) : (
     filteredOrders.map((order, index) => (
       <>
-        <tr key={order.id} className="border-b hover:bg-blue-50 text-xs sm:text-sm">
-          <td className="px-2 py-2">{index + 1}</td>
-          <td className="px-2 py-2 font-mono text-xs">{order.id.slice(-8)}</td>
-          <td className="px-2 py-2 hidden sm:table-cell">{order.customer}</td>
-          <td className="px-2 py-2 hidden md:table-cell">
-            <span className="block truncate max-w-[90px]" title={order.orderTakenByName || 'N/A'}>
-              {order.orderTakenByName || 'N/A'}
-            </span>
-            <span className="block text-gray-400 text-[10px]">{order.orderTakenByRole || ''}</span>
-          </td>
-          <td className="px-2 py-2 hidden md:table-cell">{order.phone}</td>
-          <td className="px-2 py-2 hidden lg:table-cell">
-            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-              {getBranchName(order.branchId)}
-            </span>
-          </td>
-          <td className="px-2 py-2 hidden lg:table-cell">
-            <div className="flex items-center gap-1">
-              <span className="text-xs">{getServiceTypeInfo(order.serviceType).icon}</span>
-              <span className="text-xs">{getServiceTypeInfo(order.serviceType).label}</span>
-            </div>
-          </td>
-          <td className="px-2 py-2 hidden lg:table-cell">
-            {order.appliedCoupon ? (
+        {/* Add key here */}
+        <React.Fragment key={order.id}>
+          <tr className="border-b hover:bg-blue-50 text-xs sm:text-sm">
+            <td className="px-2 py-2">{index + 1}</td>
+            <td className="px-2 py-2 font-mono text-xs">{order.id.slice(-8)}</td>
+            <td className="px-2 py-2 hidden sm:table-cell">{order.customer}</td>
+            <td className="px-2 py-2 hidden md:table-cell">
+              <span className="block truncate max-w-[90px]" title={order.orderTakenByName || 'N/A'}>
+                {order.orderTakenByName || 'N/A'}
+              </span>
+              <span className="block text-gray-400 text-[10px]">{order.orderTakenByRole || ''}</span>
+            </td>
+            <td className="px-2 py-2 hidden md:table-cell">{order.phone}</td>
+            <td className="px-2 py-2 hidden lg:table-cell">
+              <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                {getBranchName(order.branchId)}
+              </span>
+            </td>
+            <td className="px-2 py-2 hidden lg:table-cell">
               <div className="flex items-center gap-1">
-                <Tag className="w-3 h-3 text-green-600" />
-                <span className="text-xs text-green-600 font-medium">
-                  KWD {order.discountAmount.toFixed(2)}
-                </span>
+                <span className="text-xs">{getServiceTypeInfo(order.serviceType).icon}</span>
+                <span className="text-xs">{getServiceTypeInfo(order.serviceType).label}</span>
               </div>
-            ) : (
-              <span className="text-xs text-gray-400">No discount</span>
-            )}
-          </td>
-          <td className="px-2 py-2">
-            <div className="text-sm font-medium">KWD {order.amount.toFixed(2)}</div>
-            {order.discountAmount > 0 && (
-              <div className="text-xs text-gray-500 line-through">
-                KWD {(order.amount + order.discountAmount).toFixed(2)}
-              </div>
-            )}
-          </td>
-          <td className="px-2 py-2">
-            <select
-              value={order.status}
-              onChange={(e) => handleStatusChange(order.id, e.target.value)}
-              className={`border-none text-xs sm:text-sm rounded px-2 py-1 focus:ring-1 focus:ring-blue-200 ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}
-            >
-              {Object.keys(statusColors).map(status => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-          </td>
-          <td className="px-2 py-2 hidden md:table-cell">{order.date}</td>
-          <td className="px-2 py-2">
-            <button onClick={() => toggleOrderExpand(order.id)} className="text-blue-600 hover:text-blue-800">
-              {expandedOrder === order.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-            </button>
-          </td>
-        </tr>
-        {expandedOrder === order.id && (
-          <tr>
-            <td colSpan={12} className="p-0">
-              <div className="bg-blue-50 p-4 w-full">
-                <div className="flex flex-col gap-6">
-                  {/* Order Information Section */}
-                  <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                    <h4 className="font-semibold mb-2 text-blue-700">Order Information</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-700">
-                      <div>
-                        <span className="font-medium">Order ID:</span> {order.id}
-                      </div>
-                      <div>
-                        <span className="font-medium">Bill Number:</span> {order.billNumber || 'Not Generated'}
-                      </div>
-                      <div>
-                        <span className="font-medium">Order Taken By:</span> {order.orderTakenByName || 'N/A'} ({order.orderTakenByRole || 'N/A'})
-                      </div>
-                      <div>
-                        <span className="font-medium">Order Source:</span> {order.orderSource || 'N/A'}
-                      </div>
-                      <div>
-                        <span className="font-medium">Branch:</span> 
-                        <span className="inline-block ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                          {getBranchName(order.branchId)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="font-medium">Payment Status:</span> {order.paymentStatus}
-                      </div>
-                      <div>
-                        <span className="font-medium">Last Updated By:</span> {order.lastUpdatedByName || 'N/A'}
-                      </div>
-                      <div>
-                        <span className="font-medium">Current Status:</span> 
-                        <span className={`inline-block ml-2 px-2 py-1 text-xs rounded ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}>
-                          {order.status}
-                        </span>
-                      </div>
-                      {order.pickedUpByName && (
+            </td>
+            <td className="px-2 py-2 hidden lg:table-cell">
+              {order.appliedCoupon ? (
+                <div className="flex items-center gap-1">
+                  <Tag className="w-3 h-3 text-green-600" />
+                  <span className="text-xs text-green-600 font-medium">
+                    KWD {order.discountAmount.toFixed(2)}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs text-gray-400">No discount</span>
+              )}
+            </td>
+            <td className="px-2 py-2">
+              <div className="text-sm font-medium">KWD {order.amount.toFixed(2)}</div>
+              {order.discountAmount > 0 && (
+                <div className="text-xs text-gray-500 line-through">
+                  KWD {(order.amount + order.discountAmount).toFixed(2)}
+                </div>
+              )}
+            </td>
+            <td className="px-2 py-2">
+              <select
+                value={order.status}
+                onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                className={`border-none text-xs sm:text-sm rounded px-2 py-1 focus:ring-1 focus:ring-blue-200 ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}
+              >
+                {Object.keys(statusColors).map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </td>
+            <td className="px-2 py-2 hidden md:table-cell">{order.date}</td>
+            <td className="px-2 py-2">
+              <button onClick={() => toggleOrderExpand(order.id)} className="text-blue-600 hover:text-blue-800">
+                {expandedOrder === order.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </button>
+            </td>
+          </tr>
+          {expandedOrder === order.id && (
+            <tr>
+              <td colSpan={12} className="p-0">
+                <div className="bg-blue-50 p-4 w-full">
+                  <div className="flex flex-col gap-6">
+                    {/* Order Information Section */}
+                    <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                      <h4 className="font-semibold mb-2 text-blue-700">Order Information</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-700">
                         <div>
-                          <span className="font-medium">Picked Up By:</span> {order.pickedUpByName}
+                          <span className="font-medium">Order ID:</span> {order.id}
                         </div>
-                      )}
-                      {order.deliveredByName && (
                         <div>
-                          <span className="font-medium">Delivered By:</span> {order.deliveredByName}
+                          <span className="font-medium">Bill Number:</span> {order.billNumber || 'Not Generated'}
                         </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Service Details Section */}
-                  <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                    <h4 className="font-semibold mb-3 text-blue-700 flex items-center gap-2">
-                      <Truck className="w-4 h-4" />
-                      Service Details
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{getServiceTypeInfo(order.serviceType).icon}</span>
                         <div>
-                          <span className="font-medium text-gray-600">Service Type:</span>
-                          <div className="text-blue-700 font-medium">{getServiceTypeInfo(order.serviceType).label}</div>
+                          <span className="font-medium">Order Taken By:</span> {order.orderTakenByName || 'N/A'} ({order.orderTakenByRole || 'N/A'})
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-600" />
                         <div>
-                          <span className="font-medium text-gray-600">Pickup Time:</span>
-                          <div className="text-blue-700">{getPickupTimeLabel(order.pickupTime)}</div>
+                          <span className="font-medium">Order Source:</span> {order.orderSource || 'N/A'}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Package className="w-4 h-4 text-gray-600" />
                         <div>
-                          <span className="font-medium text-gray-600">Delivery Preference:</span>
-                          <div className="text-blue-700">{getDeliveryPrefLabel(order.deliveryPref)}</div>
+                          <span className="font-medium">Branch:</span> 
+                          <span className="inline-block ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                            {getBranchName(order.branchId)}
+                          </span>
                         </div>
+                        <div>
+                          <span className="font-medium">Payment Status:</span> {order.paymentStatus}
+                        </div>
+                        <div>
+                          <span className="font-medium">Last Updated By:</span> {order.lastUpdatedByName || 'N/A'}
+                        </div>
+                        <div>
+                          <span className="font-medium">Current Status:</span> 
+                          <span className={`inline-block ml-2 px-2 py-1 text-xs rounded ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}>
+                            {order.status}
+                          </span>
+                        </div>
+                        {order.pickedUpByName && (
+                          <div>
+                            <span className="font-medium">Picked Up By:</span> {order.pickedUpByName}
+                          </div>
+                        )}
+                        {order.deliveredByName && (
+                          <div>
+                            <span className="font-medium">Delivered By:</span> {order.deliveredByName}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Items section */}
-                  <div className="w-full">
-                    {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
-                      const catImage = items[0]?.categoriesimage || items[0]?.categoryImage || null;
-                      return (
-                        <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50 w-full">
-                          <div className="flex items-center gap-3 px-4 py-2 border-b border-blue-200">
-                            {catImage ? (
-                              <div className="relative w-8 h-8 rounded-full overflow-hidden bg-white border border-blue-200">
-                                <img src={catImage} alt={catName} className="w-full h-full object-cover" />
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200" />
-                            )}
-                            <span className="font-semibold text-blue-700">{catName}</span>
-                          </div>
-                          <div className="p-4 space-y-2">
-                            {items.map((item, idx) => (
-                              <div key={idx} className="flex items-start gap-4 w-full">
-                                <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                                  {item.image ? (
-                                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gray-200" />
-                                  )}
-                                </div>
-                                <div className="flex-grow min-w-0">
-                                  <h5 className="font-medium text-blue-600">{item.name}</h5>
-                                  <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                                  <p className="text-sm text-gray-600">
-                                    Price: KWD {Number(item.price).toFixed(2)}
-                                  </p>
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  <p className="font-medium text-blue-600">
-                                    KWD {(Number(item.price) * Number(item.quantity)).toFixed(2)}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
+                    {/* Service Details Section */}
+                    <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                      <h4 className="font-semibold mb-3 text-blue-700 flex items-center gap-2">
+                        <Truck className="w-4 h-4" />
+                        Service Details
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{getServiceTypeInfo(order.serviceType).icon}</span>
+                          <div>
+                            <span className="font-medium text-gray-600">Service Type:</span>
+                            <div className="text-blue-700 font-medium">{getServiceTypeInfo(order.serviceType).label}</div>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Pricing Breakdown Section */}
-                  <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                    <h4 className="font-semibold mb-3 text-blue-700">Pricing Breakdown</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Subtotal:</span>
-                        <span>KWD {(order.subtotal || 0).toFixed(2)}</span>
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-gray-600" />
+                          <div>
+                            <span className="font-medium text-gray-600">Pickup Time:</span>
+                            <div className="text-blue-700">{getPickupTimeLabel(order.pickupTime)}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Package className="w-4 h-4 text-gray-600" />
+                          <div>
+                            <span className="font-medium text-gray-600">Delivery Preference:</span>
+                            <div className="text-blue-700">{getDeliveryPrefLabel(order.deliveryPref)}</div>
+                          </div>
+                        </div>
                       </div>
-                      {order.expressDeliveryFee > 0 && (
-                        <div className="flex justify-between">
-                          <span>Express Delivery Fee:</span>
-                          <span>KWD {order.expressDeliveryFee.toFixed(2)}</span>
-                        </div>
-                      )}
-                      {order.appliedCoupon && (
-                        <div className="bg-green-50 p-2 rounded border border-green-200">
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <Tag className="w-4 h-4 text-green-600" />
-                              <span className="font-medium text-green-800">Applied Coupon:</span>
+                    </div>
+
+                    {/* Items section */}
+                    <div className="w-full">
+                      {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
+                        const catImage = items[0]?.categoriesimage || items[0]?.categoryImage || null;
+                        return (
+                          <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50 w-full">
+                            <div className="flex items-center gap-3 px-4 py-2 border-b border-blue-200">
+                              {catImage ? (
+                                <div className="relative w-8 h-8 rounded-full overflow-hidden bg-white border border-blue-200">
+                                  <img src={catImage} alt={catName} className="w-full h-full object-cover" />
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200" />
+                              )}
+                              <span className="font-semibold text-blue-700">{catName}</span>
                             </div>
-                            <span className="text-green-600 font-medium">{order.appliedCoupon.code}</span>
+                            <div className="p-4 space-y-2">
+                              {items.map((item, idx) => (
+                                <div key={idx} className="flex items-start gap-4 w-full">
+                                  <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                                    {item.image ? (
+                                      <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center bg-gray-200" />
+                                    )}
+                                  </div>
+                                  <div className="flex-grow min-w-0">
+                                    <h5 className="font-medium text-blue-600">{item.name}</h5>
+                                    <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                                    <p className="text-sm text-gray-600">
+                                      Price: KWD {Number(item.price).toFixed(2)}
+                                    </p>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    <p className="font-medium text-blue-600">
+                                      KWD {(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="text-xs text-green-700 mb-1">
-                            {order.appliedCoupon.name} ({order.appliedCoupon.type})
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-green-700">Discount Amount:</span>
-                            <span className="text-green-600 font-medium">-KWD {order.discountAmount.toFixed(2)}</span>
-                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Pricing Breakdown Section */}
+                    <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                      <h4 className="font-semibold mb-3 text-blue-700">Pricing Breakdown</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Subtotal:</span>
+                          <span>KWD {(order.subtotal || 0).toFixed(2)}</span>
                         </div>
-                      )}
-                      <div className="border-t pt-2 flex justify-between font-semibold text-lg">
-                        <span>Final Total:</span>
-                        <span className="text-blue-700">KWD {order.amount.toFixed(2)}</span>
+                        {order.expressDeliveryFee > 0 && (
+                          <div className="flex justify-between">
+                            <span>Express Delivery Fee:</span>
+                            <span>KWD {order.expressDeliveryFee.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {order.appliedCoupon && (
+                          <div className="bg-green-50 p-2 rounded border border-green-200">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <Tag className="w-4 h-4 text-green-600" />
+                                <span className="font-medium text-green-800">Applied Coupon:</span>
+                              </div>
+                              <span className="text-green-600 font-medium">{order.appliedCoupon.code}</span>
+                            </div>
+                            <div className="text-xs text-green-700 mb-1">
+                              {order.appliedCoupon.name} ({order.appliedCoupon.type})
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-green-700">Discount Amount:</span>
+                              <span className="text-green-600 font-medium">-KWD {order.discountAmount.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="border-t pt-2 flex justify-between font-semibold text-lg">
+                          <span>Final Total:</span>
+                          <span className="text-blue-700">KWD {order.amount.toFixed(2)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </td>
-          </tr>
-        )}
+              </td>
+            </tr>
+          )}
+        </React.Fragment>
       </>
     ))
   )}
@@ -1049,3 +1366,5 @@ Thank you for your business!
     </AdminLayout>
   );
 }
+
+
