@@ -623,258 +623,265 @@ Thank you for your business!
         <div className="overflow-x-auto">
           <table className="min-w-full border border-gray-200 rounded-lg">
             <thead className="bg-blue-50 text-blue-800 text-xs sm:text-sm">
-              <tr>
-                <th className="p-3 text-left border-b border-gray-200">Sr No</th>
-                <th className="p-3 text-left border-b border-gray-200">Order ID</th>
-                <th className="p-3 text-left border-b border-gray-200 hidden sm:table-cell">Customer</th>
-                <th className="p-3 text-left border-b border-gray-200 hidden md:table-cell">Phone</th>
-                <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Branch</th>
-                <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Service</th>
-                <th className="p-3 text-left border-b border-gray-200 hidden lg:table-cell">Discount</th>
-                <th className="p-3 text-left border-b border-gray-200">Amount</th>
-                <th className="p-3 text-left border-b border-gray-200">Status</th>
-                <th className="p-3 text-left border-b border-gray-200 hidden md:table-cell">Order Date</th>
-                <th className="p-3 text-left border-b border-gray-200">Expand</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={11} className="text-center text-gray-500 p-6">Loading...</td></tr>
-              ) : filteredOrders.length === 0 ? (
-                <tr><td colSpan={11} className="text-center text-gray-500 p-6">No orders found</td></tr>
-              ) : (
-                filteredOrders.map((order, index) => (
-                  <>
-                    <tr key={order.id} className="border-b hover:bg-blue-50 text-xs sm:text-sm">
-                      <td className="p-3">{index + 1}</td>
-                      <td className="p-3 font-mono text-xs">{order.id.slice(-8)}</td>
-                      <td className="p-3 hidden sm:table-cell">{order.customer}</td>
-                      <td className="p-3 hidden md:table-cell">{order.phone}</td>
-                      <td className="p-3 hidden lg:table-cell">
-                        <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+  <tr>
+    <th className="px-2 py-2 text-left border-b border-gray-200 w-8">#</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200">Order ID</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200 hidden sm:table-cell">Customer</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200 hidden md:table-cell">Order Taken By</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200 hidden md:table-cell">Phone</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200 hidden lg:table-cell">Branch</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200 hidden lg:table-cell">Service</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200 hidden lg:table-cell">Discount</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200">Amount</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200">Status</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200 hidden md:table-cell">Order Date</th>
+    <th className="px-2 py-2 text-left border-b border-gray-200">Expand</th>
+  </tr>
+</thead>
+<tbody>
+  {isLoading ? (
+    <tr><td colSpan={12} className="text-center text-gray-500 p-6">Loading...</td></tr>
+  ) : filteredOrders.length === 0 ? (
+    <tr><td colSpan={12} className="text-center text-gray-500 p-6">No orders found</td></tr>
+  ) : (
+    filteredOrders.map((order, index) => (
+      <>
+        <tr key={order.id} className="border-b hover:bg-blue-50 text-xs sm:text-sm">
+          <td className="px-2 py-2">{index + 1}</td>
+          <td className="px-2 py-2 font-mono text-xs">{order.id.slice(-8)}</td>
+          <td className="px-2 py-2 hidden sm:table-cell">{order.customer}</td>
+          <td className="px-2 py-2 hidden md:table-cell">
+            <span className="block truncate max-w-[90px]" title={order.orderTakenByName || 'N/A'}>
+              {order.orderTakenByName || 'N/A'}
+            </span>
+            <span className="block text-gray-400 text-[10px]">{order.orderTakenByRole || ''}</span>
+          </td>
+          <td className="px-2 py-2 hidden md:table-cell">{order.phone}</td>
+          <td className="px-2 py-2 hidden lg:table-cell">
+            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+              {getBranchName(order.branchId)}
+            </span>
+          </td>
+          <td className="px-2 py-2 hidden lg:table-cell">
+            <div className="flex items-center gap-1">
+              <span className="text-xs">{getServiceTypeInfo(order.serviceType).icon}</span>
+              <span className="text-xs">{getServiceTypeInfo(order.serviceType).label}</span>
+            </div>
+          </td>
+          <td className="px-2 py-2 hidden lg:table-cell">
+            {order.appliedCoupon ? (
+              <div className="flex items-center gap-1">
+                <Tag className="w-3 h-3 text-green-600" />
+                <span className="text-xs text-green-600 font-medium">
+                  KWD {order.discountAmount.toFixed(2)}
+                </span>
+              </div>
+            ) : (
+              <span className="text-xs text-gray-400">No discount</span>
+            )}
+          </td>
+          <td className="px-2 py-2">
+            <div className="text-sm font-medium">KWD {order.amount.toFixed(2)}</div>
+            {order.discountAmount > 0 && (
+              <div className="text-xs text-gray-500 line-through">
+                KWD {(order.amount + order.discountAmount).toFixed(2)}
+              </div>
+            )}
+          </td>
+          <td className="px-2 py-2">
+            <select
+              value={order.status}
+              onChange={(e) => handleStatusChange(order.id, e.target.value)}
+              className={`border-none text-xs sm:text-sm rounded px-2 py-1 focus:ring-1 focus:ring-blue-200 ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}
+            >
+              {Object.keys(statusColors).map(status => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </td>
+          <td className="px-2 py-2 hidden md:table-cell">{order.date}</td>
+          <td className="px-2 py-2">
+            <button onClick={() => toggleOrderExpand(order.id)} className="text-blue-600 hover:text-blue-800">
+              {expandedOrder === order.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </button>
+          </td>
+        </tr>
+        {expandedOrder === order.id && (
+          <tr>
+            <td colSpan={12} className="p-0">
+              <div className="bg-blue-50 p-4 w-full">
+                <div className="flex flex-col gap-6">
+                  {/* Order Information Section */}
+                  <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                    <h4 className="font-semibold mb-2 text-blue-700">Order Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-700">
+                      <div>
+                        <span className="font-medium">Order ID:</span> {order.id}
+                      </div>
+                      <div>
+                        <span className="font-medium">Bill Number:</span> {order.billNumber || 'Not Generated'}
+                      </div>
+                      <div>
+                        <span className="font-medium">Order Taken By:</span> {order.orderTakenByName || 'N/A'} ({order.orderTakenByRole || 'N/A'})
+                      </div>
+                      <div>
+                        <span className="font-medium">Order Source:</span> {order.orderSource || 'N/A'}
+                      </div>
+                      <div>
+                        <span className="font-medium">Branch:</span> 
+                        <span className="inline-block ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
                           {getBranchName(order.branchId)}
                         </span>
-                      </td>
-                      <td className="p-3 hidden lg:table-cell">
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs">{getServiceTypeInfo(order.serviceType).icon}</span>
-                          <span className="text-xs">{getServiceTypeInfo(order.serviceType).label}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Payment Status:</span> {order.paymentStatus}
+                      </div>
+                      <div>
+                        <span className="font-medium">Last Updated By:</span> {order.lastUpdatedByName || 'N/A'}
+                      </div>
+                      <div>
+                        <span className="font-medium">Current Status:</span> 
+                        <span className={`inline-block ml-2 px-2 py-1 text-xs rounded ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}>
+                          {order.status}
+                        </span>
+                      </div>
+                      {order.pickedUpByName && (
+                        <div>
+                          <span className="font-medium">Picked Up By:</span> {order.pickedUpByName}
                         </div>
-                      </td>
-                      <td className="p-3 hidden lg:table-cell">
-                        {order.appliedCoupon ? (
-                          <div className="flex items-center gap-1">
-                            <Tag className="w-3 h-3 text-green-600" />
-                            <span className="text-xs text-green-600 font-medium">
-                              KWD {order.discountAmount.toFixed(2)}
-                            </span>
+                      )}
+                      {order.deliveredByName && (
+                        <div>
+                          <span className="font-medium">Delivered By:</span> {order.deliveredByName}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Service Details Section */}
+                  <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                    <h4 className="font-semibold mb-3 text-blue-700 flex items-center gap-2">
+                      <Truck className="w-4 h-4" />
+                      Service Details
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{getServiceTypeInfo(order.serviceType).icon}</span>
+                        <div>
+                          <span className="font-medium text-gray-600">Service Type:</span>
+                          <div className="text-blue-700 font-medium">{getServiceTypeInfo(order.serviceType).label}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-600" />
+                        <div>
+                          <span className="font-medium text-gray-600">Pickup Time:</span>
+                          <div className="text-blue-700">{getPickupTimeLabel(order.pickupTime)}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-gray-600" />
+                        <div>
+                          <span className="font-medium text-gray-600">Delivery Preference:</span>
+                          <div className="text-blue-700">{getDeliveryPrefLabel(order.deliveryPref)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items section */}
+                  <div className="w-full">
+                    {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
+                      const catImage = items[0]?.categoriesimage || items[0]?.categoryImage || null;
+                      return (
+                        <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50 w-full">
+                          <div className="flex items-center gap-3 px-4 py-2 border-b border-blue-200">
+                            {catImage ? (
+                              <div className="relative w-8 h-8 rounded-full overflow-hidden bg-white border border-blue-200">
+                                <img src={catImage} alt={catName} className="w-full h-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200" />
+                            )}
+                            <span className="font-semibold text-blue-700">{catName}</span>
                           </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">No discount</span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <div className="text-sm font-medium">KWD {order.amount.toFixed(2)}</div>
-                        {order.discountAmount > 0 && (
-                          <div className="text-xs text-gray-500 line-through">
-                            KWD {(order.amount + order.discountAmount).toFixed(2)}
+                          <div className="p-4 space-y-2">
+                            {items.map((item, idx) => (
+                              <div key={idx} className="flex items-start gap-4 w-full">
+                                <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                                  {item.image ? (
+                                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-200" />
+                                  )}
+                                </div>
+                                <div className="flex-grow min-w-0">
+                                  <h5 className="font-medium text-blue-600">{item.name}</h5>
+                                  <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                                  <p className="text-sm text-gray-600">
+                                    Price: KWD {Number(item.price).toFixed(2)}
+                                  </p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className="font-medium text-blue-600">
+                                    KWD {(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        <select
-                          value={order.status}
-                          onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                          className={`border-none text-xs sm:text-sm rounded px-2 py-1 focus:ring-1 focus:ring-blue-200 ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}
-                        >
-                          {Object.keys(statusColors).map(status => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="p-3 hidden md:table-cell">{order.date}</td>
-                      <td className="p-3">
-                        <button onClick={() => toggleOrderExpand(order.id)} className="text-blue-600 hover:text-blue-800">
-                          {expandedOrder === order.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                        </button>
-                      </td>
-                    </tr>
-                    {expandedOrder === order.id && (
-                      <tr>
-                        <td colSpan={11} className="p-0">
-                          <div className="bg-blue-50 p-4 w-full">
-                            <div className="flex flex-col gap-6">
-                              {/* Order Information Section */}
-                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                                <h4 className="font-semibold mb-2 text-blue-700">Order Information</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-gray-700">
-                                  <div>
-                                    <span className="font-medium">Order ID:</span> {order.id}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Bill Number:</span> {order.billNumber || 'Not Generated'}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Order Taken By:</span> {order.orderTakenByName || 'N/A'} ({order.orderTakenByRole || 'N/A'})
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Order Source:</span> {order.orderSource || 'N/A'}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Branch:</span> 
-                                    <span className="inline-block ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                                      {getBranchName(order.branchId)}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Payment Status:</span> {order.paymentStatus}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Last Updated By:</span> {order.lastUpdatedByName || 'N/A'}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Current Status:</span> 
-                                    <span className={`inline-block ml-2 px-2 py-1 text-xs rounded ${statusColors[order.status] || 'bg-gray-100 text-gray-600'}`}>
-                                      {order.status}
-                                    </span>
-                                  </div>
-                                  {order.pickedUpByName && (
-                                    <div>
-                                      <span className="font-medium">Picked Up By:</span> {order.pickedUpByName}
-                                    </div>
-                                  )}
-                                  {order.deliveredByName && (
-                                    <div>
-                                      <span className="font-medium">Delivered By:</span> {order.deliveredByName}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                              {/* Service Details Section */}
-                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                                <h4 className="font-semibold mb-3 text-blue-700 flex items-center gap-2">
-                                  <Truck className="w-4 h-4" />
-                                  Service Details
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-lg">{getServiceTypeInfo(order.serviceType).icon}</span>
-                                    <div>
-                                      <span className="font-medium text-gray-600">Service Type:</span>
-                                      <div className="text-blue-700 font-medium">{getServiceTypeInfo(order.serviceType).label}</div>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Clock className="w-4 h-4 text-gray-600" />
-                                    <div>
-                                      <span className="font-medium text-gray-600">Pickup Time:</span>
-                                      <div className="text-blue-700">{getPickupTimeLabel(order.pickupTime)}</div>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Package className="w-4 h-4 text-gray-600" />
-                                    <div>
-                                      <span className="font-medium text-gray-600">Delivery Preference:</span>
-                                      <div className="text-blue-700">{getDeliveryPrefLabel(order.deliveryPref)}</div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Items section */}
-                              <div className="w-full">
-                                {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
-                                  const catImage = items[0]?.categoriesimage || items[0]?.categoryImage || null;
-                                  return (
-                                    <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50 w-full">
-                                      <div className="flex items-center gap-3 px-4 py-2 border-b border-blue-200">
-                                        {catImage ? (
-                                          <div className="relative w-8 h-8 rounded-full overflow-hidden bg-white border border-blue-200">
-                                            <img src={catImage} alt={catName} className="w-full h-full object-cover" />
-                                          </div>
-                                        ) : (
-                                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200" />
-                                        )}
-                                        <span className="font-semibold text-blue-700">{catName}</span>
-                                      </div>
-                                      <div className="p-4 space-y-2">
-                                        {items.map((item, idx) => (
-                                          <div key={idx} className="flex items-start gap-4 w-full">
-                                            <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                                              {item.image ? (
-                                                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                                              ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gray-200" />
-                                              )}
-                                            </div>
-                                            <div className="flex-grow min-w-0">
-                                              <h5 className="font-medium text-blue-600">{item.name}</h5>
-                                              <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                                              <p className="text-sm text-gray-600">
-                                                Price: KWD {Number(item.price).toFixed(2)}
-                                              </p>
-                                            </div>
-                                            <div className="text-right flex-shrink-0">
-                                              <p className="font-medium text-blue-600">
-                                                KWD {(Number(item.price) * Number(item.quantity)).toFixed(2)}
-                                              </p>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Pricing Breakdown Section */}
-                              <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
-                                <h4 className="font-semibold mb-3 text-blue-700">Pricing Breakdown</h4>
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span>Subtotal:</span>
-                                    <span>KWD {(order.subtotal || 0).toFixed(2)}</span>
-                                  </div>
-                                  {order.expressDeliveryFee > 0 && (
-                                    <div className="flex justify-between">
-                                      <span>Express Delivery Fee:</span>
-                                      <span>KWD {order.expressDeliveryFee.toFixed(2)}</span>
-                                    </div>
-                                  )}
-                                  {order.appliedCoupon && (
-                                    <div className="bg-green-50 p-2 rounded border border-green-200">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <div className="flex items-center gap-2">
-                                          <Tag className="w-4 h-4 text-green-600" />
-                                          <span className="font-medium text-green-800">Applied Coupon:</span>
-                                        </div>
-                                        <span className="text-green-600 font-medium">{order.appliedCoupon.code}</span>
-                                      </div>
-                                      <div className="text-xs text-green-700 mb-1">
-                                        {order.appliedCoupon.name} ({order.appliedCoupon.type})
-                                      </div>
-                                      <div className="flex justify-between text-sm">
-                                        <span className="text-green-700">Discount Amount:</span>
-                                        <span className="text-green-600 font-medium">-KWD {order.discountAmount.toFixed(2)}</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                  <div className="border-t pt-2 flex justify-between font-semibold text-lg">
-                                    <span>Final Total:</span>
-                                    <span className="text-blue-700">KWD {order.amount.toFixed(2)}</span>
-                                  </div>
-                                </div>
-                              </div>
+                  {/* Pricing Breakdown Section */}
+                  <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+                    <h4 className="font-semibold mb-3 text-blue-700">Pricing Breakdown</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span>KWD {(order.subtotal || 0).toFixed(2)}</span>
+                      </div>
+                      {order.expressDeliveryFee > 0 && (
+                        <div className="flex justify-between">
+                          <span>Express Delivery Fee:</span>
+                          <span>KWD {order.expressDeliveryFee.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {order.appliedCoupon && (
+                        <div className="bg-green-50 p-2 rounded border border-green-200">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <Tag className="w-4 h-4 text-green-600" />
+                              <span className="font-medium text-green-800">Applied Coupon:</span>
                             </div>
+                            <span className="text-green-600 font-medium">{order.appliedCoupon.code}</span>
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                ))
-              )}
-            </tbody>
+                          <div className="text-xs text-green-700 mb-1">
+                            {order.appliedCoupon.name} ({order.appliedCoupon.type})
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-green-700">Discount Amount:</span>
+                            <span className="text-green-600 font-medium">-KWD {order.discountAmount.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="border-t pt-2 flex justify-between font-semibold text-lg">
+                        <span>Final Total:</span>
+                        <span className="text-blue-700">KWD {order.amount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        )}
+      </>
+    ))
+  )}
+</tbody>
           </table>
         </div>
       </div>
