@@ -552,7 +552,7 @@ Thank you for your business!
             className="p-2 rounded bg-gray-50 border border-gray-200 focus:border-blue-300 focus:ring-1 focus:ring-blue-200 text-sm"
           />
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -603,21 +603,21 @@ Thank you for your business!
             <div className="text-sm text-gray-600 px-3 py-2 bg-blue-50 rounded border">
               Total: {filteredOrders.length} orders
             </div>
-          </div>
 
-          {/* Add Clear Filters button below the grid */}
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setStatusFilter('');
-              setBranchFilter('');
-              setOrderTakenByFilter('');
-              setDateFilter('all');
-            }}
-            className="text-sm text-blue-600 hover:text-blue-800 px-3 py-2 border border-blue-200 rounded hover:bg-blue-50 transition-colors self-start"
-          >
-            Clear Filters
-          </button>
+            {/* Clear Filters button moved to same row */}
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setStatusFilter('');
+                setBranchFilter('');
+                setOrderTakenByFilter('');
+                setDateFilter('all');
+              }}
+              className="text-sm text-blue-600 hover:text-blue-800 px-3 py-2 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
+            >
+              Clear Filters
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
