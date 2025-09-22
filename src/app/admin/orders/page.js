@@ -581,9 +581,13 @@ Thank you for your business!
               className="bg-gray-50 border border-gray-200 text-sm rounded px-3 py-2 text-blue-600 focus:border-blue-300 focus:ring-1 focus:ring-blue-200"
             >
               <option value="">All Order Takers</option>
-              {users.filter(user => user.userRole !== 'customer').map(user => (
-                <option key={user.id} value={user.id}>{user.name} ({user.userRole})</option>
-              ))}
+              {users
+                .filter(user => user.userType === 'staff') // Only show staff users
+                .map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} ({user.role || 'No Role'})
+                  </option>
+                ))}
             </select>
             
             <select
@@ -600,6 +604,20 @@ Thank you for your business!
               Total: {filteredOrders.length} orders
             </div>
           </div>
+
+          {/* Add Clear Filters button below the grid */}
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setStatusFilter('');
+              setBranchFilter('');
+              setOrderTakenByFilter('');
+              setDateFilter('all');
+            }}
+            className="text-sm text-blue-600 hover:text-blue-800 px-3 py-2 border border-blue-200 rounded hover:bg-blue-50 transition-colors self-start"
+          >
+            Clear Filters
+          </button>
         </div>
 
         <div className="overflow-x-auto">

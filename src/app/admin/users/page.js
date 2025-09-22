@@ -432,6 +432,17 @@ export default function AdminUsers() {
           <div className="text-sm text-gray-600 px-3 py-2 bg-blue-50 rounded border ml-auto">
             Total: {filteredUsers.length} users
           </div>
+          {/* Add this Clear Filters button */}
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setUserTypeFilter('');
+              setRoleFilter('');
+            }}
+            className="text-sm text-blue-600 hover:text-blue-800 px-3 py-2 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
+          >
+            Clear Filters
+          </button>
         </div>
 
         <div className="overflow-x-auto">
