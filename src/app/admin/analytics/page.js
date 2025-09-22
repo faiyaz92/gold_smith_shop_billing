@@ -846,8 +846,8 @@ export default function AdminAnalytics() {
 
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6" aria-label="Tabs">
+          <div className="border-b border-gray-200 overflow-x-auto w-full">
+            <nav className="flex flex-nowrap space-x-8 max-w-full" aria-label="Tabs">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
