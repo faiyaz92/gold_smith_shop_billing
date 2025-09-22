@@ -327,11 +327,15 @@ export default function AdminAnalytics() {
   // Calculate branch analytics
   const calculateBranchAnalytics = (filteredOrders) => {
     const branchStats = {};
+    const staffStats = {};
+    
     branches.forEach(branch => {
       branchStats[branch.id] = {
+        id: branch.id,
         name: branch.name,
         orders: 0,
         revenue: 0,
+        staff: {}
       };
     });
 
@@ -339,27 +343,55 @@ export default function AdminAnalytics() {
       if (order.branchId && branchStats[order.branchId]) {
         branchStats[order.branchId].orders += 1;
         branchStats[order.branchId].revenue += order.total || 0;
+        
+        // Staff performance within branch
+        if (order.orderTakenBy) {
+          if (!branchStats[order.branchId].staff[order.orderTakenBy]) {
+            branchStats[order.branchId].staff[order.orderTakenBy] = {
+              name: order.orderTakenByName || 'Unknown',
+              role: order.orderTakenByRole || 'Staff',
+              orders: 0,
+              revenue: 0
+            };
+          }
+          branchStats[order.branchId].staff[order.orderTakenBy].orders += 1;
+          branchStats[order.branchId].staff[order.orderTakenBy].revenue += order.total || 0;
+        }
       }
     });
 
     const branchPerformance = Object.values(branchStats)
       .sort((a, b) => b.revenue - a.revenue);
 
-    setBranchAnalytics({ branchPerformance });
+    // Branch performance chart data
+    const branchChart = branchPerformance.map(branch => ({
+      name: branch.name,
+      orders: branch.orders,
+      revenue: branch.revenue
+    }));
+
+    setBranchAnalytics({ 
+      branchPerformance,
+      branchChart 
+    });
   };
 
   // Calculate customer analytics
   const calculateCustomerAnalytics = (filteredOrders) => {
     const customerStats = {
-      totalCustomers: new Set(filteredOrders.map(o => o.customerId)).size,
+      totalCustomers: new Set(filteredOrders.map(o => o.userId || o.customerId)).size,
       repeatCustomers: 0,
       avgOrdersPerCustomer: 0,
     };
 
     const customerOrderCount = {};
+    const customerSpending = {};
+    
     filteredOrders.forEach(order => {
-      if (order.customerId) {
-        customerOrderCount[order.customerId] = (customerOrderCount[order.customerId] || 0) + 1;
+      const customerId = order.userId || order.customerId;
+      if (customerId) {
+        customerOrderCount[customerId] = (customerOrderCount[customerId] || 0) + 1;
+        customerSpending[customerId] = (customerSpending[customerId] || 0) + (order.total || 0);
       }
     });
 
@@ -367,20 +399,52 @@ export default function AdminAnalytics() {
     customerStats.avgOrdersPerCustomer = customerStats.totalCustomers > 0 ? 
       filteredOrders.length / customerStats.totalCustomers : 0;
 
-    setCustomerAnalytics(customerStats);
+    // Customer segmentation
+    const spendingValues = Object.values(customerSpending);
+    const avgSpending = spendingValues.reduce((sum, val) => sum + val, 0) / spendingValues.length;
+    
+    const highSpenders = spendingValues.filter(spending => spending > avgSpending * 1.5).length;
+    const mediumSpenders = spendingValues.filter(spending => spending >= avgSpending * 0.5 && spending <= avgSpending * 1.5).length;
+    const lowSpenders = spendingValues.filter(spending => spending < avgSpending * 0.5).length;
+
+    const customerSegmentation = [
+      { name: 'High Spenders', value: highSpenders, color: '#00C49F' },
+      { name: 'Medium Spenders', value: mediumSpenders, color: '#FFBB28' },
+      { name: 'Low Spenders', value: lowSpenders, color: '#FF8042' }
+    ];
+
+    setCustomerAnalytics({
+      ...customerStats,
+      customerSegmentation,
+      avgSpending: avgSpending || 0
+    });
   };
 
   // Calculate lost analytics
   const calculateLostAnalytics = (filteredOrders) => {
-    const cancelledOrders = filteredOrders.filter(order => order.status === 'cancelled').length;
+    const cancelledOrders = filteredOrders.filter(order => order.status === 'cancelled' || order.status === 'Cancelled').length;
     const lostRevenue = filteredOrders
-      .filter(order => order.status === 'cancelled')
+      .filter(order => order.status === 'cancelled' || order.status === 'Cancelled')
       .reduce((sum, order) => sum + (order.total || 0), 0);
+
+    // Loss reasons analysis
+    const lossReasons = {
+      'Customer Cancelled': filteredOrders.filter(o => (o.status === 'cancelled' || o.status === 'Cancelled') && o.cancellationReason === 'customer').length,
+      'Quality Issues': filteredOrders.filter(o => (o.status === 'cancelled' || o.status === 'Cancelled') && o.cancellationReason === 'quality').length,
+      'Delivery Issues': filteredOrders.filter(o => (o.status === 'cancelled' || o.status === 'Cancelled') && o.cancellationReason === 'delivery').length,
+      'Other': filteredOrders.filter(o => (o.status === 'cancelled' || o.status === 'Cancelled') && !o.cancellationReason).length
+    };
+
+    const lossChart = Object.entries(lossReasons).map(([reason, count]) => ({
+      name: reason,
+      value: count
+    })).filter(item => item.value > 0);
 
     setLostAnalytics({
       cancelledOrders,
       lostRevenue,
       cancellationRate: filteredOrders.length > 0 ? (cancelledOrders / filteredOrders.length) * 100 : 0,
+      lossChart
     });
   };
 
@@ -401,48 +465,232 @@ export default function AdminAnalytics() {
     }
   };
 
-  // Export functions
+  // Update the export functions to create beautiful PDFs with proper formatting
   const exportToPDF = (tabName, data, sectionName = null) => {
     const doc = new jsPDF();
     
-    // Header
+    // Colors and styling (similar to billing PDF)
+    const primaryColor = [41, 98, 255]; // Blue
+    const secondaryColor = [107, 114, 128]; // Gray
+    const textColor = [17, 24, 39]; // Dark gray
+    const successColor = [34, 197, 94]; // Green
+    const warningColor = [245, 158, 11]; // Orange
+
+    // Header with company branding
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, 210, 25, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont(undefined, 'bold');
+    doc.text('EASY2 Laundry Analytics', 105, 16, { align: 'center' });
+
+    // Report title
+    doc.setTextColor(...textColor);
     doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text('EASY2 Laundry Analytics', 105, 15, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.text(`${tabName}${sectionName ? ` - ${sectionName}` : ''}`, 105, 25, { align: 'center' });
-    
-    doc.setFontSize(9);
-    doc.text(`${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`, 105, 35, { align: 'center' });
+    doc.setFont(undefined, 'bold');
+    doc.text(`${tabName} Report${sectionName ? ` - ${sectionName}` : ''}`, 105, 40, { align: 'center' });
 
-    let yPos = 45;
+    // Report details section
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...secondaryColor);
 
-    if (data && typeof data === 'object') {
-      Object.entries(data).forEach(([key, value]) => {
-        if (typeof value === 'number') {
-          doc.text(`${key}: ${value.toLocaleString()}`, 20, yPos);
+    // Period and generation info
+    doc.text(`Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`, 105, 50, { align: 'center' });
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 105, 58, { align: 'center' });
+
+    let yPos = 75;
+
+    // Add metrics based on tab
+    if (tabName === 'Sales Analytics' || tabName === 'Sales') {
+      // KPIs Section
+      doc.setFillColor(248, 250, 252);
+      doc.rect(15, yPos, 180, 8, 'F');
+      doc.setTextColor(...primaryColor);
+      doc.setFont(undefined, 'bold');
+      doc.text('KEY PERFORMANCE INDICATORS', 20, yPos + 5);
+      yPos += 15;
+
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(...textColor);
+      doc.text(`Total Revenue: KWD ${salesAnalytics.totalRevenue?.toLocaleString() || 0}`, 20, yPos);
+      doc.text(`Total Orders: ${salesAnalytics.totalOrders?.toLocaleString() || 0}`, 110, yPos);
+      yPos += 8;
+      doc.text(`Average Order Value: KWD ${salesAnalytics.avgOrderValue?.toFixed(2) || 0}`, 20, yPos);
+      doc.text(`Revenue Growth: ${salesAnalytics.revenueGrowth >= 0 ? '+' : ''}${salesAnalytics.revenueGrowth?.toFixed(1) || 0}%`, 110, yPos);
+      yPos += 15;
+
+      // Top Services Section
+      if (salesAnalytics.topServices && salesAnalytics.topServices.length > 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, yPos, 180, 8, 'F');
+        doc.setTextColor(...primaryColor);
+        doc.setFont(undefined, 'bold');
+        doc.text('TOP SERVICES', 20, yPos + 5);
+        yPos += 15;
+
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(...textColor);
+        salesAnalytics.topServices.slice(0, 10).forEach((service, index) => {
+          doc.text(`${index + 1}. ${service.service}`, 20, yPos);
+          doc.text(`${service.quantity} orders`, 150, yPos);
           yPos += 6;
+        });
+        yPos += 10;
+      }
+
+      // Payment Methods Section
+      if (salesAnalytics.paymentMethodChart && salesAnalytics.paymentMethodChart.length > 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, yPos, 180, 8, 'F');
+        doc.setTextColor(...primaryColor);
+        doc.setFont(undefined, 'bold');
+        doc.text('PAYMENT METHODS', 20, yPos + 5);
+        yPos += 15;
+
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(...textColor);
+        salesAnalytics.paymentMethodChart.forEach((method, index) => {
+          const percentage = ((method.value / salesAnalytics.totalOrders) * 100).toFixed(1);
+          doc.text(`${method.name}: ${method.value} orders (${percentage}%)`, 20, yPos);
+          yPos += 6;
+        });
+      }
+    }
+
+    // Add daily performance table if available
+    if (dailyMetrics.dailyTable && dailyMetrics.dailyTable.length > 0) {
+      // Check if we need a new page
+      if (yPos > 220) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFillColor(248, 250, 252);
+      doc.rect(15, yPos, 180, 8, 'F');
+      doc.setTextColor(...primaryColor);
+      doc.setFont(undefined, 'bold');
+      doc.text('DAILY PERFORMANCE SUMMARY', 20, yPos + 5);
+      yPos += 15;
+
+      // Table header
+      doc.setFillColor(...primaryColor);
+      doc.rect(15, yPos, 180, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(9);
+      doc.text('Date', 20, yPos + 5);
+      doc.text('Orders', 60, yPos + 5);
+      doc.text('Pickups', 100, yPos + 5);
+      doc.text('Deliveries', 140, yPos + 5);
+      doc.text('Sales (KWD)', 170, yPos + 5);
+      yPos += 10;
+
+      // Table rows
+      doc.setTextColor(...textColor);
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(8);
+      
+      dailyMetrics.dailyTable.slice(0, 15).forEach((day, index) => {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
         }
+
+        if (index % 2 === 0) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(15, yPos - 2, 180, 6, 'F');
+        }
+
+        doc.text(new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 20, yPos + 2);
+        doc.text(day.orders.toString(), 60, yPos + 2);
+        doc.text(day.pickups.toString(), 100, yPos + 2);
+        doc.text(day.deliveries.toString(), 140, yPos + 2);
+        doc.text(day.sales.toFixed(2), 170, yPos + 2);
+        yPos += 6;
       });
     }
 
-    doc.save(`${tabName.toLowerCase()}${sectionName ? `-${sectionName.toLowerCase()}` : ''}-${new Date().toISOString().split('T')[0]}.pdf`);
+    // Footer
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(...secondaryColor);
+    doc.text('Generated by EASY2 Laundry Management System', 105, 285, { align: 'center' });
+
+    doc.save(`${tabName.toLowerCase().replace(' ', '-')}${sectionName ? `-${sectionName.toLowerCase()}` : ''}-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const exportToExcel = (tabName, data, sectionName = null) => {
     const wb = XLSX.utils.book_new();
     
-    if (data && Array.isArray(data)) {
-      const ws = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, sectionName || 'Data');
-    } else if (data && typeof data === 'object') {
-      const summaryData = Object.entries(data).map(([key, value]) => [key, value]);
-      const ws = XLSX.utils.aoa_to_sheet([['Metric', 'Value'], ...summaryData]);
-      XLSX.utils.book_append_sheet(wb, ws, sectionName || 'Summary');
+    // Summary sheet with proper formatting
+    if (tabName === 'Sales Analytics' || tabName === 'Sales') {
+      const summaryData = [
+        ['EASY2 Laundry - Sales Analytics Report', '', '', ''],
+        [`Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`, '', '', ''],
+        ['Generated:', new Date().toLocaleString(), '', ''],
+        ['', '', '', ''],
+        ['KEY PERFORMANCE INDICATORS', '', '', ''],
+        ['Metric', 'Value', 'Trend', 'Notes'],
+        ['Total Revenue', `KWD ${salesAnalytics.totalRevenue?.toLocaleString() || 0}`, salesAnalytics.revenueGrowth >= 0 ? '↗️' : '↘️', 'Monthly Revenue'],
+        ['Total Orders', salesAnalytics.totalOrders || 0, '', 'Order Count'],
+        ['Average Order Value', `KWD ${salesAnalytics.avgOrderValue?.toFixed(2) || 0}`, '', 'Per Order'],
+        ['Revenue Growth', `${salesAnalytics.revenueGrowth?.toFixed(1) || 0}%`, salesAnalytics.revenueGrowth >= 0 ? 'Growing' : 'Declining', 'Month over Month'],
+        ['', '', '', ''],
+      ];
+
+      // Add top services
+      if (salesAnalytics.topServices && salesAnalytics.topServices.length > 0) {
+        summaryData.push(['TOP SERVICES', '', '', '']);
+        summaryData.push(['Rank', 'Service Name', 'Orders', 'Percentage']);
+        salesAnalytics.topServices.forEach((service, index) => {
+          const percentage = ((service.quantity / salesAnalytics.totalOrders) * 100).toFixed(1);
+          summaryData.push([index + 1, service.service, service.quantity, `${percentage}%`]);
+        });
+        summaryData.push(['', '', '', '']);
+      }
+
+      // Add payment methods
+      if (salesAnalytics.paymentMethodChart && salesAnalytics.paymentMethodChart.length > 0) {
+        summaryData.push(['PAYMENT METHODS', '', '', '']);
+        summaryData.push(['Method', 'Count', 'Percentage', 'Notes']);
+        salesAnalytics.paymentMethodChart.forEach(method => {
+          const percentage = ((method.value / salesAnalytics.totalOrders) * 100).toFixed(1);
+          summaryData.push([method.name, method.value, `${percentage}%`, '']);
+        });
+      }
+
+      const summaryWS = XLSX.utils.aoa_to_sheet(summaryData);
+      
+      // Style the header
+      summaryWS['A1'] = { v: summaryData[0][0], s: { font: { bold: true, sz: 16 }, fill: { fgColor: { rgb: "2962FF" } } } };
+      
+      XLSX.utils.book_append_sheet(wb, summaryWS, 'Summary');
     }
 
-    XLSX.writeFile(wb, `${tabName.toLowerCase()}${sectionName ? `-${sectionName.toLowerCase()}` : ''}-${new Date().toISOString().split('T')[0]}.xlsx`);
+    // Daily performance sheet
+    if (dailyMetrics.dailyTable && dailyMetrics.dailyTable.length > 0) {
+      const dailyData = [
+        ['Daily Performance Report', '', '', '', ''],
+        ['Date', 'Orders', 'Pickups', 'Deliveries', 'Sales (KWD)'],
+      ];
+      
+      dailyMetrics.dailyTable.forEach(day => {
+        dailyData.push([
+          new Date(day.date).toLocaleDateString(),
+          day.orders,
+          day.pickups,
+          day.deliveries,
+          day.sales.toFixed(2)
+        ]);
+      });
+      
+      const dailyWS = XLSX.utils.aoa_to_sheet(dailyData);
+      XLSX.utils.book_append_sheet(wb, dailyWS, 'Daily Performance');
+    }
+
+    XLSX.writeFile(wb, `${tabName.toLowerCase().replace(' ', '-')}${sectionName ? `-${sectionName.toLowerCase()}` : ''}-${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // Effects
@@ -639,13 +887,13 @@ export default function AdminAnalytics() {
                   <h3 className="text-lg font-semibold text-gray-800">Key Performance Indicators</h3>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => exportToPDF('Sales', salesAnalytics, 'KPIs')}
+                      onClick={() => exportToPDF('Sales Analytics', salesAnalytics, 'KPIs')}
                       className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
                     >
                       📄
                     </button>
                     <button
-                      onClick={() => exportToExcel('Sales', salesAnalytics, 'KPIs')}
+                      onClick={() => exportToExcel('Sales Analytics', salesAnalytics, 'KPIs')}
                       className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
                     >
                       📊
@@ -704,20 +952,52 @@ export default function AdminAnalytics() {
                 </div>
               </div>
 
-              {/* Payment Methods & Top Services */}
+              {/* Daily Sales Chart - Moved up */}
+              <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800">Daily Sales Trend</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => exportToPDF('Sales Analytics', salesAnalytics.dailySales, 'Daily-Sales')}
+                      className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                    >
+                      📄
+                    </button>
+                    <button
+                      onClick={() => exportToExcel('Sales Analytics', salesAnalytics.dailySales, 'Daily-Sales')}
+                      className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                    >
+                      📊
+                    </button>
+                  </div>
+                </div>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={salesAnalytics.dailySales || []}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip formatter={(value) => [`KWD ${value}`, 'Sales']} />
+                      <Line type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Payment Methods & Top Services - Now below chart */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold text-gray-800">Payment Methods</h3>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => exportToPDF('Sales', salesAnalytics.paymentMethodChart, 'Payment-Methods')}
+                        onClick={() => exportToPDF('Sales Analytics', salesAnalytics.paymentMethodChart, 'Payment-Methods')}
                         className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
                       >
                         📄
                       </button>
                       <button
-                        onClick={() => exportToExcel('Sales', salesAnalytics.paymentMethodChart, 'Payment-Methods')}
+                        onClick={() => exportToExcel('Sales Analytics', salesAnalytics.paymentMethodChart, 'Payment-Methods')}
                         className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
                       >
                         📊
@@ -752,13 +1032,13 @@ export default function AdminAnalytics() {
                     <h3 className="text-lg font-semibold text-gray-800">Top Services</h3>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => exportToPDF('Sales', salesAnalytics.topServices, 'Top-Services')}
+                        onClick={() => exportToPDF('Sales Analytics', salesAnalytics.topServices, 'Top-Services')}
                         className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
                       >
                         📄
                       </button>
                       <button
-                        onClick={() => exportToExcel('Sales', salesAnalytics.topServices, 'Top-Services')}
+                        onClick={() => exportToExcel('Sales Analytics', salesAnalytics.topServices, 'Top-Services')}
                         className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
                       >
                         📊
@@ -779,51 +1059,92 @@ export default function AdminAnalytics() {
                 </div>
               </div>
 
-              {/* Daily Sales Chart */}
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Daily Sales Trend</h3>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => exportToPDF('Sales', salesAnalytics.dailySales, 'Daily-Sales')}
-                      className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
-                    >
-                      📄
-                    </button>
-                    <button
-                      onClick={() => exportToExcel('Sales', salesAnalytics.dailySales, 'Daily-Sales')}
-                      className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
-                    >
-                      📊
-                    </button>
+              {/* New AOV Trend & Metrics Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800">Average Order Value Trend</h3>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => exportToPDF('Sales Analytics', salesAnalytics.avgOrderValue, 'AOV-Trend')}
+                        className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                      >
+                        📄
+                      </button>
+                      <button
+                        onClick={() => exportToExcel('Sales Analytics', salesAnalytics.avgOrderValue, 'AOV-Trend')}
+                        className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                      >
+                        📊
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-4 bg-purple-50 rounded-lg">
+                        <p className="text-sm text-purple-600">Current AOV</p>
+                        <p className="text-2xl font-bold text-purple-800">KWD {salesAnalytics.avgOrderValue?.toFixed(2) || 0}</p>
+                      </div>
+                      <div className="text-center p-4 bg-indigo-50 rounded-lg">
+                        <p className="text-sm text-indigo-600">AOV Growth</p>
+                        <p className={`text-2xl font-bold ${salesAnalytics.revenueGrowth >= 0 ? 'text-green-800' : 'text-red-800'}`}>
+                          {salesAnalytics.revenueGrowth >= 0 ? '+' : ''}{salesAnalytics.revenueGrowth?.toFixed(1) || 0}%
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded">
+                      <p className="text-sm text-gray-600">
+                        Target AOV: <span className="font-medium">KWD {(salesAnalytics.avgOrderValue * 1.1)?.toFixed(2) || 0}</span>
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={salesAnalytics.dailySales || []}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => [`KWD ${value}`, 'Sales']} />
-                      <Line type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={2} />
-                    </LineChart>
-                  </ResponsiveContainer>
+
+                <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800">AOV Analytics Chart</h3>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => exportToPDF('Sales Analytics', salesAnalytics, 'AOV-Chart')}
+                        className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                      >
+                        📄
+                      </button>
+                      <button
+                        onClick={() => exportToExcel('Sales Analytics', salesAnalytics, 'AOV-Chart')}
+                        className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                      >
+                        📊
+                      </button>
+                    </div>
+                  </div>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={salesAnalytics.dailySales || []}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip formatter={(value) => [`KWD ${(value / (salesAnalytics.totalOrders || 1)).toFixed(2)}`, 'Avg Order Value']} />
+                        <Area type="monotone" dataKey="sales" stroke="#8884d8" fillOpacity={0.6} fill="#8884d8" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </div>
 
-              {/* Daily Performance Table */}
+              {/* Enhanced Daily Performance Table */}
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">Daily Performance Summary</h3>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => exportToPDF('Sales', dailyMetrics.dailyTable, 'Daily-Performance')}
+                      onClick={() => exportToPDF('Sales Analytics', dailyMetrics.dailyTable, 'Daily-Performance')}
                       className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
                     >
                       📄
                     </button>
                     <button
-                      onClick={() => exportToExcel('Sales', dailyMetrics.dailyTable, 'Daily-Performance')}
+                      onClick={() => exportToExcel('Sales Analytics', dailyMetrics.dailyTable, 'Daily-Performance')}
                       className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
                     >
                       📊
@@ -837,11 +1158,13 @@ export default function AdminAnalytics() {
                       <tr>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Orders</th>
+                        {!selectedStaff && <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Pickups</th>}
+                        {!selectedStaff && <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Deliveries</th>}
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Sales (KWD)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {(dailyMetrics.dailyTable || []).slice(0, 10).map((day, index) => (
+                      {(dailyMetrics.dailyTable || []).slice(0, 15).map((day, index) => (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-4 py-2 text-sm text-gray-900">
                             {new Date(day.date).toLocaleDateString('en-US', { 
@@ -852,6 +1175,16 @@ export default function AdminAnalytics() {
                           <td className="px-4 py-2 text-sm font-semibold text-blue-600">
                             {day.orders}
                           </td>
+                          {!selectedStaff && (
+                            <td className="px-4 py-2 text-sm font-semibold text-purple-600">
+                              {day.pickups}
+                            </td>
+                          )}
+                          {!selectedStaff && (
+                            <td className="px-4 py-2 text-sm font-semibold text-orange-600">
+                              {day.deliveries}
+                            </td>
+                          )}
                           <td className="px-4 py-2 text-sm font-semibold text-green-600">
                             {day.sales.toFixed(2)}
                           </td>
@@ -1014,33 +1347,66 @@ export default function AdminAnalytics() {
                   <h3 className="text-lg font-semibold text-gray-800">Branch Performance</h3>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => exportToPDF('Branches', branchAnalytics.branchPerformance, 'Branch-Performance')}
+                      onClick={() => exportToPDF('Branch Analytics', branchAnalytics.branchPerformance, 'Branch-Performance')}
                       className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
                     >
                       📄
                     </button>
                     <button
-                      onClick={() => exportToExcel('Branches', branchAnalytics.branchPerformance, 'Branch-Performance')}
+                      onClick={() => exportToExcel('Branch Analytics', branchAnalytics.branchPerformance, 'Branch-Performance')}
                       className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
                     >
                       📊
                     </button>
                   </div>
                 </div>
+
+                {/* Branch Performance Chart */}
+                <div className="mb-6">
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={branchAnalytics.branchChart || []}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis yAxisId="left" />
+                        <YAxis yAxisId="right" orientation="right" />
+                        <Tooltip />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="orders" fill="#3b82f6" name="Orders" />
+                        <Bar yAxisId="right" dataKey="revenue" fill="#10b981" name="Revenue (KWD)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                
                 <div className="space-y-4">
                   {(branchAnalytics.branchPerformance || []).map((branch, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Building2 className="w-6 h-6 text-blue-500" />
-                        <div>
-                          <h4 className="font-medium text-gray-900">{branch.name}</h4>
-                          <p className="text-sm text-gray-600">{branch.orders} orders</p>
+                    <div key={index} className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <Building2 className="w-6 h-6 text-blue-500" />
+                          <div>
+                            <h4 className="font-medium text-gray-900">{branch.name}</h4>
+                            <p className="text-sm text-gray-600">{branch.orders} orders • KWD {branch.revenue.toFixed(2)} revenue</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-green-600">KWD {branch.revenue.toFixed(2)}</p>
-                        <p className="text-sm text-gray-600">Revenue</p>
-                      </div>
+                      
+                      {/* Staff Performance in Branch */}
+                      {Object.keys(branch.staff || {}).length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">Staff Performance:</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {Object.values(branch.staff).map((staff, staffIndex) => (
+                              <div key={staffIndex} className="bg-white p-2 rounded border">
+                                <p className="text-xs font-medium">{staff.name}</p>
+                                <p className="text-xs text-gray-500">{staff.role}</p>
+                                <p className="text-xs text-blue-600">{staff.orders} orders • KWD {staff.revenue.toFixed(2)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1060,13 +1426,13 @@ export default function AdminAnalytics() {
                   <h3 className="text-lg font-semibold text-gray-800">Customer Analytics</h3>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => exportToPDF('Customers', customerAnalytics, 'Customer-Analytics')}
+                      onClick={() => exportToPDF('Customer Analytics', customerAnalytics, 'Customer-Analytics')}
                       className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
                     >
                       📄
                     </button>
                     <button
-                      onClick={() => exportToExcel('Customers', customerAnalytics, 'Customer-Analytics')}
+                      onClick={() => exportToExcel('Customer Analytics', customerAnalytics, 'Customer-Analytics')}
                       className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
                     >
                       📊
@@ -1074,7 +1440,7 @@ export default function AdminAnalytics() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                   <div className="bg-blue-50 p-6 rounded-lg text-center">
                     <Users className="w-8 h-8 text-blue-500 mx-auto mb-2" />
                     <p className="text-sm text-blue-600">Total Customers</p>
@@ -1099,6 +1465,32 @@ export default function AdminAnalytics() {
                     </p>
                   </div>
                 </div>
+
+                {/* Customer Segmentation Chart */}
+                <div className="bg-white p-4 rounded-lg border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Customer Segmentation</h3>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={customerAnalytics.customerSegmentation || []}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={120}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {(customerAnalytics.customerSegmentation || []).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
@@ -1115,13 +1507,13 @@ export default function AdminAnalytics() {
                   <h3 className="text-lg font-semibold text-gray-800">Loss Analysis</h3>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => exportToPDF('Losses', lostAnalytics, 'Loss-Analysis')}
+                      onClick={() => exportToPDF('Loss Analytics', lostAnalytics, 'Loss-Analysis')}
                       className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
                     >
                       📄
                     </button>
                     <button
-                      onClick={() => exportToExcel('Losses', lostAnalytics, 'Loss-Analysis')}
+                      onClick={() => exportToExcel('Loss Analytics', lostAnalytics, 'Loss-Analysis')}
                       className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
                     >
                       📊
@@ -1129,7 +1521,7 @@ export default function AdminAnalytics() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                   <div className="bg-red-50 p-6 rounded-lg text-center">
                     <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
                     <p className="text-sm text-red-600">Cancelled Orders</p>
@@ -1154,6 +1546,34 @@ export default function AdminAnalytics() {
                     </p>
                   </div>
                 </div>
+
+                {/* Loss Reasons Chart */}
+                {lostAnalytics.lossChart && lostAnalytics.lossChart.length > 0 && (
+                  <div className="bg-white p-4 rounded-lg border border-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Cancellation Reasons</h3>
+                    <div className="h-80">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={lostAnalytics.lossChart}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            outerRadius={120}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            {lostAnalytics.lossChart.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
