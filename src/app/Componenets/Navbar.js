@@ -189,6 +189,15 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
               </div>
             </Link>
 
+            {/* Language toggle button - now visible in mobile view, just before search icon */}
+            <button
+              onClick={() => changeLanguage(language === "ar" ? "en" : "ar")}
+              className="ml-2 px-2 py-1 rounded bg-blue-100 text-blue-700"
+              aria-label="Toggle language"
+            >
+              {language === "ar" ? "EN" : "ع"}
+            </button>
+
             {/* Search icon - right aligned and stick to right edge */}
             <div className="flex-shrink-0">
               <button
