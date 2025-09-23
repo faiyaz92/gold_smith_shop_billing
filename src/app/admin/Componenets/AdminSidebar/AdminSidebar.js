@@ -186,7 +186,7 @@ export default function AdminSidebar({ toggleSidebar }) {
         {userRole && (
           <div
             className={`flex items-center gap-2 text-xs ${roleStyle.color} px-2 py-1 rounded border ${roleStyle.borderColor}`}
-            style={{ marginTop: '22px' }} // Increased margin to 8px for better separation
+            style={{ marginTop: '22px' }}
           >
             {getRoleIcon(userRole)}
             <span>{formatRoleLabel(userRole)}</span>
@@ -194,12 +194,16 @@ export default function AdminSidebar({ toggleSidebar }) {
         )}
       </div>
 
-      <nav className="flex flex-col gap-1">
+      {/* Make nav scrollable, no other changes */}
+      <nav
+        className="flex flex-col gap-1 overflow-y-auto flex-1 pr-1"
+        style={{ maxHeight: 'calc(100vh - 220px)' }}
+      >
         {filteredMenu.map((item) => (
           <Link
             key={item.id}
             href={item.href}
-            onClick={() => toggleSidebar()} // Close sidebar after navigation
+            onClick={() => toggleSidebar()}
             className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
               pathname.startsWith(item.href)
                 ? `bg-blue-600 text-white`
@@ -210,7 +214,7 @@ export default function AdminSidebar({ toggleSidebar }) {
             <span>{item.label}</span>
           </Link>
         ))}
-        
+
         {/* Open Laundry - Available to all roles */}
         <Link
           href="/"
