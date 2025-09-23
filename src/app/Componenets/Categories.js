@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import { db } from '@/app/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
+import { useTranslation } from '@/app/utils/useTranslation';
 
 function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCategory, activeSubcategory }) {
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
@@ -20,6 +21,8 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [showAllSubcats, setShowAllSubcats] = useState({});
   const sidebarRef = useRef();
+
+  const { t } = useTranslation();
 
   const defaultIcons = {
     "Shirts": <Shirt className="w-5 h-5 stroke-[1.5] text-blue-600" />,
@@ -116,7 +119,7 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
   if (loading) {
     return (
       <section className={isMobile ? "lg:hidden w-full px-4 py-2" : "hidden lg:block basis-[20%] max-w-xs"}>
-        <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">Categories</h2>
+        <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">{t('categories')}</h2>
         <div className="flex space-x-3 pb-2 overflow-x-auto scrollbar-hide">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="flex-shrink-0 w-28 h-24 bg-gray-100 rounded-lg animate-pulse"></div>
@@ -131,7 +134,7 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
       ref={sidebarRef}
       className={isMobile ? "lg:hidden w-full px-4 py-2" : "hidden lg:block basis-[20%] max-w-xs"}
     >
-      <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">Services</h2>
+      <h2 className="text-lg font-semibold tracking-tight mb-4 text-gray-800">{t('services')}</h2>
       <div className="flex flex-col gap-3">
         {categoriesWithCount.map((category, index) => {
           const subcats = subcategories.filter(sub => sub.categoryId === category.id);
@@ -165,7 +168,7 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
                     className="ml-2 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-blue-200 transition"
                     onClick={e => handleChevronClick(e, category.id)}
                     tabIndex={-1}
-                    aria-label={isExpanded ? "Collapse" : "Expand"}
+                    aria-label={isExpanded ? t('collapse') : t('expand')}
                   >
                     {isExpanded ? (
                       <ChevronUp className="w-5 h-5 text-blue-600" />
@@ -201,7 +204,7 @@ function Categories({ isMobile, onCategoryClick, onSubcategoryClick, activeCateg
                       }}
                       className="px-3 py-1 rounded-full text-xs border bg-gray-200 border-gray-300 text-gray-700"
                     >
-                      Show more
+                      {t('showMore')}
                     </button>
                   )}
                 </div>

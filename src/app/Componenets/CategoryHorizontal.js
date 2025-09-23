@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/app/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
+import { useTranslation } from '@/app/utils/useTranslation';
 
 export default function CategoriesHorizontal({
   activeCategory,
@@ -17,6 +18,7 @@ export default function CategoriesHorizontal({
   // Local state for fetched data
   const [categoriesState, setCategoriesState] = useState([]);
   const [subcategoriesState, setSubcategoriesState] = useState([]);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const unsubCategories = onSnapshot(collection(db, categoryPath), (snapshot) => {
@@ -85,7 +87,9 @@ export default function CategoriesHorizontal({
               ) : (
                 <div className="w-10 h-10 mb-1 rounded-full bg-blue-50" />
               )}
-              <span className="text-xs text-center truncate w-full">{cat.categoriesname}</span>
+              <span className="text-xs text-center truncate w-full">
+                {t(cat.categoriesname) || cat.categoriesname}
+              </span>
             </button>
           ))}
         </div>
@@ -108,7 +112,7 @@ export default function CategoriesHorizontal({
                     : 'bg-gray-100 border-gray-200 text-gray-700'
                   }`}
               >
-                {sub.name}
+                {t(sub.name) || sub.name}
               </button>
             ))}
           </div>

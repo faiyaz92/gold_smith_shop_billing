@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { auth } from '@/app/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { AboutUsModal, ContactUsModal } from '@/app/Componenets/AboutContactModals';
+import { useTranslation } from '@/app/utils/useTranslation'; // <-- import here
 
 export default function Home() {
   const [cart, setCart] = useState([]);
@@ -31,6 +32,8 @@ export default function Home() {
   const [contactLoading, setContactLoading] = useState(false);
   const [contactError, setContactError] = useState('');
   const [contactSuccess, setContactSuccess] = useState('');
+
+  const { t } = useTranslation(); // <-- use translation hook
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -105,7 +108,7 @@ export default function Home() {
   return (
     <div className="bg-gray-50 text-gray-900 leading-relaxed min-h-screen">
       <Head>
-        <title>Easy2 Laundry – Clean Clothes, Easy Life</title>
+        <title>{t('pageTitle')}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -175,6 +178,8 @@ export default function Home() {
         <Cart
           cart={cart}
           isMobile={true}
+          addToCart={addToCart}
+          removeFromCart={removeFromCart}
           onClose={() => setMobileCartOpen(false)}
         />
       )}
@@ -191,7 +196,7 @@ export default function Home() {
             <button
               className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
               onClick={() => setMobileCategoryOpen(false)}
-              aria-label="Close menu"
+              aria-label={t('closeMenu')}
             >
               ✕
             </button>
@@ -209,7 +214,7 @@ export default function Home() {
                 <span className="text-lg">
                   {isLoggedIn ? "👤" : "🔑"}
                 </span>
-                {isLoggedIn ? "My Profile" : "Login"}
+                {isLoggedIn ? t('myProfile') : t('login')}
               </Link>
               {/* About Us */}
               <button
@@ -220,7 +225,7 @@ export default function Home() {
                 }}
               >
                 <span className="text-lg">ℹ️</span>
-                About Us
+                {t('aboutUs')}
               </button>
               {/* Contact Us */}
               <button
@@ -231,7 +236,7 @@ export default function Home() {
                 }}
               >
                 <span className="text-lg">📞</span>
-                Contact Us
+                {t('contactUs')}
               </button>
               {/* Logout (only if logged in) */}
               {isLoggedIn && (
@@ -248,7 +253,7 @@ export default function Home() {
                   }}
                 >
                   <span className="text-lg">🚪</span>
-                  Log Out
+                  {t('logout')}
                 </button>
               )}
             </div>
@@ -272,3 +277,16 @@ export default function Home() {
     </div>
   );
 }
+
+// Absolutely, your rules are clear:
+
+// No duplicate keys in locale files.
+// If a label already exists (same label, same meaning), use the existing key.
+// If a label does not exist, add it with a unique key (do not reuse a key for a different label).
+// If a key exists but with a different label, use a new unique key for the new label.
+// Below is a cleaned-up example for your en.json and ar.json locale files, following your rules.
+// No duplicate keys, and all keys are unique and meaningful.
+//this localization change only affect lable localization can not 
+// affect logic if enum or array are there in english then also
+//  logic should not change logic depends on only english key word got it like 
+// enum or array only lable will change on UI

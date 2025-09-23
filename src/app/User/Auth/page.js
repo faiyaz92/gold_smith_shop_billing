@@ -11,6 +11,7 @@ import {
 import { doc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/app/Componenets/Navbar';
+import { useTranslation } from '@/app/utils/useTranslation'; // <-- import
 
 export default function UserLogin() {
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
@@ -25,6 +26,8 @@ export default function UserLogin() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  const { t } = useTranslation(); // <-- use translation
+
   // Google Auth Provider
   const googleProvider = new GoogleAuthProvider();
 
@@ -32,12 +35,9 @@ export default function UserLogin() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // User is already logged in, redirect to homepage
         router.push('/');
       }
     });
-
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, [router]);
 
@@ -46,7 +46,7 @@ export default function UserLogin() {
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
         callback: (response) => {
-          console.log('reCAPTCHA solved');
+          // reCAPTCHA solved
         },
         'expired-callback': () => {
           window.recaptchaVerifier.clear();
@@ -59,7 +59,7 @@ export default function UserLogin() {
     const sanitizedPhone = phone.replace(/\D/g, '');
 
     if (sanitizedPhone.length !== 10) {
-      alert('Enter a valid 10-digit phone number');
+      alert(t('enterValidPhone'));
       return;
     }
 
@@ -72,8 +72,7 @@ export default function UserLogin() {
       setConfirmResult(result);
       setStep(2);
     } catch (error) {
-      console.error('OTP send error:', error);
-      alert('Failed to send OTP. Make sure billing is enabled in Firebase.');
+      alert(t('otpSendFailed'));
       window.recaptchaVerifier.clear();
     } finally {
       setLoading(false);
@@ -95,11 +94,10 @@ export default function UserLogin() {
         createdAt: new Date(),
       });
 
-      alert('✅ Login successful!');
+      alert(t('loginSuccess'));
       router.push('/');
     } catch (err) {
-      console.error('OTP verification failed:', err);
-      alert('❌ Invalid OTP. Please try again.');
+      alert(t('invalidOtp'));
     } finally {
       setLoading(false);
     }
@@ -112,7 +110,6 @@ export default function UserLogin() {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
-      // Save user data to Firestore
       await setDoc(doc(db, userPath(user.uid)), {
         uid: user.uid,
         email: user.email,
@@ -122,11 +119,10 @@ export default function UserLogin() {
         createdAt: new Date(),
       });
 
-      alert('✅ Google login successful!');
+      alert(t('googleLoginSuccess'));
       router.push('/');
     } catch (error) {
-      console.error('Google sign in error:', error);
-      alert('❌ Google login failed. Please try again.');
+      alert(t('googleLoginFailed'));
     } finally {
       setLoading(false);
     }
@@ -137,7 +133,7 @@ export default function UserLogin() {
       <Navbar />
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="w-full max-w-md p-6 rounded-lg bg-white border border-blue-600/20">
-          <h1 className="text-2xl font-normal mb-6 text-center text-blue-600">USER LOGIN</h1>
+          <h1 className="text-2xl font-normal mb-6 text-center text-blue-600">{t('userLogin')}</h1>
 
           <div id="recaptcha-container" />
 
@@ -145,7 +141,7 @@ export default function UserLogin() {
             <div className="space-y-4">
               <input
                 type="tel"
-                placeholder="Phone Number (10 digits)"
+                placeholder={t('phonePlaceholder')}
                 className="w-full px-4 py-2 bg-white border border-blue-600/30 rounded-md text-blue-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/50 transition-all duration-300"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -157,12 +153,12 @@ export default function UserLogin() {
                 disabled={loading}
                 className={`w-full py-2 px-4 rounded-md font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all duration-300 group ${loading ? 'opacity-70' : ''}`}
               >
-                {loading ? 'Sending OTP...' : 'VERIFY OTP'}
+                {loading ? t('sendingOtp') : t('verifyOtp')}
               </button>
 
               <div className="flex items-center my-4">
                 <div className="flex-grow border-t border-gray-300"></div>
-                <span className="mx-4 text-gray-500">OR</span>
+                <span className="mx-4 text-gray-500">{t('or')}</span>
                 <div className="flex-grow border-t border-gray-300"></div>
               </div>
 
@@ -174,7 +170,7 @@ export default function UserLogin() {
                 <svg className="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
                   <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"/>
                 </svg>
-                {loading ? 'Signing in...' : 'Continue with Google'}
+                {loading ? t('signingIn') : t('continueWithGoogle')}
               </button>
             </div>
           )}
@@ -183,7 +179,7 @@ export default function UserLogin() {
             <div className="space-y-4">
               <input
                 type="text"
-                placeholder="Enter OTP"
+                placeholder={t('enterOtp')}
                 className="w-full px-4 py-2 bg-white border border-blue-600/30 rounded-md text-blue-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/50 transition-all duration-300"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
@@ -195,7 +191,7 @@ export default function UserLogin() {
                 disabled={loading}
                 className={`w-full py-2 px-4 rounded-md font-medium text-white bg-blue-600 hover:bg-blue-500 transition-all duration-300 group ${loading ? 'opacity-70' : ''}`}
               >
-                {loading ? 'Verifying...' : 'SUBMIT'}
+                {loading ? t('verifying') : t('submit')}
               </button>
             </div>
           )}

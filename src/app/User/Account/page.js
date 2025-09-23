@@ -1,6 +1,6 @@
 'use client';
 
-import { AboutUsModal, ContactUsModal } from '@/app/Componenets/AboutContactModals'; // <-- Add this import
+import { AboutUsModal, ContactUsModal } from '@/app/Componenets/AboutContactModals';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -9,6 +9,8 @@ import { doc, collection, query, where, updateDoc, onSnapshot } from 'firebase/f
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import Navbar from '@/app/Componenets/Navbar';
 import MobileNav from '@/app/Componenets/MobileNav';
+import { useTranslation } from '@/app/utils/useTranslation';
+
 const statusColors = {
   Pending: 'bg-orange-100 text-orange-800',
   Confirmed: 'bg-yellow-100 text-yellow-800',
@@ -29,16 +31,14 @@ const statusColors = {
   'Refunded/Returned': 'bg-red-200 text-red-800',
   'On Hold': 'bg-gray-100 text-gray-800',
 };
+
 const Page = () => {
+  const { t } = useTranslation();
   const router = useRouter();
 
-  // Add these lines to match Home page logic
   const [cart, setCart] = useState([]);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
-  const onSearch = useCallback((query) => {
-    // Implement search logic if needed, or leave empty
-  }, []);
-
+  const onSearch = useCallback((query) => {}, []);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
@@ -55,13 +55,10 @@ const Page = () => {
   });
   const [error, setError] = useState(null);
   const [expandedTrails, setExpandedTrails] = useState({});
-
-  // Add these for mobile drawer and modals
   const [mobileCategoryOpen, setMobileCategoryOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showContact, setShowContact] = useState(false);
 
-  // For ContactUsModal refs and state
   const contactName = useRef();
   const contactEmail = useRef();
   const contactMessage = useRef();
@@ -74,7 +71,6 @@ const Page = () => {
   const tenantUsersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/users`;
   const tenantOrdersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/orders`;
 
-  // Define status progression for progress trail
   const statusProgression = [
     'Pending',
     'Confirmed',
@@ -95,30 +91,23 @@ const Page = () => {
 
   useEffect(() => {
     if (!auth || !db) {
-      console.error('Firebase not initialized: auth or db is null');
-      setError('Firebase not initialized. Check your configuration.');
+      setError(t('error'));
       setLoading(false);
       return;
     }
-
-    console.log('Setting up auth listener...');
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
-        console.log('No user logged in, redirecting to /User/Auth');
         router.push('/User/Auth');
         return;
       }
-
       try {
-        console.log(`Fetching user data for UID: ${currentUser.uid}`);
         const userRef = doc(db, `${tenantUsersPath}/${currentUser.uid}`);
         const unsubscribeUser = onSnapshot(userRef, (userDoc) => {
           if (userDoc.exists()) {
-            console.log('User data snapshot received:', userDoc.data());
             const userData = userDoc.data();
             const formattedUser = {
               uid: userDoc.id,
-              name: userData.name || currentUser.displayName || 'User',
+              name: userData.name || currentUser.displayName || t('name'),
               email: userData.email || currentUser.email || '',
               phone: userData.phone || currentUser.phoneNumber || '',
               city: userData.city || '',
@@ -135,30 +124,24 @@ const Page = () => {
               zip: formattedUser.zip,
               address: formattedUser.address
             });
-            console.log('User state updated:', formattedUser);
           } else {
-            console.warn('User document does not exist for UID:', currentUser.uid);
-            setError('User data not found in Firestore');
+            setError(t('error'));
           }
         }, (err) => {
-          console.error('User snapshot error:', err);
-          setError(`Error fetching user data: ${err.message}`);
+          setError(t('error'));
         });
 
-        console.log(`Fetching orders for user UID: ${currentUser.uid}`);
         const ordersRef = collection(db, tenantOrdersPath);
         const q = query(ordersRef, where('userId', '==', currentUser.uid));
         const unsubscribeOrders = onSnapshot(q, (querySnapshot) => {
-          console.log('Orders snapshot received, doc count:', querySnapshot.size);
           const userOrders = querySnapshot.docs.map((doc) => {
             const data = doc.data();
             const items = (data.items || []).map(item => ({
               ...item,
               price: Number(item.price || 0),
               quantity: Number(item.quantity || 1),
-              categoryName: item.categoryName || item.category || 'Uncategorized',
+              categoryName: item.categoryName || item.category || t('other'),
             }));
-
             return {
               id: doc.id,
               ...data,
@@ -173,79 +156,55 @@ const Page = () => {
               email: data.email || '',
               paymentStatus: data.paymentStatus || 'Paid',
               paymentId: data.paymentId || '',
-              laundryStatus: data.laundryStatus || {
-                pickupManVerified: false,
-                customerPickupVerified: false,
-                receivedAtFacility: false,
-                sortingDone: false,
-                washingDone: false,
-                dryingDone: false,
-                ironingDone: false,
-                foldingDone: false,
-                qualityCheckDone: false,
-                deliveryManDone: false,
-                customerDeliveryConfirmed: false,
-              },
+              laundryStatus: data.laundryStatus || {},
             };
           });
-
           userOrders.sort((a, b) => b.date - a.date);
           const sortedOrders = userOrders.map((order, index, array) => ({
             ...order,
             srNo: array.length - index
           }));
           setOrders(sortedOrders);
-          console.log('Orders state updated:', sortedOrders);
           setLoading(false);
         }, (err) => {
-          console.error('Orders snapshot error:', err);
-          setError(`Error fetching orders: ${err.message}`);
+          setError(t('error'));
           setLoading(false);
         });
 
         return () => {
-          console.log('Cleaning up listeners for user and orders');
           unsubscribeUser();
           unsubscribeOrders();
         };
       } catch (err) {
-        console.error('Auth setup error:', err);
-        setError(`Authentication error: ${err.message}`);
+        setError(t('error'));
         setLoading(false);
       }
     }, (err) => {
-      console.error('Auth state error:', err);
-      setError(`Auth state error: ${err.message}`);
+      setError(t('error'));
       setLoading(false);
     });
 
     return () => {
-      console.log('Cleaning up auth listener');
       unsubscribeAuth();
     };
-  }, [router]); // Only depend on router to prevent re-running unnecessarily
+  }, [router, t]);
 
   const handleLogout = async () => {
     try {
-      console.log('Attempting to sign out...');
       await signOut(auth);
-      console.log('Sign out successful, redirecting to /');
       router.push('/');
     } catch (error) {
-      console.error('Sign out error:', error);
-      setError(`Error signing out: ${error.message}`);
+      setError(t('error'));
     }
   };
 
   const handleEditClick = useCallback((mode) => {
-    console.log('Opening edit modal for mode:', mode);
     setEditMode(mode);
     setShowEditModal(true);
   }, []);
 
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
-    console.log(`Input changed: ${name} = ${value}`);
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -255,16 +214,12 @@ const Page = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) {
-      console.warn('No user data available for submit');
-      setError('No user data available');
+      setError(t('error'));
       return;
     }
-
     try {
-      console.log('Submitting updates for user:', user.uid);
       const userRef = doc(db, `${tenantUsersPath}/${user.uid}`);
       const updates = {};
-
       if (editMode === 'info') {
         updates.name = formData.name;
         updates.email = formData.email;
@@ -275,21 +230,15 @@ const Page = () => {
         updates.address = formData.address;
         updates.phone = formData.phone;
       }
-
-      console.log('Firestore updates:', updates);
       await updateDoc(userRef, updates);
-
       setUser(prev => ({
         ...prev,
         ...updates
       }));
-      console.log('User state updated after submit:', { ...user, ...updates });
-
       setShowEditModal(false);
       setError(null);
     } catch (error) {
-      console.error('Update error:', error);
-      setError(`Error updating user data: ${error.message}`);
+      setError(t('error'));
     }
   };
 
@@ -300,8 +249,8 @@ const Page = () => {
           month: 'short',
           day: 'numeric'
         })
-      : 'Invalid Date';
-  }, []);
+      : t('error');
+  }, [t]);
 
   const formatDateTime = useCallback((date) => {
     return date instanceof Date
@@ -312,8 +261,8 @@ const Page = () => {
           hour: '2-digit',
           minute: '2-digit'
         })
-      : 'Invalid Date';
-  }, []);
+      : t('error');
+  }, [t]);
 
   const toggleTrail = (orderId) => {
     setExpandedTrails(prev => ({
@@ -322,7 +271,6 @@ const Page = () => {
     }));
   };
 
-  // Helper to get status color (case-insensitive)
   const getStatusColor = (status) => {
     if (!status) return 'bg-gray-100 text-gray-800';
     const normalized = status.trim().toLowerCase();
@@ -332,8 +280,6 @@ const Page = () => {
     return foundKey ? statusColors[foundKey] : 'bg-gray-100 text-gray-800';
   };
 
-  // Trail rendering logic: show up to 5 steps, if more than 5, show 1-3, ..., prev, current
-  // In expanded mode, show ALL steps (completed, current, and upcoming)
   const renderProgressTrail = (order, collapsed = true) => {
     const status = order.status;
     const currentIndex = statusProgression.indexOf(status);
@@ -342,7 +288,6 @@ const Page = () => {
       if (currentIndex < 5) {
         steps = statusProgression.slice(0, Math.max(currentIndex + 1, 5));
       } else {
-        // Show 1-3, ..., prev, current
         steps = [
           ...statusProgression.slice(0, 3),
           '...',
@@ -351,10 +296,8 @@ const Page = () => {
         ];
       }
     } else {
-      // Show ALL steps in expanded mode
       steps = statusProgression;
     }
-
     return (
       <div className="flex flex-wrap gap-1 sm:gap-2 mt-4 justify-start">
         {steps.map((step, index) => {
@@ -398,7 +341,7 @@ const Page = () => {
             }
             type="button"
           >
-            + More
+            + {t('showMore')}
           </button>
         )}
         {!collapsed && (
@@ -408,7 +351,7 @@ const Page = () => {
             }
             type="button"
           >
-            Less
+            {t('showLess')}
           </button>
         )}
       </div>
@@ -419,12 +362,12 @@ const Page = () => {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-16 bg-white">
         <div className="text-red-600 text-center">
-          <p>Error: {error}</p>
+          <p>{t('error')}</p>
           <button
             onClick={() => router.push('/')}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500"
           >
-            Go to Home
+            {t('startShopping')}
           </button>
         </div>
       </div>
@@ -461,26 +404,26 @@ const Page = () => {
                 )}
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-blue-600">{user.name || 'User'}</h2>
-                <p className="text-gray-600">{user.email || 'No email'}</p>
+                <h2 className="text-xl font-semibold text-blue-600">{user.name || t('name')}</h2>
+                <p className="text-gray-600">{user.email || t('notProvided')}</p>
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="border-b border-gray-200 pb-4">
-                <h3 className="font-medium text-blue-600 mb-2">Personal Information</h3>
+                <h3 className="font-medium text-blue-600 mb-2">{t('personalInformation')}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-gray-500">Name</p>
-                    <p className="text-gray-800">{user.name || 'Not provided'}</p>
+                    <p className="text-gray-500">{t('name')}</p>
+                    <p className="text-gray-800">{user.name || t('notProvided')}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Email</p>
-                    <p className="text-gray-800">{user.email || 'Not provided'}</p>
+                    <p className="text-gray-500">{t('email')}</p>
+                    <p className="text-gray-800">{user.email || t('notProvided')}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Phone</p>
-                    <p className="text-gray-800">{user.phone || 'Not provided'}</p>
+                    <p className="text-gray-500">{t('phone')}</p>
+                    <p className="text-gray-800">{user.phone || t('notProvided')}</p>
                   </div>
                 </div>
                 <button
@@ -490,33 +433,33 @@ const Page = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                   </svg>
-                  Edit Information
+                  {t('editInformation')}
                 </button>
               </div>
 
               <div className="border-b border-gray-200 pb-4">
-                <h3 className="font-medium text-blue-600 mb-2">Default Shipping Address</h3>
+                <h3 className="font-medium text-blue-600 mb-2">{t('defaultShippingAddress')}</h3>
                 {user.address ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p className="text-gray-500">Address</p>
+                      <p className="text-gray-500">{t('address')}</p>
                       <p className="text-gray-800">{user.address}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">City</p>
+                      <p className="text-gray-500">{t('city')}</p>
                       <p className="text-gray-800">{user.city}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">ZIP Code</p>
+                      <p className="text-gray-500">{t('zipCode')}</p>
                       <p className="text-gray-800">{user.zip}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">Phone</p>
-                      <p className="text-gray-800">{user.phone || 'Not provided'}</p>
+                      <p className="text-gray-500">{t('phone')}</p>
+                      <p className="text-gray-800">{user.phone || t('notProvided')}</p>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-gray-500">No shipping address saved</p>
+                  <p className="text-gray-500">{t('noShippingAddress')}</p>
                 )}
                 <button
                   onClick={() => handleEditClick('address')}
@@ -525,7 +468,7 @@ const Page = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                   </svg>
-                  {user.address ? 'Edit Address' : 'Add Address'}
+                  {user.address ? t('editAddress') : t('addAddress')}
                 </button>
               </div>
             </div>
@@ -535,16 +478,16 @@ const Page = () => {
       case 'orders':
         return (
           <div className="p-4 sm:p-6 bg-white">
-            <h2 className="text-xl font-bold mb-6 text-blue-600">All Orders</h2>
+            <h2 className="text-xl font-bold mb-6 text-blue-600">{t('allOrders')}</h2>
             {orders.length === 0 ? (
               <div className="bg-white border border-blue-200 rounded-lg p-8 text-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">No orders yet</h3>
-                <p className="mt-1 text-gray-500">You haven&apos;t placed any orders yet.</p>
+                <h3 className="mt-4 text-lg font-medium text-gray-900">{t('noOrdersYet')}</h3>
+                <p className="mt-1 text-gray-500">{t('noOrdersDesc')}</p>
                 <Link href="/Shop" className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  Start Shopping
+                  {t('startShopping')}
                 </Link>
               </div>
             ) : (
@@ -556,9 +499,9 @@ const Page = () => {
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
                     <div>
                       <h4 className="font-medium text-blue-600">
-                        Order #{order.srNo}
+                        {t('order')} #{order.srNo}
                       </h4>
-                      <p className="text-sm text-gray-600">Placed on {formatDateTime(order.date)}</p>
+                      <p className="text-sm text-gray-600">{t('placedOn')} {formatDateTime(order.date)}</p>
                     </div>
                     <div className="mt-2 sm:mt-0 flex flex-col items-end">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
@@ -566,32 +509,25 @@ const Page = () => {
                       </span>
                     </div>
                   </div>
-
-                  {/* Service Type */}
                   <div className="mb-3 flex items-center gap-2">
                     <span className="text-lg">
                       {order.serviceType === 'pickup' ? '🏪' : '🚚'}
                     </span>
                     <div>
                       <span className="font-medium text-blue-700">
-                        {order.serviceType === 'pickup' ? 'Pickup' : 'Delivery'}
+                        {order.serviceType === 'pickup' ? t('Pickup') : t('Delivery')}
                       </span>
                       {order.deliveryPref === 'express' && (
-                        <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">Express</span>
+                        <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">{t('Express (+KWD5)')}</span>
                       )}
                     </div>
                   </div>
-
-                  {/* Progress trail */}
                   {renderProgressTrail(order, !expandedTrails[order.id])}
-
                   <div className="mb-4">
                     <p className="text-sm text-gray-600">
-                      <span className="font-medium text-blue-600">Estimated Delivery:</span> {formatDate(order.estimatedDelivery)}
+                      <span className="font-medium text-blue-600">{t('estimatedDelivery')}:</span> {formatDate(order.estimatedDelivery)}
                     </p>
                   </div>
-
-                  {/* Items section */}
                   <div className="space-y-4 mb-4">
                     {Object.entries(groupItemsByCategory(order.items)).map(([catName, items]) => {
                       const catImage = items[0]?.categoryImage || null;
@@ -643,15 +579,15 @@ const Page = () => {
                                 <div className="flex-grow">
                                   <h5 className="font-medium text-blue-600">{item.name}</h5>
                                   <p className="text-sm text-gray-600">
-                                    Quantity: {item.quantity}
+                                    {t('qty')}: {item.quantity}
                                   </p>
                                   <p className="text-sm text-gray-600">
-                                    Price: KWD {item.price.toFixed(2)}
+                                    {t('price')}: {t('currency')} {item.price.toFixed(2)}
                                   </p>
                                 </div>
                                 <div className="text-right">
                                   <p className="font-medium text-blue-600">
-                                    KWD {(item.price * item.quantity).toFixed(2)}
+                                    {t('currency')} {(item.price * item.quantity).toFixed(2)}
                                   </p>
                                 </div>
                               </div>
@@ -661,19 +597,17 @@ const Page = () => {
                       );
                     })}
                   </div>
-
-                  {/* Price Breakdown Section - MOVED AFTER ITEMS */}
                   <div className="bg-white rounded-lg shadow p-4 border border-gray-100 mb-4">
-                    <h4 className="font-semibold mb-3 text-blue-700">Pricing Breakdown</h4>
+                    <h4 className="font-semibold mb-3 text-blue-700">{t('pricingBreakdown')}</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span>Subtotal:</span>
-                        <span>KWD {(order.subtotal || 0).toFixed(2)}</span>
+                        <span>{t('subtotal')}:</span>
+                        <span>{t('currency')} {(order.subtotal || 0).toFixed(2)}</span>
                       </div>
                       {order.expressDeliveryFee > 0 && (
                         <div className="flex justify-between">
-                          <span>Express Delivery Fee:</span>
-                          <span>KWD {order.expressDeliveryFee.toFixed(2)}</span>
+                          <span>{t('expressDeliveryFee')}:</span>
+                          <span>{t('currency')} {order.expressDeliveryFee.toFixed(2)}</span>
                         </div>
                       )}
                       {order.appliedCoupon && (
@@ -683,7 +617,7 @@ const Page = () => {
                               <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                               </svg>
-                              <span className="font-medium text-green-800">Applied Coupon:</span>
+                              <span className="font-medium text-green-800">{t('appliedCoupon')}:</span>
                             </div>
                             <span className="text-green-600 font-medium">{order.appliedCoupon.code}</span>
                           </div>
@@ -691,31 +625,30 @@ const Page = () => {
                             {order.appliedCoupon.name} ({order.appliedCoupon.type})
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-green-700">Discount Amount:</span>
-                            <span className="text-green-600 font-medium">-KWD {order.discountAmount.toFixed(2)}</span>
+                            <span className="text-green-700">{t('discountAmount')}:</span>
+                            <span className="text-green-600 font-medium">-{t('currency')} {order.discountAmount.toFixed(2)}</span>
                           </div>
                         </div>
                       )}
                       <div className="border-t pt-2 flex justify-between font-semibold text-lg">
-                        <span>Final Total:</span>
-                        <span className="text-blue-700">KWD {(order.finalTotal || order.total || order.amount || 0).toFixed(2)}</span>
+                        <span>{t('finalTotal')}:</span>
+                        <span className="text-blue-700">{t('currency')} {(order.finalTotal || order.total || order.amount || 0).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
-
                   <div className="mt-6 pt-4 border-t border-gray-200">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                       <div>
-                        <h5 className="font-medium text-blue-600 mb-2">Shipping Information</h5>
-                        <p className="text-gray-600">{order.city || 'Not provided'}, {order.zip || 'Not provided'}</p>
-                        <p className="text-gray-600">{order.email || 'Not provided'}</p>
+                        <h5 className="font-medium text-blue-600 mb-2">{t('shippingInformation')}</h5>
+                        <p className="text-gray-600">{order.city || t('notProvided')}, {order.zip || t('notProvided')}</p>
+                        <p className="text-gray-600">{order.email || t('notProvided')}</p>
                       </div>
                       <div>
-                        <h5 className="font-medium text-blue-600 mb-2">Payment Details</h5>
-                        <p className="text-gray-600">Method: {order.paymentMethod || 'COD'}</p>
-                        <p className="text-gray-600">Status: {order.paymentStatus || 'Paid'}</p>
+                        <h5 className="font-medium text-blue-600 mb-2">{t('paymentDetails')}</h5>
+                        <p className="text-gray-600">{t('method')}: {order.paymentMethod || 'COD'}</p>
+                        <p className="text-gray-600">{t('status')}: {order.paymentStatus || 'Paid'}</p>
                         {order.paymentId && (
-                          <p className="text-gray-600">ID: {order.paymentId}</p>
+                          <p className="text-gray-600">{t('id')}: {order.paymentId}</p>
                         )}
                       </div>
                     </div>
@@ -730,30 +663,29 @@ const Page = () => {
         return (
           <div className="bg-white border border-blue-200 rounded-lg p-4 sm:p-6 transition-all duration-300 hover:border-blue-300">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-blue-600">My Addresses</h2>
+              <h2 className="text-xl font-semibold text-blue-600">{t('myAddresses')}</h2>
               <button
                 onClick={() => handleEditClick('address')}
                 className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-all duration-200 hover:scale-[1.02]"
               >
-                Add New Address
+                {t('addAddress')}
               </button>
             </div>
-
             {user.address ? (
               <div className="border border-blue-200 rounded-lg p-4 sm:p-6 relative group">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-medium text-blue-600 mb-2">Default Shipping Address</h3>
-                    <p className="text-gray-800 mb-1">{user.name || 'Not provided'}</p>
+                    <h3 className="font-medium text-blue-600 mb-2">{t('defaultShippingAddress')}</h3>
+                    <p className="text-gray-800 mb-1">{user.name || t('notProvided')}</p>
                     <p className="text-gray-800 mb-1">{user.address}</p>
                     <p className="text-gray-800 mb-1">{user.city}, {user.zip}</p>
-                    <p className="text-gray-800">Phone: {user.phone || 'Not provided'}</p>
+                    <p className="text-gray-800">{t('phone')}: {user.phone || t('notProvided')}</p>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleEditClick('address')}
                       className="text-blue-600 hover:text-blue-500"
-                      title="Edit"
+                      title={t('editAddress')}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -768,14 +700,14 @@ const Page = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 006 0z" />
                 </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No saved addresses</h3>
-                <p className="mt-1 text-sm text-gray-500">Add your first shipping address.</p>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">{t('noSavedAddresses')}</h3>
+                <p className="mt-1 text-sm text-gray-500">{t('addYourFirstAddress')}</p>
                 <div className="mt-6">
                   <button
                     onClick={() => handleEditClick('address')}
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
-                    Add Address
+                    {t('addAddress')}
                   </button>
                 </div>
               </div>
@@ -786,16 +718,16 @@ const Page = () => {
       case 'wishlist':
         return (
           <div className="bg-white border border-blue-200 rounded-lg p-4 sm:p-6 transition-all duration-300 hover:border-blue-300">
-            <h2 className="text-xl font-semibold text-blue-600 mb-6">My Wishlist</h2>
+            <h2 className="text-xl font-semibold text-blue-600 mb-6">{t('myWishlist')}</h2>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
               </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">Your wishlist is empty</h3>
-              <p className="mt-1 text-sm text-gray-500">Save your favorite items here</p>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">{t('wishlistEmpty')}</h3>
+              <p className="mt-1 text-sm text-gray-500">{t('saveFavorites')}</p>
               <div className="mt-6">
                 <Link href="/Shop" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  Continue Shopping
+                  {t('continueShopping')}
                 </Link>
               </div>
             </div>
@@ -807,14 +739,12 @@ const Page = () => {
     }
   };
 
-  // Contact submit handler (copy from Home/Navbar)
   const handleContactSubmit = async (e) => {
     e.preventDefault();
     setContactLoading(true);
     setContactError('');
     setContactSuccess('');
     try {
-      // Example: send to Firestore or your backend
       setContactSuccess('Message sent successfully!');
       contactName.current.value = '';
       contactEmail.current.value = '';
@@ -828,44 +758,36 @@ const Page = () => {
 
   return (
     <>
-      <Navbar
-        onOpenMobileCategory={() => setMobileCategoryOpen(true)}
-      />
+      <Navbar onOpenMobileCategory={() => setMobileCategoryOpen(true)} />
       <MobileNav
         cart={cart}
         openCart={() => setMobileCartOpen(true)}
         onSearch={onSearch}
         onHome={() => router.push('/')}
       />
-
-      {/* Mobile Drawer for Account Page */}
       {mobileCategoryOpen && (
         <div className="fixed inset-0 z-50 flex">
-          {/* Overlay */}
           <div
             className="fixed inset-0 bg-black/40"
             onClick={() => setMobileCategoryOpen(false)}
           />
-          {/* Drawer */}
           <div className="relative w-72 max-w-full bg-white h-full shadow-lg z-10 flex flex-col">
             <button
               className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
               onClick={() => setMobileCategoryOpen(false)}
-              aria-label="Close menu"
+              aria-label={t('closeMenu')}
             >
               ✕
             </button>
             <div className="flex flex-col pt-12 px-6 gap-3">
-              {/* My Profile */}
               <Link
                 href="/User/Account"
                 onClick={() => setMobileCategoryOpen(false)}
                 className="flex items-center gap-2 py-2 px-3 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 font-medium transition"
               >
                 <span className="text-lg">👤</span>
-                My Profile
+                {t('myProfile')}
               </Link>
-              {/* About Us */}
               <button
                 className="flex items-center gap-2 py-2 px-3 rounded-lg text-blue-700 hover:bg-blue-50 font-medium text-left transition"
                 onClick={() => {
@@ -874,9 +796,8 @@ const Page = () => {
                 }}
               >
                 <span className="text-lg">ℹ️</span>
-                About Us
+                {t('aboutUs')}
               </button>
-              {/* Contact Us */}
               <button
                 className="flex items-center gap-2 py-2 px-3 rounded-lg text-blue-700 hover:bg-blue-50 font-medium text-left transition"
                 onClick={() => {
@@ -885,24 +806,20 @@ const Page = () => {
                 }}
               >
                 <span className="text-lg">📞</span>
-                Contact Us
+                {t('contactUs')}
               </button>
-              {/* Logout */}
               <button
                 className="flex items-center gap-2 py-2 px-3 rounded-lg text-red-600 hover:bg-red-50 font-medium text-left transition mt-2 border-t border-gray-100"
                 onClick={handleLogout}
               >
                 <span className="text-lg">🚪</span>
-                Log Out
+                {t('logOut')}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* About Us Modal */}
       <AboutUsModal open={showAbout} onClose={() => setShowAbout(false)} />
-      {/* Contact Us Modal */}
       <ContactUsModal
         open={showContact}
         onClose={() => setShowContact(false)}
@@ -915,10 +832,8 @@ const Page = () => {
         contactSuccess={contactSuccess}
         handleContactSubmit={handleContactSubmit}
       />
-
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-16 mt-14 sm:mt-8 md:mt-12 lg:mt-16 bg-white">
-        <h1 className="text-2xl sm:text-3xl font-semibold mb-6 sm:mb-8 text-blue-600">My Account</h1>
-
+        <h1 className="text-2xl sm:text-3xl font-semibold mb-6 sm:mb-8 text-blue-600">{t('myAccount')}</h1>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 sm:gap-8">
           <div className="md:col-span-1 bg-white border border-blue-200 rounded-lg p-4 sm:p-6 h-fit transition-all duration-300 hover:border-blue-300">
             <div className="space-y-4">
@@ -945,7 +860,7 @@ const Page = () => {
                         <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
                       )}
                     </svg>
-                    {tab.toUpperCase()}
+                    {t(tab === 'account' ? 'myAccount' : tab === 'orders' ? 'allOrders' : tab === 'address' ? 'myAddresses' : 'myWishlist')}
                   </h3>
                 </div>
               ))}
@@ -957,24 +872,22 @@ const Page = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
                   </svg>
-                  Log Out
+                  {t('logOut')}
                 </h3>
               </div>
             </div>
           </div>
-
           <div className="md:col-span-3">
             {renderContent()}
           </div>
         </div>
       </div>
-
       {showEditModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white border border-blue-200 rounded-lg p-6 w-full max-w-md animate-scaleIn">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-blue-600">
-                {editMode === 'info' ? 'Edit Personal Information' : 'Edit Shipping Address'}
+                {editMode === 'info' ? t('editPersonalInformation') : t('editShippingAddress')}
               </h2>
               <button
                 onClick={() => setShowEditModal(false)}
@@ -985,12 +898,11 @@ const Page = () => {
                 </svg>
               </button>
             </div>
-
             <form onSubmit={handleSubmit}>
               {editMode === 'info' ? (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('fullName')}</label>
                     <input
                       type="text"
                       name="name"
@@ -1001,7 +913,7 @@ const Page = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
                     <input
                       type="email"
                       name="email"
@@ -1012,7 +924,7 @@ const Page = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('phoneNumber')}</label>
                     <input
                       type="tel"
                       name="phone"
@@ -1025,7 +937,7 @@ const Page = () => {
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('address')}</label>
                     <textarea
                       name="address"
                       value={formData.address}
@@ -1037,7 +949,7 @@ const Page = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('city')}</label>
                       <input
                         type="text"
                         name="city"
@@ -1048,7 +960,7 @@ const Page = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('zipCode')}</label>
                       <input
                         type="text"
                         name="zip"
@@ -1060,7 +972,7 @@ const Page = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('phoneNumber')}</label>
                     <input
                       type="tel"
                       name="phone"
@@ -1072,20 +984,19 @@ const Page = () => {
                   </div>
                 </div>
               )}
-
               <div className="mt-6 flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all duration-200 hover:scale-[1.02]"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all duration-200 hover:scale-[1.02]"
                 >
-                  Save Changes
+                  {t('saveChanges')}
                 </button>
               </div>
             </form>

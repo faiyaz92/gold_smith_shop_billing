@@ -8,6 +8,7 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { motion } from 'framer-motion';
 import Navbar from '@/app/Componenets/Navbar';
 import { User, Shield, MapPin, Globe, Building, Tag, X, Check } from 'lucide-react';
+import { useTranslation } from '@/app/utils/useTranslation';
 
 export const PICKUP_TIMES = [
   { value: 'morning', label: 'Morning (9-12 PM)' },
@@ -613,24 +614,24 @@ export default function CheckoutPage() {
   };
 
   const grouped = groupItemsByCategory(cart);
+  const { t } = useTranslation();
 
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
       <div className="max-w-6xl mx-auto p-4 md:p-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-blue-700">Checkout</h1>
-          
+          <h1 className="text-2xl font-bold text-blue-700">{t('checkout')}</h1>
           <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-gray-100">
             {isGuest ? (
               <>
                 <User className="w-4 h-4 text-gray-600" />
-                <span className="text-sm text-gray-600">Guest Checkout</span>
+                <span className="text-sm text-gray-600">{t('guestCheckout')}</span>
               </>
             ) : (
               <>
                 <Shield className="w-4 h-4 text-green-600" />
-                <span className="text-sm text-green-600">Registered User</span>
+                <span className="text-sm text-green-600">{t('registeredUser')}</span>
               </>
             )}
           </div>
@@ -645,15 +646,15 @@ export default function CheckoutPage() {
           >
             <div className="flex items-center gap-2 mb-2">
               <User className="w-5 h-5 text-blue-600" />
-              <h3 className="font-medium text-blue-800">Guest Checkout</h3>
+              <h3 className="font-medium text-blue-800">{t('guestCheckout')}</h3>
             </div>
             <p className="text-blue-700 text-sm">
-              You&apos;re checking out as a guest. Our admin will call you to confirm your order details. 
+              {t('guestNotice')}
               <button 
                 onClick={() => router.push('/User/Auth/')}
                 className="text-blue-600 hover:text-blue-800 underline ml-1"
               >
-                Want to create an account for faster future orders?
+                {t('createAccountPrompt')}
               </button>
             </p>
           </motion.div>
@@ -670,14 +671,14 @@ export default function CheckoutPage() {
             >
               <h2 className="text-lg font-semibold mb-4 text-blue-800 flex items-center gap-2">
                 <MapPin className="w-5 h-5" />
-                Service Location
+                {t('serviceLocation')}
               </h2>
               <div className="space-y-4">
                 {/* State Selection */}
                 <div>
                   <label className="block text-sm font-medium text-blue-700 mb-2">
                     <Globe className="w-4 h-4 inline mr-1" />
-                    Select State *
+                    {t('selectState')}
                   </label>
                   <select
                     value={selectedState}
@@ -685,7 +686,7 @@ export default function CheckoutPage() {
                     className="w-full border border-blue-200 p-3 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
-                    <option value="">Choose your state</option>
+                    <option value="">{t('chooseState')}</option>
                     {states.map(state => (
                       <option key={state.id} value={state.id}>
                         {state.name}
@@ -698,7 +699,7 @@ export default function CheckoutPage() {
                 <div>
                   <label className="block text-sm font-medium text-blue-700 mb-2">
                     <MapPin className="w-4 h-4 inline mr-1" />
-                    Select Area *
+                    {t('selectArea')}
                   </label>
                   <select
                     value={selectedArea}
@@ -708,7 +709,7 @@ export default function CheckoutPage() {
                     required
                   >
                     <option value="">
-                      {selectedState ? 'Choose your area' : 'Select state first'}
+                      {selectedState ? t('chooseArea') : t('selectStateFirst')}
                     </option>
                     {selectedState && getAreasForState(selectedState).map(area => (
                       <option key={area.id} value={area.id}>
@@ -723,7 +724,7 @@ export default function CheckoutPage() {
                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                     <div className="flex items-center gap-2 text-green-700">
                       <Building className="w-4 h-4" />
-                      <span className="text-sm font-medium">Service Branch:</span>
+                      <span className="text-sm font-medium">{t('serviceBranch')}</span>
                       <span className="text-sm">{selectedBranchName}</span>
                     </div>
                   </div>
@@ -733,7 +734,7 @@ export default function CheckoutPage() {
                   <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                     <div className="flex items-center gap-2 text-red-700">
                       <Building className="w-4 h-4" />
-                      <span className="text-sm">No service branch available for this area. Please contact support.</span>
+                      <span className="text-sm">{t('noBranch')}</span>
                     </div>
                   </div>
                 )}
@@ -745,11 +746,11 @@ export default function CheckoutPage() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
             >
-              <h2 className="text-lg font-semibold mb-4 text-blue-800">Delivery Details</h2>
+              <h2 className="text-lg font-semibold mb-4 text-blue-800">{t('deliveryDetails')}</h2>
               <div className="space-y-4">
                 <input
                   name="name"
-                  placeholder="Full Name *"
+                  placeholder={t('fullName')}
                   value={form.name}
                   onChange={handleChange}
                   className="w-full border border-blue-200 p-3 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -758,7 +759,7 @@ export default function CheckoutPage() {
                 <input
                   name="email"
                   type="email"
-                  placeholder="Email Address *"
+                  placeholder={t('emailAddress')}
                   value={form.email}
                   onChange={handleChange}
                   className="w-full border border-blue-200 p-3 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -766,7 +767,7 @@ export default function CheckoutPage() {
                 />
                 <input
                   name="phone"
-                  placeholder="Phone Number *"
+                  placeholder={t('phoneNumber')}
                   value={form.phone}
                   onChange={handleChange}
                   className="w-full border border-blue-200 p-3 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -774,7 +775,7 @@ export default function CheckoutPage() {
                 />
                 <input
                   name="city"
-                  placeholder="City *"
+                  placeholder={t('city')}
                   value={form.city}
                   onChange={handleChange}
                   className="w-full border border-blue-200 p-3 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -782,7 +783,7 @@ export default function CheckoutPage() {
                 />
                 <input
                   name="zip"
-                  placeholder="Zip Code *"
+                  placeholder={t('zipCode')}
                   value={form.zip}
                   onChange={handleChange}
                   className="w-full border border-blue-200 p-3 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -790,7 +791,7 @@ export default function CheckoutPage() {
                 />
                 <textarea
                   name="address"
-                  placeholder="Complete Address *"
+                  placeholder={t('completeAddress')}
                   value={form.address}
                   onChange={handleChange}
                   className="w-full border border-blue-200 p-3 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -805,10 +806,10 @@ export default function CheckoutPage() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
             >
-              <h2 className="text-lg font-semibold mb-4 text-blue-800">Service Options</h2>
+              <h2 className="text-lg font-semibold mb-4 text-blue-800">{t('serviceOptions')}</h2>
               
               <div className="mb-6">
-                <div className="font-medium mb-3 text-blue-700">Service Type</div>
+                <div className="font-medium mb-3 text-blue-700">{t('serviceType')}</div>
                 <div className="grid grid-cols-2 gap-3">
                   {SERVICE_TYPES.map(opt => (
                     <label 
@@ -828,14 +829,14 @@ export default function CheckoutPage() {
                         className="sr-only"
                       />
                       <span className="text-lg">{opt.icon}</span>
-                      <span className="font-medium">{opt.label}</span>
+                      <span className="font-medium">{t(opt.label)}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div className="mb-4">
-                <div className="font-medium mb-2 text-blue-700">Pickup Time</div>
+                <div className="font-medium mb-2 text-blue-700">{t('pickupTime')}</div>
                 <div className="space-y-2">
                   {PICKUP_TIMES.map(opt => (
                     <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
@@ -847,13 +848,13 @@ export default function CheckoutPage() {
                         onChange={handleScheduleChange}
                         className="accent-blue-600"
                       />
-                      <span className="text-sm">{opt.label}</span>
+                      <span className="text-sm">{t(opt.label)}</span>
                     </label>
                   ))}
                 </div>
               </div>
               <div>
-                <div className="font-medium mb-2 text-blue-700">Delivery Preference</div>
+                <div className="font-medium mb-2 text-blue-700">{t('deliveryPref')}</div>
                 <div className="space-y-2">
                   {DELIVERY_PREFS.map(opt => (
                     <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
@@ -865,7 +866,7 @@ export default function CheckoutPage() {
                         onChange={handleScheduleChange}
                         className="accent-blue-600"
                       />
-                      <span className="text-sm">{opt.label}</span>
+                      <span className="text-sm">{t(opt.label)}</span>
                     </label>
                   ))}
                 </div>
@@ -879,12 +880,12 @@ export default function CheckoutPage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <h2 className="text-lg font-semibold mb-4 text-blue-800">Order Summary</h2>
+            <h2 className="text-lg font-semibold mb-4 text-blue-800">{t('orderSummary')}</h2>
             
             {/* Cart Items */}
             <div className="flex-1 overflow-y-auto space-y-3 mb-4">
               {cart.length === 0 ? (
-                <p className="text-gray-500">Your cart is empty</p>
+                <p className="text-gray-500">{t('yourCartIsEmpty')}</p>
               ) : (
                 Object.entries(grouped).map(([catName, items]) => (
                   <div key={catName} className="mb-4 border rounded-lg border-blue-200 bg-blue-50">
@@ -893,7 +894,7 @@ export default function CheckoutPage() {
                       {items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span>{item.name} x{item.quantity}</span>
-                          <span>KWD {(item.price * item.quantity).toFixed(2)}</span>
+                          <span>{t('currency')} {(item.price * item.quantity).toFixed(2)}</span>
                         </div>
                       ))}
                     </div>
@@ -906,7 +907,7 @@ export default function CheckoutPage() {
             <div className="mb-4 p-4 bg-gray-50 rounded-lg border">
               <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
                 <Tag className="w-4 h-4" />
-                Promo Code
+                {t('promoCode')}
               </h3>
               
               {!appliedCoupon ? (
@@ -916,7 +917,7 @@ export default function CheckoutPage() {
                       type="text"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="Enter coupon code"
+                      placeholder={t('enterCoupon')}
                       className="flex-1 p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-200"
                       disabled={couponLoading}
                     />
@@ -925,7 +926,7 @@ export default function CheckoutPage() {
                       disabled={couponLoading || !couponCode.trim()}
                       className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {couponLoading ? 'Checking...' : 'Apply'}
+                      {couponLoading ? t('checking') : t('apply')}
                     </button>
                   </div>
                   {couponError && (
@@ -952,28 +953,28 @@ export default function CheckoutPage() {
             {/* Price Breakdown */}
             <div className="border-t border-blue-100 pt-4">
               <div className="flex justify-between mb-2 text-blue-900">
-                <span>Subtotal</span>
-                <span>KWD {subtotal.toFixed(2)}</span>
+                <span>{t('subtotal')}</span>
+                <span>{t('currency')} {subtotal.toFixed(2)}</span>
               </div>
               {expressDeliveryFee > 0 && (
                 <div className="flex justify-between mb-2 text-blue-700">
-                  <span>Express Delivery</span>
-                  <span>KWD {expressDeliveryFee.toFixed(2)}</span>
+                  <span>{t('expressDelivery')}</span>
+                  <span>{t('currency')} {expressDeliveryFee.toFixed(2)}</span>
                 </div>
               )}
               {appliedCoupon && discountAmount > 0 && (
                 <div className="flex justify-between mb-2 text-green-600">
-                  <span>Discount ({appliedCoupon.code})</span>
-                  <span>-KWD {discountAmount.toFixed(2)}</span>
+                  <span>{t('discount')} ({appliedCoupon.code})</span>
+                  <span>-{t('currency')} {discountAmount.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between mb-2 text-blue-500 text-sm">
-                <span>Shipping</span>
-                <span>Free</span>
+                <span>{t('shipping')}</span>
+                <span>{t('free')}</span>
               </div>
               <div className="flex justify-between font-semibold text-lg text-blue-700 border-t pt-2">
-                <span>Total</span>
-                <span>KWD {finalTotal.toFixed(2)}</span>
+                <span>{t('total')}</span>
+                <span>{t('currency')} {finalTotal.toFixed(2)}</span>
               </div>
             </div>
 
@@ -984,22 +985,22 @@ export default function CheckoutPage() {
               onClick={placeOrder}
               className="w-full py-3 mt-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 font-medium"
             >
-              {loading ? 'Placing Order...' : 
+              {loading ? t('placingOrder') : 
                 isGuest ? 
-                  `Place Order as Guest (COD)` : 
-                  `Place Order (${method === 'cod' ? 'COD' : 'Online Payment'})`
+                  t('placeOrderGuest') : 
+                  t('placeOrder')
               }
             </motion.button>
             
             {isGuest && (
               <p className="text-xs text-center text-gray-500 mt-2">
-                Admin will call you to confirm order details
+                {t('adminWillCall')}
               </p>
             )}
             
             {!selectedBranchId && selectedArea && (
               <p className="text-xs text-center text-red-500 mt-2">
-                Please select a valid service area to continue
+                {t('selectValidArea')}
               </p>
             )}
           </motion.div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { useTranslation } from '@/app/utils/useTranslation'; // Add this import
 
 function groupItemsByCategory(items) {
   const groups = {};
@@ -21,6 +22,7 @@ export default function Cart({ cart, isMobile, onClose }) {
   const [user, setUser] = useState(null);
   const router = useRouter();
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const { t } = useTranslation(); // Add this line
 
   // Check authentication
   useEffect(() => {
@@ -92,7 +94,7 @@ export default function Cart({ cart, isMobile, onClose }) {
               variants={mobileVariants}
             >
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Your Cart</h2>
+                <h2 className="text-lg font-semibold">{t('yourCart')}</h2>
                 <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 transition-colors">
                   <X className="w-5 h-5 stroke-[1.5]" />
                 </button>
@@ -102,7 +104,7 @@ export default function Cart({ cart, isMobile, onClose }) {
                 {cart.length === 0 ? (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full">
                     <ShoppingCart className="w-8 h-8 stroke-[1.5] text-gray-300 mb-2" />
-                    <p className="text-gray-500">Your cart is empty</p>
+                    <p className="text-gray-500">{t('emptyCart')}</p>
                   </motion.div>
                 ) : (
                   <AnimatePresence>
@@ -125,9 +127,9 @@ export default function Cart({ cart, isMobile, onClose }) {
                             >
                               <div>
                                 <p className="font-medium">{item.name}</p>
-                                <p className="text-xs text-gray-500">Qty: {item.quantity} × KWD {item.price}</p>
+                                <p className="text-xs text-gray-500">{t('qty')}: {item.quantity} × {t('currency')} {item.price}</p>
                               </div>
-                              <span className="font-medium">KWD {item.price * item.quantity}</span>
+                              <span className="font-medium">{t('currency')} {item.price * item.quantity}</span>
                             </motion.li>
                           ))}
                         </div>
@@ -140,7 +142,7 @@ export default function Cart({ cart, isMobile, onClose }) {
               <motion.div className="border-t pt-4 mt-4 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
                 <div className="flex justify-between mb-3">
                   <span className="font-medium">Total</span>
-                  <span className="font-semibold">KWD {total}</span>
+                  <span className="font-semibold">{t('currency')} {total}</span>
                 </div>
                 
                 {/* Updated checkout button text and functionality */}
@@ -151,18 +153,18 @@ export default function Cart({ cart, isMobile, onClose }) {
                   disabled={cart.length === 0}
                   onClick={handleCheckout}
                 >
-                  {isAuthenticated ? 'Checkout (COD)' : 'Continue as Guest (COD)'}
+                  {isAuthenticated ? t('proceedToCheckout') : t('continueAsGuest')}
                 </motion.button>
                 
                 {/* Optional login prompt for non-authenticated users */}
                 {!isAuthenticated && cart.length > 0 && (
                   <div className="mt-2 text-xs text-center text-gray-500">
-                    <p>No account needed! Just provide delivery address.</p>
+                    <p>{t('noAccountNeeded')}</p>
                     <button 
                       onClick={() => router.push('/User/Auth/')}
                       className="text-blue-600 hover:text-blue-700 underline mt-1"
                     >
-                      Or login for faster checkout
+                      {t('orLogin')}
                     </button>
                   </div>
                 )}
@@ -186,7 +188,7 @@ export default function Cart({ cart, isMobile, onClose }) {
         <div className="sticky top-24 bg-white rounded-xl shadow-md p-6 flex flex-col h-[70vh] border border-gray-100">
           <h2 className="text-xl font-semibold tracking-tight mb-4 flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 stroke-[1.5]" /> 
-            <span>Your Cart</span>
+            <span>{t('yourCart')}</span>
             {cart.length > 0 && (
               <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
                 {cart.reduce((sum, item) => sum + item.quantity, 0)}
@@ -198,8 +200,8 @@ export default function Cart({ cart, isMobile, onClose }) {
             {cart.length === 0 ? (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full">
                 <ShoppingCart className="w-10 h-10 stroke-[1.5] text-gray-300 mb-3" />
-                <p className="text-gray-500">Your cart is empty</p>
-                <p className="text-gray-400 text-sm mt-1">Add items to get started</p>
+                <p className="text-gray-500">{t('emptyCart')}</p>
+                <p className="text-gray-400 text-sm mt-1">{t('addItems')}</p>
               </motion.div>
             ) : (
               <AnimatePresence>
@@ -222,9 +224,9 @@ export default function Cart({ cart, isMobile, onClose }) {
                         >
                           <div>
                             <p className="font-medium">{item.name}</p>
-                            <p className="text-xs text-gray-500">Qty: {item.quantity} × KWD {item.price}</p>
+                            <p className="text-xs text-gray-500">{t('qty')}: {item.quantity} × {t('currency')} {item.price}</p>
                           </div>
-                          <span className="font-medium">KWD {item.price * item.quantity}</span>
+                          <span className="font-medium">{t('currency')} {item.price * item.quantity}</span>
                         </motion.li>
                       ))}
                     </div>
@@ -236,12 +238,12 @@ export default function Cart({ cart, isMobile, onClose }) {
 
           <motion.div className="border-t pt-4 mt-4 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
             <div className="flex justify-between mb-3">
-              <span className="font-medium">Subtotal</span>
-              <span className="font-semibold">KWD {total}</span>
+              <span className="font-medium">{t('subtotal')}</span>
+              <span className="font-semibold">{t('currency')} {total}</span>
             </div>
             <div className="flex justify-between mb-3 text-xs text-gray-500">
-              <span>Shipping</span>
-              <span>{cart.length > 0 ? 'Calculated at checkout' : '—'}</span>
+              <span>{t('shipping')}</span>
+              <span>{cart.length > 0 ? t('calculatedAtCheckout') : '—'}</span>
             </div>
             
             {/* Updated checkout button */}
@@ -252,18 +254,18 @@ export default function Cart({ cart, isMobile, onClose }) {
               disabled={cart.length === 0}
               onClick={handleCheckout}
             >
-              {isAuthenticated ? 'Proceed to Checkout (COD)' : 'Continue as Guest (COD)'}
+              {isAuthenticated ? t('proceedToCheckout') : t('continueAsGuest')}
             </motion.button>
             
             {/* Optional login prompt for non-authenticated users */}
             {!isAuthenticated && cart.length > 0 && (
               <div className="mt-3 text-xs text-center text-gray-500">
-                <p className="mb-1">No account needed! Just provide delivery address.</p>
+                <p className="mb-1">{t('noAccountNeeded')}</p>
                 <button 
                   onClick={() => router.push('/User/Auth/')}
                   className="text-blue-600 hover:text-blue-700 underline"
                 >
-                  Or login for faster checkout →
+                  {t('orLogin')} →
                 </button>
               </div>
             )}

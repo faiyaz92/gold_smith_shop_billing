@@ -9,6 +9,8 @@ import { useRef } from 'react';
 import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { getCompanyId } from '@/app/utils/firestorePaths';
 import Image from 'next/image';
+import { useLanguage } from "@/app/context/LanguageContext";
+import { useTranslation } from '@/app/utils/useTranslation';
 
 export default function Navbar({ onSearch, onOpenMobileCategory }) {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -26,6 +28,7 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
   const contactEmail = useRef();
   const contactMessage = useRef();
   const contactPurpose = useRef();
+  const { t } = useTranslation();
   // Firestore path for contact us
   const companyId = getCompanyId();
   const contactPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/contactUs`;
@@ -42,13 +45,13 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
         message: contactMessage.current.value,
         timestamp: serverTimestamp(),
       });
-      setContactSuccess('Thank you for contacting us!');
+      setContactSuccess(t('thankYouContact'));
       contactName.current.value = '';
       contactEmail.current.value = '';
       contactPurpose.current.value = '';
       contactMessage.current.value = '';
     } catch (err) {
-      setContactError('Failed to send message. Please try again.');
+      setContactError(t('failedToSend'));
     } finally {
       setContactLoading(false);
     }
@@ -97,6 +100,8 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
     fetchLogoAndName();
   }, []);
 
+  const { language, changeLanguage } = useLanguage();
+
   return (
     <>
       <nav className={`sticky top-0 w-full bg-white z-40 transition-all duration-300 ${scrolled ? 'shadow-md' : 'shadow-sm'}`}>
@@ -111,7 +116,7 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
               ) : (
                 <span className="mr-2">🧺</span>
               )}
-              <span className="hidden sm:inline">{companyName || 'Laundry'}</span>
+              <span className="hidden sm:inline">{companyName || t('companyName')}</span>
               <span className="sm:hidden">E2L</span>
             </div>
           </Link>
@@ -120,7 +125,7 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
             <div className="relative w-full max-w-md mx-auto">
               <input
                 type="text"
-                placeholder="Search clothes, services..."
+                placeholder={t('searchPlaceholder')}
                 value={searchQuery}
                 onChange={handleSearchChange}
                 className="w-full rounded-full border border-gray-300 bg-gray-100 py-2 px-4 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
@@ -134,10 +139,10 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
               <FiHome size={20} className="text-gray-600 hover:text-blue-600" />
             </Link>
             <button className="hover:text-blue-600 transition flex items-center gap-1" onClick={() => setShowAbout(true)}>
-              <span>About Us</span>
+              <span>{t('aboutUs')}</span>
             </button>
             <button className="hover:text-blue-600 transition flex items-center gap-1" onClick={() => setShowContact(true)}>
-              <span>Contact Us</span>
+              <span>{t('contactUs')}</span>
             </button>
             <Link href="/User/Account">
               <button
@@ -145,9 +150,17 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
                   isLoggedIn ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
-                {isLoggedIn ? 'My Profile' : 'Login'}
+                {isLoggedIn ? t('myProfile') : t('login')}
               </button>
             </Link>
+            {/* Language toggle button */}
+            <button
+              onClick={() => changeLanguage(language === "ar" ? "en" : "ar")}
+              className="ml-4 px-2 py-1 rounded bg-blue-100 text-blue-700"
+              aria-label="Toggle language"
+            >
+              {language === "ar" ? "EN" : "ع"}
+            </button>
           </div>
 
           <div className="flex items-center sm:hidden w-full">
@@ -155,7 +168,7 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
             <button
               className="p-2 text-gray-600 hover:text-blue-600 transition"
               onClick={onOpenMobileCategory}
-              aria-label="Open categories"
+              aria-label={t('categories')}
             >
               <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -172,7 +185,7 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
                 ) : (
                   <span className="mr-2">🧺</span>
                 )}
-                <span>{companyName || 'Laundry'}</span>
+                <span>{companyName || t('companyName')}</span>
               </div>
             </Link>
 
@@ -198,7 +211,7 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search clothes, services..."
+                placeholder={t('searchPlaceholder')}
                 value={searchQuery}
                 onChange={handleSearchChange}
                 className="w-full rounded-full border border-gray-300 bg-gray-100 py-2 px-4 pl-10 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition"
@@ -215,16 +228,16 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
             <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowAbout(false)}>
               <FiX size={24} />
             </button>
-            <h2 className="text-2xl font-bold mb-4 text-blue-700">About Easy2 Laundry</h2>
-            <p className="text-gray-700 mb-2">Easy2 Laundry is your trusted partner for fast, reliable, and affordable laundry and dry cleaning services. We pick up, clean, and deliver your clothes right to your doorstep, so you can focus on what matters most.</p>
+            <h2 className="text-2xl font-bold mb-4 text-blue-700">{t('aboutEasy2Laundry')}</h2>
+            <p className="text-gray-700 mb-2">{t('aboutEasy2LaundryDesc')}</p>
             <ul className="list-disc pl-6 text-gray-600 mb-2">
-              <li>Doorstep pickup and delivery</li>
-              <li>Professional cleaning for all garments</li>
-              <li>Express and eco-friendly options</li>
-              <li>Transparent pricing</li>
-              <li>Customer support 7 days a week</li>
+              <li>{t('doorstepPickup')}</li>
+              <li>{t('professionalCleaning')}</li>
+              <li>{t('expressEco')}</li>
+              <li>{t('transparentPricing')}</li>
+              <li>{t('customerSupport')}</li>
             </ul>
-            <p className="text-gray-700">We are committed to making laundry day hassle-free for families, professionals, and businesses alike.</p>
+            <p className="text-gray-700">{t('hassleFree')}</p>
           </div>
         </div>
       )}
@@ -235,37 +248,37 @@ export default function Navbar({ onSearch, onOpenMobileCategory }) {
             <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowContact(false)}>
               <FiX size={24} />
             </button>
-            <h2 className="text-2xl font-bold mb-4 text-blue-700">Contact Us</h2>
+            <h2 className="text-2xl font-bold mb-4 text-blue-700">{t('contactUsTitle')}</h2>
             <form onSubmit={handleContactSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('name')}</label>
                 <input ref={contactName} type="text" className="w-full border border-gray-300 rounded px-3 py-2" required disabled={contactLoading} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
                 <input ref={contactEmail} type="email" className="w-full border border-gray-300 rounded px-3 py-2" required disabled={contactLoading} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('purpose')}</label>
                 <select ref={contactPurpose} className="w-full border border-gray-300 rounded px-3 py-2" required disabled={contactLoading} defaultValue="">
-                  <option value="" disabled>Select purpose</option>
-                  <option value="B2B">B2B Partnership</option>
-                  <option value="Bulk">Bulk Order</option>
-                  <option value="Marriage">Marriage Clothes</option>
-                  <option value="Recurring">Recurring Service</option>
-                  <option value="Issue">Issue</option>
-                  <option value="Concern">Concern</option>
-                  <option value="Other">Other</option>
+                  <option value="" disabled>{t('selectPurpose')}</option>
+                  <option value="B2B">{t('b2bPartnership')}</option>
+                  <option value="Bulk">{t('bulkOrder')}</option>
+                  <option value="Marriage">{t('marriageClothes')}</option>
+                  <option value="Recurring">{t('recurringService')}</option>
+                  <option value="Issue">{t('issue')}</option>
+                  <option value="Concern">{t('concern')}</option>
+                  <option value="Other">{t('other')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('message')}</label>
                 <textarea ref={contactMessage} className="w-full border border-gray-300 rounded px-3 py-2" rows={4} required disabled={contactLoading}></textarea>
               </div>
               {contactError && <p className="text-red-500 text-sm">{contactError}</p>}
               {contactSuccess && <p className="text-green-600 text-sm">{contactSuccess}</p>}
               <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded" disabled={contactLoading}>
-                {contactLoading ? 'Sending...' : 'Send Message'}
+                {contactLoading ? t('sending') : t('sendMessage')}
               </button>
             </form>
           </div>

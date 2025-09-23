@@ -4,13 +4,14 @@ import { db } from '@/app/firebase';
 import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import Image from 'next/image';
 import { ChevronDown } from 'lucide-react';
+import { useTranslation } from '@/app/utils/useTranslation'; // <-- import
 
 export default function Products({
   addToCart,
   removeFromCart,
   cart,
   onActiveCategoryChange,
-  onActiveSubcategoryChange, // <-- add this
+  onActiveSubcategoryChange,
   searchQuery = '',
   activeSubcategory,
 }) {
@@ -23,6 +24,8 @@ export default function Products({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const categoryRefs = useRef({});
+
+  const { t } = useTranslation(); // <-- use translation
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID;
 
@@ -231,10 +234,10 @@ export default function Products({
             </span>
           </div>
           <div className="text-blue-700 text-lg font-semibold mt-2 animate-pulse">
-            Loading your laundry products...
+            {t('loadingProducts')}
           </div>
           <div className="text-blue-400 mt-1 text-sm">
-            Please wait while we freshen up your products!
+            {t('pleaseWait')}
           </div>
         </div>
       </div>
@@ -242,7 +245,7 @@ export default function Products({
   }
 
   if (error) {
-    return <div>Error: {error}</div>;
+    return <div>{t('error')}: {error}</div>;
   }
 
   return (
@@ -253,7 +256,7 @@ export default function Products({
           if (categorySubcats.length === 0) return null;
           return (
             <div key={category.id} data-categoryid={category.id} ref={(el) => (categoryRefs.current[category.id] = el)}>
-              {/* Category Header - Fixed for mobile sticky */}
+              {/* Category Header */}
               <div className="sticky top-0 z-30 bg-blue-900 py-2 border-b border-gray-200 shadow-sm">
                 <h3 className="text-lg font-semibold text-white text-center">
                   {category.categoriesname}
@@ -263,7 +266,7 @@ export default function Products({
                 const isExpanded = expandedCategories[category.id];
                 const displayProducts = isExpanded ? products : products.slice(0, 5);
                 const hasMore = products.length > 5;
-                const subcatName = subcategories.find(sub => sub.id === subcatId)?.name || 'Other';
+                const subcatName = subcategories.find(sub => sub.id === subcatId)?.name || t('other');
 
                 return (
                   <div
@@ -271,7 +274,7 @@ export default function Products({
                     data-subcategoryid={subcatId}
                     className={`space-y-3 ${activeSubcategory === subcatId ? 'bg-blue-50 border-l-4 border-blue-300' : ''}`}
                   >
-                    {/* Subcategory Header - Fixed for mobile sticky */}
+                    {/* Subcategory Header */}
                     <div className="sticky z-20 bg-blue-400 py-1 border-b border-gray-200 shadow-sm" style={{ top: '48px' }}>
                       <h4 className="text-base font-semibold text-white text-center">
                         {subcatName}
@@ -305,11 +308,11 @@ export default function Products({
                               <div className="flex gap-2">
                                 {product.discountedPrice ? (
                                   <>
-                                    <p className="text-gray-500 line-through">KWD {product.price}</p>
-                                    <p className="text-gray-600 font-medium">KWD {product.discountedPrice}</p>
+                                    <p className="text-gray-500 line-through">{t('currency')} {product.price}</p>
+                                    <p className="text-gray-600 font-medium">{t('currency')} {product.discountedPrice}</p>
                                   </>
                                 ) : (
-                                  <p className="text-gray-600">KWD {product.price}</p>
+                                  <p className="text-gray-600">{t('currency')} {product.price}</p>
                                 )}
                               </div>
                             </div>
@@ -318,7 +321,7 @@ export default function Products({
                                 onClick={() => addToCart(product)}
                                 className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
                               >
-                                ADD +
+                                {t('add')}
                               </button>
                             ) : (
                               <div className="flex items-center gap-2">
@@ -326,14 +329,14 @@ export default function Products({
                                   onClick={() => removeFromCart(product.id)}
                                   className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 transition-colors"
                                 >
-                                  −
+                                  {t('minus')}
                                 </button>
                                 <span className="min-w-[20px] text-center">{quantity}</span>
                                 <button
                                   onClick={() => addToCart(product)}
                                   className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors"
                                 >
-                                  +
+                                  {t('plus')}
                                 </button>
                               </div>
                             )}
@@ -347,7 +350,9 @@ export default function Products({
                           onClick={() => toggleCategoryExpansion(category.id)}
                           className="text-blue-500 hover:text-blue-700 text-sm font-medium"
                         >
-                          {isExpanded ? 'Show Less' : `See More (${products.length - 5} more)`}
+                          {isExpanded
+                            ? t('showLess')
+                            : t('seeMore').replace('{count}', products.length - 5)}
                         </button>
                       </div>
                     )}
