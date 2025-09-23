@@ -17,91 +17,91 @@ import {
   Truck,
   Building,
   Shield,
-  BarChart3,  // Added for Analytics
-  Settings, // Add this import if not already present
+  BarChart3,
+  Settings,
 } from 'lucide-react';
+import { useAdminTranslation } from '@/app/utils/useAdminTranslation';
 
 const allMenuItems = [
   { 
     id: 'dashboard', 
-    label: 'Dashboard', 
+    label: 'dashboard',
     icon: <Home className="w-4 h-4" />, 
     href: '/admin/dashboard',
     roles: ['company_admin', 'general_manager', 'branch_manager']
   },
   { 
     id: 'analytics', 
-    label: 'Analytics', 
+    label: 'analytics',
     icon: <BarChart3 className="w-4 h-4" />, 
     href: '/admin/analytics',
-    roles: ['company_admin', 'general_manager']  // Only for top-level management
+    roles: ['company_admin', 'general_manager']
   },
   { 
     id: 'billing', 
-    label: 'Billing (POS)', 
+    label: 'billing',
     icon: <CreditCard className="w-4 h-4" />, 
     href: '/admin/billing',
     roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier']
   },
   { 
     id: 'orders', 
-    label: 'Orders', 
+    label: 'orders',
     icon: <ShoppingBag className="w-4 h-4" />, 
     href: '/admin/orders',
     roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier', 'delivery_man', 'pickup_man']
   },
   { 
     id: 'products', 
-    label: 'Products', 
+    label: 'products',
     icon: <Package className="w-4 h-4" />, 
     href: '/admin/products',
     roles: ['company_admin', 'general_manager', 'branch_manager']
   },
   { 
     id: 'inquiries', 
-    label: 'Inquiries', 
+    label: 'inquiries',
     icon: <MessageSquare className="w-4 h-4" />, 
     href: '/admin/inquiries',
     roles: ['company_admin', 'general_manager', 'branch_manager']
   },
   { 
     id: 'users',
-    label: 'Users',
+    label: 'users',
     icon: <Users className="w-4 h-4" />,
     href: '/admin/users',
-    roles: ['company_admin', 'general_manager'] // <-- Add general_manager here
+    roles: ['company_admin', 'general_manager']
   },
   { 
     id: 'coupons', 
-    label: 'Coupons', 
+    label: 'coupons',
     icon: <Tag className="w-4 h-4" />, 
     href: '/admin/coupons',
     roles: ['company_admin', 'general_manager', 'branch_manager']
   },
   { 
     id: 'areas', 
-    label: 'Areas', 
+    label: 'areas',
     icon: <Globe className="w-4 h-4" />, 
     href: '/admin/areas',
     roles: ['company_admin', 'general_manager']
   },
   { 
     id: 'branches', 
-    label: 'Branches', 
+    label: 'branches',
     icon: <MapPin className="w-4 h-4" />, 
     href: '/admin/branches',
     roles: ['company_admin', 'general_manager']
   },
   {
     id: 'settings',
-    label: 'Settings',
+    label: 'settings',
     icon: <Settings className="w-4 h-4" />,
     href: '/admin/settings',
-    roles: ['company_admin', 'general_manager'] // Only these roles can see it
+    roles: ['company_admin', 'general_manager']
   },
 ];
 
-// Define default pages for each role
 const roleDefaults = {
   company_admin: '/admin/dashboard',
   general_manager: '/admin/dashboard',
@@ -112,30 +112,26 @@ const roleDefaults = {
 };
 
 export default function AdminSidebar({ toggleSidebar }) {
+  const { t } = useAdminTranslation();
   const pathname = usePathname();
   const router = useRouter();
   const [userRole, setUserRole] = useState('');
   const [filteredMenu, setFilteredMenu] = useState([]);
 
   useEffect(() => {
-    // Get user role from localStorage
     const role = localStorage.getItem('userRole') || '';
     setUserRole(role);
 
-    // Filter menu items based on user role
     const allowedMenuItems = allMenuItems.filter(item => 
       item.roles.includes(role)
     );
     setFilteredMenu(allowedMenuItems);
 
-    // Auto-redirect to default page for role if on restricted page
     if (role && pathname === '/admin/dashboard' && roleDefaults[role] !== '/admin/dashboard') {
-      // Only redirect if user is trying to access dashboard but their default is different
       window.location.href = roleDefaults[role];
     }
   }, [pathname]);
 
-  // Get role-specific styling
   const getRoleInfo = (role) => {
     switch (role) {
       case 'company_admin':
@@ -157,7 +153,6 @@ export default function AdminSidebar({ toggleSidebar }) {
 
   const roleStyle = getRoleInfo(userRole);
 
-  // Get role icon
   const getRoleIcon = (role) => {
     switch (role) {
       case 'company_admin': return <Shield className="w-3 h-3" />;
@@ -211,7 +206,7 @@ export default function AdminSidebar({ toggleSidebar }) {
             }`}
           >
             {item.icon}
-            <span>{item.label}</span>
+            <span>{t(item.label)}</span>
           </Link>
         ))}
 
@@ -223,14 +218,14 @@ export default function AdminSidebar({ toggleSidebar }) {
           className={`flex items-center gap-3 px-4 py-2 ${roleStyle.color} hover:bg-blue-100 transition-colors duration-200 rounded-lg mt-2 border-t ${roleStyle.borderColor} pt-4`}
         >
           <ExternalLink className="w-4 h-4" />
-          <span>Open Laundry</span>
+          <span>{t('openLaundry')}</span>
         </Link>
       </nav>
 
       {/* User info at bottom */}
       <div className={`mt-auto mx-2 p-3 rounded-lg border ${roleStyle.borderColor} ${roleStyle.bgColor}`}>
         <div className={`text-xs ${roleStyle.color}`}>
-          <div className="font-medium">{localStorage.getItem('userName') || 'User'}</div>
+          <div className="font-medium">{localStorage.getItem('userName') || t('user')}</div>
           <div className="opacity-75">{localStorage.getItem('userEmail') || ''}</div>
         </div>
       </div>

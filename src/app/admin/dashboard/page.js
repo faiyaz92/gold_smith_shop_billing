@@ -30,9 +30,10 @@ import { db } from '@/app/firebase';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import AdminLayout from '../AdminLayout';
+import { useAdminTranslation } from '@/app/utils/useAdminTranslation';
 
 export default function AdminDashboard() {
-  
+  const { t } = useAdminTranslation(); // Localization hook
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,10 +51,9 @@ export default function AdminDashboard() {
   });
   const [endDate, setEndDate] = useState(() => new Date());
   const [salesChartData, setSalesChartData] = useState([]);
-  const [orders, setOrders] = useState([]); // This will now contain real data
+  const [orders, setOrders] = useState([]);
   const [topSellingItems, setTopSellingItems] = useState([]);
 
-  // Add current user state for role-based filtering
   const [currentUser, setCurrentUser] = useState({
     userId: '',
     userName: '',
@@ -77,44 +77,36 @@ export default function AdminDashboard() {
       return;
     }
 
-    // Get current user info for role-based filtering
     const userId = localStorage.getItem('userId') || '';
     const userName = localStorage.getItem('userName') || '';
     const userRole = localStorage.getItem('userRole') || '';
     const branchId = localStorage.getItem('userBranchId') || '';
     setCurrentUser({ userId, userName, userRole, branchId });
 
-    // Users subscription
     const unsubUsers = onSnapshot(collection(db, usersPath), (snapshot) => {
       setUserCount(snapshot.size);
     });
 
-    // Products subscription
     const unsubProducts = onSnapshot(collection(db, productsPath), (snapshot) => {
       setProductCount(snapshot.size);
     });
 
-    // Orders subscription with role-based filtering
     let ordersQuery;
     if (userRole === 'company_admin' || userRole === 'general_manager') {
-      // Can see all orders
       ordersQuery = query(collection(db, ordersPath), orderBy('timestamp', 'desc'));
     } else if (userRole === 'branch_manager') {
-      // Can see orders from their branch
       ordersQuery = query(
-        collection(db, ordersPath), 
+        collection(db, ordersPath),
         where('branchId', '==', branchId),
         orderBy('timestamp', 'desc')
       );
     } else if (userRole === 'cashier') {
-      // Can see only orders they created
       ordersQuery = query(
-        collection(db, ordersPath), 
+        collection(db, ordersPath),
         where('orderTakenBy', '==', userId),
         orderBy('timestamp', 'desc')
       );
     } else {
-      // Default: all orders
       ordersQuery = query(collection(db, ordersPath), orderBy('timestamp', 'desc'));
     }
 
@@ -125,36 +117,32 @@ export default function AdminDashboard() {
           id: docSnap.id,
           ...data,
           timestamp: data.timestamp?.toDate() || new Date(),
-          status: data.status || 'Pending',
+          status: data.status || 'Pending', // Keep logic in English
           total: Number(data.total || 0),
           items: data.items || [],
           rawTimestamp: data.timestamp,
         };
       });
 
-      // Set all orders for calculating stats
       setOrders(allOrders);
       setOrderCount(allOrders.length);
 
-      // Filter orders by date range for sales calculations
       const filteredOrders = allOrders.filter(order =>
         order.timestamp >= startDate &&
         order.timestamp <= new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999)
       );
 
-      // Calculate total sales from filtered orders
       setTotalSales(filteredOrders.reduce((sum, order) => sum + (order.total || 0), 0));
 
-      // Calculate top-selling items from filtered orders
       const itemQuantities = {};
       filteredOrders.forEach(order => {
         if (order.items && Array.isArray(order.items)) {
           order.items.forEach(item => {
-            const itemKey = `${item.name}|${item.categoryName || 'Other'}`;
+            const itemKey = `${item.name}|${item.categoryName || t('other')}`;
             if (!itemQuantities[itemKey]) {
               itemQuantities[itemKey] = {
                 name: item.name,
-                category: item.categoryName || 'Other',
+                category: item.categoryName || t('other'),
                 totalQuantity: 0,
               };
             }
@@ -168,10 +156,8 @@ export default function AdminDashboard() {
         .slice(0, 5);
       setTopSellingItems(topItems);
 
-      // Generate sales chart data for the selected date range
       const salesByDay = {};
       const daysDiff = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-      
       for (let i = 0; i <= daysDiff; i++) {
         const d = new Date(startDate);
         d.setDate(d.getDate() + i);
@@ -193,19 +179,18 @@ export default function AdminDashboard() {
         }))
       );
 
-      // Generate order status analytics for last 6 months
       const months = [];
       const now = new Date();
       for (let i = 5; i >= 0; i--) {
         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
         months.push({
           name: date.toLocaleString('default', { month: 'short' }),
-          'Pending': 0,
+          Pending: 0,
           'Received at Facility': 0,
           'In Washing': 0,
           'Ready for Delivery': 0,
-          'Delivered': 0,
-          'Cancelled': 0,
+          Delivered: 0,
+          Cancelled: 0,
         });
       }
 
@@ -215,7 +200,7 @@ export default function AdminDashboard() {
           month => month.name === orderDate.toLocaleString('default', { month: 'short' })
         );
         if (monthIndex !== -1) {
-          const status = order.status || 'Pending';
+          const status = order.status || 'Pending'; // Logic stays English
           if (months[monthIndex][status] !== undefined) {
             months[monthIndex][status]++;
           }
@@ -229,7 +214,6 @@ export default function AdminDashboard() {
       setIsLoading(false);
     });
 
-    // Inquiries subscription
     const unsubInquiries = onSnapshot(collection(db, contactPath), (snapshot) => {
       setInquiryCount(snapshot.size);
     });
@@ -240,9 +224,9 @@ export default function AdminDashboard() {
       unsubOrders();
       unsubInquiries();
     };
+  // Do NOT add t to deps to avoid infinite loop!
   }, [router, startDate, endDate, currentUser.userRole, currentUser.branchId, currentUser.userId]);
 
-  // Calculate real-time statistics from actual orders data
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -253,28 +237,15 @@ export default function AdminDashboard() {
     return d.getTime() === today.getTime();
   };
 
-  // Real calculations based on actual order data
   const todaysPlacedOrders = orders.filter(order => isToday(order.timestamp)).length;
-  
-  const todaysDeliveredOrders = orders.filter(order => 
-    (order.status === 'Delivered') && isToday(order.timestamp)
-  ).length;
-  
-  const pendingOrders = orders.filter(order => 
-    order.status === 'Pending' || order.status === 'Received at Facility'
-  ).length;
-  
-  const todaysDelivery = orders.filter(order =>
-    order.status === 'Delivered' && isToday(order.timestamp)
-  ).length;
-  
-  const todaysPickup = orders.filter(order =>
-    (order.status === 'Picked Up' || order.status === 'Out for Pickup') && isToday(order.timestamp)
-  ).length;
+  const todaysDeliveredOrders = orders.filter(order => (order.status === 'Delivered') && isToday(order.timestamp)).length;
+  const pendingOrders = orders.filter(order => order.status === 'Pending' || order.status === 'Received at Facility').length;
+  const todaysDelivery = orders.filter(order => order.status === 'Delivered' && isToday(order.timestamp)).length;
+  const todaysPickup = orders.filter(order => (order.status === 'Picked Up' || order.status === 'Out for Pickup') && isToday(order.timestamp)).length;
 
   const stats = [
     {
-      label: 'Total Sales',
+      label: t('totalSales'),
       value: `KWD ${totalSales.toLocaleString()}`,
       icon: <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -283,7 +254,7 @@ export default function AdminDashboard() {
       textColor: 'text-blue-600',
     },
     {
-      label: 'Total Orders',
+      label: t('totalOrders'),
       value: orderCount,
       icon: <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -292,7 +263,7 @@ export default function AdminDashboard() {
       textColor: 'text-blue-600',
     },
     {
-      label: 'Pending Orders',
+      label: t('pendingOrders'),
       value: pendingOrders,
       icon: <Clock className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -301,7 +272,7 @@ export default function AdminDashboard() {
       textColor: 'text-orange-700',
     },
     {
-      label: "Today's Placed Orders",
+      label: t('todaysPlacedOrders'),
       value: todaysPlacedOrders,
       icon: <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -310,7 +281,7 @@ export default function AdminDashboard() {
       textColor: 'text-blue-700',
     },
     {
-      label: "Today's Delivered Orders",
+      label: t('todaysDeliveredOrders'),
       value: todaysDeliveredOrders,
       icon: <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -319,7 +290,7 @@ export default function AdminDashboard() {
       textColor: 'text-green-700',
     },
     {
-      label: "Today's Delivery",
+      label: t('todaysDelivery'),
       value: todaysDelivery,
       icon: <Truck className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -328,7 +299,7 @@ export default function AdminDashboard() {
       textColor: 'text-indigo-700',
     },
     {
-      label: "Today's Pickup",
+      label: t('todaysPickup'),
       value: todaysPickup,
       icon: <PackageCheck className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -337,7 +308,7 @@ export default function AdminDashboard() {
       textColor: 'text-yellow-700',
     },
     {
-      label: 'Total Users',
+      label: t('totalUsers'),
       value: userCount,
       icon: <Users className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -346,7 +317,7 @@ export default function AdminDashboard() {
       textColor: 'text-blue-600',
     },
     {
-      label: 'Total Products',
+      label: t('totalProducts'),
       value: productCount,
       icon: <Package className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -355,7 +326,7 @@ export default function AdminDashboard() {
       textColor: 'text-blue-600',
     },
     {
-      label: 'Total Inquiries',
+      label: t('totalInquiries'),
       value: inquiryCount,
       icon: <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6" />,
       change: '',
@@ -374,7 +345,7 @@ export default function AdminDashboard() {
       
       {/* Date Range Picker */}
       <div className="flex flex-col sm:flex-row items-center gap-4 mb-8">
-        <label className="font-medium text-gray-700">Filter Sales By Date:</label>
+        <label className="font-medium text-gray-700">{t('filterSalesByDate')}</label>
         <DatePicker
           selected={startDate}
           onChange={date => setStartDate(date)}
@@ -385,7 +356,7 @@ export default function AdminDashboard() {
           className="border px-3 py-2 rounded mr-2"
           dateFormat="yyyy-MM-dd"
         />
-        <span className="mx-2">to</span>
+        <span className="mx-2">{t('to')}</span>
         <DatePicker
           selected={endDate}
           onChange={date => setEndDate(date)}
@@ -447,24 +418,24 @@ export default function AdminDashboard() {
         className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-8"
       >
         <h3 className="text-lg font-semibold text-gray-800 mb-4">
-          Top Selling Items 
+          {t('topSellingItems')}
           <span className="text-sm font-normal text-gray-500 ml-2">
             ({startDate.toLocaleDateString()} - {endDate.toLocaleDateString()})
           </span>
         </h3>
         {isLoading ? (
-          <div className="text-center text-gray-500">Loading...</div>
+          <div className="text-center text-gray-500">{t('loading')}</div>
         ) : topSellingItems.length === 0 ? (
-          <div className="text-center text-gray-500">No items found for selected date range</div>
+          <div className="text-center text-gray-500">{t('noItemsFoundForDateRange')}</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full border border-gray-200 rounded-lg">
               <thead className="bg-blue-50 text-blue-800 text-xs sm:text-sm">
                 <tr>
-                  <th className="p-3 text-left border-b border-gray-200">Rank</th>
-                  <th className="p-3 text-left border-b border-gray-200">Item Name</th>
-                  <th className="p-3 text-left border-b border-gray-200">Category</th>
-                  <th className="p-3 text-left border-b border-gray-200">Total Quantity Sold</th>
+                  <th className="p-3 text-left border-b border-gray-200">{t('rank')}</th>
+                  <th className="p-3 text-left border-b border-gray-200">{t('itemName')}</th>
+                  <th className="p-3 text-left border-b border-gray-200">{t('category')}</th>
+                  <th className="p-3 text-left border-b border-gray-200">{t('totalQuantitySold')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -490,7 +461,7 @@ export default function AdminDashboard() {
         className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-8"
       >
         <h3 className="text-lg font-semibold text-gray-800 mb-4">
-          Sales Chart 
+          {t('salesChart')}
           <span className="text-sm font-normal text-gray-500 ml-2">
             ({startDate.toLocaleDateString()} - {endDate.toLocaleDateString()})
           </span>
@@ -516,10 +487,10 @@ export default function AdminDashboard() {
                   borderRadius: '0.5rem',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 }}
-                formatter={(value) => [`KWD ${value}`, 'Sales']}
+                formatter={(value) => [`KWD ${value}`, t('sales')]}
               />
               <Legend />
-              <Bar dataKey="Sales" fill="#3b82f6" name="Sales (KWD)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Sales" fill="#3b82f6" name={t('salesKwd')} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -532,7 +503,7 @@ export default function AdminDashboard() {
         transition={{ delay: 0.4, duration: 0.5 }}
         className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200"
       >
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Order Status Analytics (Last 6 Months)</h3>
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('orderStatusAnalytics')}</h3>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -556,12 +527,12 @@ export default function AdminDashboard() {
                 }}
               />
               <Legend />
-              <Bar dataKey="Pending" fill="#f59e0b" name="Pending" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Received at Facility" fill="#8b5cf6" name="Received at Facility" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="In Washing" fill="#06b6d4" name="In Washing" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Ready for Delivery" fill="#6366f1" name="Ready for Delivery" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Delivered" fill="#10b981" name="Delivered" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Cancelled" fill="#ef4444" name="Cancelled" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Pending" fill="#f59e0b" name={t('Pending')} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Received at Facility" fill="#8b5cf6" name={t('Received at Facility')} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="In Washing" fill="#06b6d4" name={t('In Washing')} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Ready for Delivery" fill="#6366f1" name={t('Ready for Delivery')} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Delivered" fill="#10b981" name={t('Delivered')} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Cancelled" fill="#ef4444" name={t('Cancelled')} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

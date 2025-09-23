@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminLayout from '@/app/admin/AdminLayout';
-import { db } from '@/app/firebase'; // Changed from '@/app/firebase/config'
+import { db } from '@/app/firebase';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import {
   BarChart3, 
@@ -17,13 +17,11 @@ import {
   Calendar,
   FileText,
   Download,
-  UserCheck,    // Add this
-  AlertTriangle, // Add this
-  CreditCard,   // Add this
-  Star         // Add this
+  UserCheck,
+  AlertTriangle,
+  CreditCard,
+  Star
 } from 'lucide-react';
-
-// Chart components
 import {
   LineChart,
   Line,
@@ -41,21 +39,20 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-
-// PDF and Excel imports
-import jsPDF from 'jspdf'; // Add this import
-import 'jspdf-autotable';  // Add this import
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { useAdminTranslation } from '@/app/utils/useAdminTranslation'; // <-- Add localization hook
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7300'];
 
 export default function AdminAnalytics() {
+  const { t } = useAdminTranslation(); // <-- Use localization
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('sales');
 
-  // Date filters
   const [startDate, setStartDate] = useState(() => {
     const date = new Date();
     date.setMonth(date.getMonth() - 1);
@@ -63,13 +60,11 @@ export default function AdminAnalytics() {
   });
   const [endDate, setEndDate] = useState(() => new Date());
 
-  // Data states
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
   const [products, setProducts] = useState([]);
 
-  // Analytics data
   const [salesAnalytics, setSalesAnalytics] = useState({});
   const [branchAnalytics, setBranchAnalytics] = useState({});
   const [customerAnalytics, setCustomerAnalytics] = useState({});
@@ -80,19 +75,18 @@ export default function AdminAnalytics() {
   const [selectedStaff, setSelectedStaff] = useState('');
   const [branchStaff, setBranchStaff] = useState([]);
   const [dailyMetrics, setDailyMetrics] = useState({});
-
-  // Add these missing state definitions after your existing state declarations
   const [branchSpecificData, setBranchSpecificData] = useState({});
   const [staffSpecificData, setStaffSpecificData] = useState({});
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID;
 
+  // Localize tab names
   const tabs = [
-    { id: 'sales', name: 'Sales Analytics', icon: <BarChart3 className="w-5 h-5" /> },
-    { id: 'orders', name: 'Order Analysis', icon: <Package className="w-5 h-5" /> },
-    { id: 'branches', name: 'Branch Performance', icon: <Building2 className="w-5 h-5" /> },
-    { id: 'customers', name: 'Customer Insights', icon: <Users className="w-5 h-5" /> },
-    { id: 'losses', name: 'Loss Analysis', icon: <TrendingDown className="w-5 h-5" /> },
+    { id: 'sales', name: t('salesAnalytics'), icon: <BarChart3 className="w-5 h-5" /> },
+    { id: 'orders', name: t('orderAnalysis'), icon: <Package className="w-5 h-5" /> },
+    { id: 'branches', name: t('branchPerformance'), icon: <Building2 className="w-5 h-5" /> },
+    { id: 'customers', name: t('customerInsights'), icon: <Users className="w-5 h-5" /> },
+    { id: 'losses', name: t('lossAnalysis'), icon: <TrendingDown className="w-5 h-5" /> },
   ];
 
   // Fetch data functions
@@ -772,7 +766,7 @@ export default function AdminAnalytics() {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading analytics...</p>
+            <p className="mt-4 text-gray-600">{t('loadingAnalytics')}</p>
           </div>
         </div>
       </AdminLayout>
@@ -784,8 +778,8 @@ export default function AdminAnalytics() {
       <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
         {/* Compact Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Business Analytics</h1>
-          <p className="text-sm text-gray-600 mt-1">Comprehensive business performance insights</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('businessAnalytics')}</h1>
+          <p className="text-sm text-gray-600 mt-1">{t('businessPerformanceInsights')}</p>
         </div>
 
         {/* Date Filters */}
@@ -793,7 +787,7 @@ export default function AdminAnalytics() {
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
             <div className="flex gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('startDate')}</label>
                 <input
                   type="date"
                   value={startDate.toISOString().split('T')[0]}
@@ -802,7 +796,7 @@ export default function AdminAnalytics() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('endDate')}</label>
                 <input
                   type="date"
                   value={endDate.toISOString().split('T')[0]}
@@ -816,7 +810,7 @@ export default function AdminAnalytics() {
             <div className="flex gap-2">
               <button
                 onClick={() => exportToPDF(
-                  tabs.find(t => t.id === activeTab)?.name || 'Analytics',
+                  tabs.find(t => t.id === activeTab)?.name || t('analytics'),
                   activeTab === 'sales' ? salesAnalytics :
                   activeTab === 'orders' ? orderAnalytics :
                   activeTab === 'branches' ? branchAnalytics :
@@ -825,11 +819,11 @@ export default function AdminAnalytics() {
                 )}
                 className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
               >
-                📄 Export All PDF
+                {t('exportAllPDF')}
               </button>
               <button
                 onClick={() => exportToExcel(
-                  tabs.find(t => t.id === activeTab)?.name || 'Analytics',
+                  tabs.find(t => t.id === activeTab)?.name || t('analytics'),
                   activeTab === 'sales' ? salesAnalytics :
                   activeTab === 'orders' ? orderAnalytics :
                   activeTab === 'branches' ? branchAnalytics :
@@ -838,7 +832,7 @@ export default function AdminAnalytics() {
                 )}
                 className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
               >
-                📊 Export All Excel
+                {t('exportAllExcel')}
               </button>
             </div>
           </div>
@@ -878,12 +872,12 @@ export default function AdminAnalytics() {
               {/* Branch Insights Panel - Only in Sales Tab */}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-blue-800">Branch & Staff Analytics</h3>
+                  <h3 className="text-lg font-semibold text-blue-800">{t('branchStaffAnalytics')}</h3>
                   <button
                     onClick={() => setShowBranchInsights(!showBranchInsights)}
                     className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                   >
-                    {showBranchInsights ? 'Hide' : 'Show'} Filters
+                    {showBranchInsights ? t('hideFilters') : t('showFilters')}
                   </button>
                 </div>
                 
@@ -894,7 +888,7 @@ export default function AdminAnalytics() {
                       onChange={(e) => setSelectedBranch(e.target.value)}
                       className="border border-blue-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 text-sm"
                     >
-                      <option value="">All Branches</option>
+                      <option value="">{t('allBranches')}</option>
                       {branches.map(branch => (
                         <option key={branch.id} value={branch.id}>{branch.name}</option>
                       ))}
@@ -906,7 +900,7 @@ export default function AdminAnalytics() {
                       className="border border-blue-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 text-sm"
                       disabled={!selectedBranch}
                     >
-                      <option value="">All Staff</option>
+                      <option value="">{t('allStaff')}</option>
                       {branchStaff.map(staff => (
                         <option key={staff.id} value={staff.id}>
                           {staff.name} ({staff.role === 'branch_manager' ? 'BM' : 'Cashier'})
@@ -920,7 +914,7 @@ export default function AdminAnalytics() {
               {/* KPIs with Section Export */}
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Key Performance Indicators</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('keyPerformanceIndicators')}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => exportToPDF('Sales Analytics', salesAnalytics, 'KPIs')}
@@ -941,7 +935,7 @@ export default function AdminAnalytics() {
                   <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-blue-600 font-medium">Total Revenue</p>
+                        <p className="text-sm text-blue-600 font-medium">{t('totalRevenue')}</p>
                         <p className="text-xl font-bold text-blue-800">
                           KWD {salesAnalytics.totalRevenue?.toLocaleString() || 0}
                         </p>
@@ -953,7 +947,7 @@ export default function AdminAnalytics() {
                   <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-green-600 font-medium">Total Orders</p>
+                        <p className="text-sm text-green-600 font-medium">{t('totalOrders')}</p>
                         <p className="text-xl font-bold text-green-800">
                           {salesAnalytics.totalOrders?.toLocaleString() || 0}
                         </p>
@@ -965,7 +959,7 @@ export default function AdminAnalytics() {
                   <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-purple-600 font-medium">Avg Order Value</p>
+                        <p className="text-sm text-purple-600 font-medium">{t('avgOrderValue')}</p>
                         <p className="text-xl font-bold text-purple-800">
                           KWD {salesAnalytics.avgOrderValue?.toFixed(2) || 0}
                         </p>
@@ -977,7 +971,7 @@ export default function AdminAnalytics() {
                   <div className="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-orange-600 font-medium">Growth Rate</p>
+                        <p className="text-sm text-orange-600 font-medium">{t('growthRate')}</p>
                         <p className={`text-xl font-bold ${salesAnalytics.revenueGrowth >= 0 ? 'text-green-800' : 'text-red-800'}`}>
                           {salesAnalytics.revenueGrowth >= 0 ? '+' : ''}{salesAnalytics.revenueGrowth?.toFixed(1) || 0}%
                         </p>
@@ -991,7 +985,7 @@ export default function AdminAnalytics() {
               {/* Daily Sales Chart - Moved up */}
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Daily Sales Trend</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('dailySalesTrend')}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => exportToPDF('Sales Analytics', salesAnalytics.dailySales, 'Daily-Sales')}
@@ -1024,7 +1018,7 @@ export default function AdminAnalytics() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Payment Methods</h3>
+                    <h3 className="text-lg font-semibold text-gray-800">{t('paymentMethods')}</h3>
                     <div className="flex gap-2">
                       <button
                         onClick={() => exportToPDF('Sales Analytics', salesAnalytics.paymentMethodChart, 'Payment-Methods')}
@@ -1065,7 +1059,7 @@ export default function AdminAnalytics() {
 
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Top Services</h3>
+                    <h3 className="text-lg font-semibold text-gray-800">{t('topServices')}</h3>
                     <div className="flex gap-2">
                       <button
                         onClick={() => exportToPDF('Sales Analytics', salesAnalytics.topServices, 'Top-Services')}
@@ -1099,7 +1093,7 @@ export default function AdminAnalytics() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">Average Order Value Trend</h3>
+                    <h3 className="text-lg font-semibold text-gray-800">{t('avgOrderValueTrend')}</h3>
                     <div className="flex gap-2">
                       <button
                         onClick={() => exportToPDF('Sales Analytics', salesAnalytics.avgOrderValue, 'AOV-Trend')}
@@ -1118,11 +1112,11 @@ export default function AdminAnalytics() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-center p-4 bg-purple-50 rounded-lg">
-                        <p className="text-sm text-purple-600">Current AOV</p>
+                        <p className="text-sm text-purple-600">{t('currentAOV')}</p>
                         <p className="text-2xl font-bold text-purple-800">KWD {salesAnalytics.avgOrderValue?.toFixed(2) || 0}</p>
                       </div>
                       <div className="text-center p-4 bg-indigo-50 rounded-lg">
-                        <p className="text-sm text-indigo-600">AOV Growth</p>
+                        <p className="text-sm text-indigo-600">{t('aovGrowth')}</p>
                         <p className={`text-2xl font-bold ${salesAnalytics.revenueGrowth >= 0 ? 'text-green-800' : 'text-red-800'}`}>
                           {salesAnalytics.revenueGrowth >= 0 ? '+' : ''}{salesAnalytics.revenueGrowth?.toFixed(1) || 0}%
                         </p>
@@ -1130,7 +1124,7 @@ export default function AdminAnalytics() {
                     </div>
                     <div className="text-center p-3 bg-gray-50 rounded">
                       <p className="text-sm text-gray-600">
-                        Target AOV: <span className="font-medium">KWD {(salesAnalytics.avgOrderValue * 1.1)?.toFixed(2) || 0}</span>
+                        {t('targetAOV')}: <span className="font-medium">KWD {(salesAnalytics.avgOrderValue * 1.1)?.toFixed(2) || 0}</span>
                       </p>
                     </div>
                   </div>
@@ -1138,7 +1132,7 @@ export default function AdminAnalytics() {
 
                 <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">AOV Analytics Chart</h3>
+                    <h3 className="text-lg font-semibold text-gray-800">{t('aovAnalyticsChart')}</h3>
                     <div className="flex gap-2">
                       <button
                         onClick={() => exportToPDF('Sales Analytics', salesAnalytics, 'AOV-Chart')}
@@ -1171,7 +1165,7 @@ export default function AdminAnalytics() {
               {/* Enhanced Daily Performance Table */}
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Daily Performance Summary</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('dailyPerformanceSummary')}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => exportToPDF('Sales Analytics', dailyMetrics.dailyTable, 'Daily-Performance')}
@@ -1192,11 +1186,11 @@ export default function AdminAnalytics() {
                   <table className="min-w-full">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Orders</th>
-                        {!selectedStaff && <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Pickups</th>}
-                        {!selectedStaff && <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Deliveries</th>}
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Sales (KWD)</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('date')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('orders')}</th>
+                        {!selectedStaff && <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('pickups')}</th>}
+                        {!selectedStaff && <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('deliveries')}</th>}
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{t('sales')} (KWD)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -1243,7 +1237,7 @@ export default function AdminAnalytics() {
               {/* Order KPIs */}
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Order Metrics</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('orderMetrics')}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => exportToPDF('Orders', orderAnalytics, 'Order-Metrics')}
@@ -1263,28 +1257,28 @@ export default function AdminAnalytics() {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="bg-blue-50 p-4 rounded-lg text-center">
                     <Package className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-                    <p className="text-sm text-blue-600">Avg Daily Orders</p>
+                    <p className="text-sm text-blue-600">{t('avgDailyOrders')}</p>
                     <p className="text-xl font-bold text-blue-800">
                       {orderAnalytics.avgDailyOrders?.toFixed(1) || 0}
                     </p>
                   </div>
                   <div className="bg-green-50 p-4 rounded-lg text-center">
                     <TrendingUp className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                    <p className="text-sm text-green-600">Order Trend</p>
+                    <p className="text-sm text-green-600">{t('orderTrend')}</p>
                     <p className={`text-xl font-bold ${orderAnalytics.orderTrendPercentage >= 0 ? 'text-green-800' : 'text-red-800'}`}>
                       {orderAnalytics.orderTrendPercentage >= 0 ? '+' : ''}{orderAnalytics.orderTrendPercentage?.toFixed(1) || 0}%
                     </p>
                   </div>
                   <div className="bg-purple-50 p-4 rounded-lg text-center">
                     <div className="text-2xl mb-2">🌐</div>
-                    <p className="text-sm text-purple-600">Website Orders</p>
+                    <p className="text-sm text-purple-600">{t('websiteOrders')}</p>
                     <p className="text-xl font-bold text-purple-800">
                       {orderAnalytics.orderSourceChart?.find(s => s.name === 'Website')?.value || 0}
                     </p>
                   </div>
                   <div className="bg-orange-50 p-4 rounded-lg text-center">
                     <div className="text-2xl mb-2">🚶</div>
-                    <p className="text-sm text-orange-600">Walk-in Orders</p>
+                    <p className="text-sm text-orange-600">{t('walkinOrders')}</p>
                     <p className="text-xl font-bold text-orange-800">
                       {orderAnalytics.orderSourceChart?.find(s => s.name === 'Walk-in Customer')?.value || 0}
                     </p>
@@ -1295,7 +1289,7 @@ export default function AdminAnalytics() {
               {/* Daily Order Trend */}
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Daily Order Trends</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('dailyOrderTrends')}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => exportToPDF('Orders', orderAnalytics.dailyOrderTrend, 'Daily-Trends')}
@@ -1330,7 +1324,7 @@ export default function AdminAnalytics() {
               {/* Order Sources */}
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Order Sources</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('orderSources')}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => exportToPDF('Orders', orderAnalytics.orderSourceChart, 'Order-Sources')}
@@ -1380,7 +1374,7 @@ export default function AdminAnalytics() {
             >
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Branch Performance</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('branchPerformance')}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => exportToPDF('Branch Analytics', branchAnalytics.branchPerformance, 'Branch-Performance')}
@@ -1431,7 +1425,7 @@ export default function AdminAnalytics() {
                       {/* Staff Performance in Branch */}
                       {Object.keys(branch.staff || {}).length > 0 && (
                         <div className="mt-3 pt-3 border-t border-gray-200">
-                          <h5 className="text-sm font-medium text-gray-700 mb-2">Staff Performance:</h5>
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">{t('staffPerformance')}:</h5>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                             {Object.values(branch.staff).map((staff, staffIndex) => (
                               <div key={staffIndex} className="bg-white p-2 rounded border">
@@ -1461,7 +1455,7 @@ export default function AdminAnalytics() {
             >
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Customer Analytics</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('customerAnalytics')}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => exportToPDF('Customer Analytics', customerAnalytics, 'Customer-Analytics')}
@@ -1481,7 +1475,7 @@ export default function AdminAnalytics() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                   <div className="bg-blue-50 p-6 rounded-lg text-center">
                     <Users className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-                    <p className="text-sm text-blue-600">Total Customers</p>
+                    <p className="text-sm text-blue-600">{t('totalCustomers')}</p>
                     <p className="text-2xl font-bold text-blue-800">
                       {customerAnalytics.totalCustomers || 0}
                     </p>
@@ -1489,7 +1483,7 @@ export default function AdminAnalytics() {
                   
                   <div className="bg-green-50 p-6 rounded-lg text-center">
                     <UserCheck className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                    <p className="text-sm text-green-600">Repeat Customers</p>
+                    <p className="text-sm text-green-600">{t('repeatCustomers')}</p>
                     <p className="text-2xl font-bold text-green-800">
                       {customerAnalytics.repeatCustomers || 0}
                     </p>
@@ -1497,7 +1491,7 @@ export default function AdminAnalytics() {
                   
                   <div className="bg-purple-50 p-6 rounded-lg text-center">
                     <Star className="w-8 h-8 text-purple-500 mx-auto mb-2" />
-                    <p className="text-sm text-purple-600">Avg Orders/Customer</p>
+                    <p className="text-sm text-purple-600">{t('avgOrdersPerCustomer')}</p>
                     <p className="text-2xl font-bold text-purple-800">
                       {customerAnalytics.avgOrdersPerCustomer?.toFixed(1) || 0}
                     </p>
@@ -1506,7 +1500,7 @@ export default function AdminAnalytics() {
 
                 {/* Customer Segmentation Chart */}
                 <div className="bg-white p-4 rounded-lg border border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Customer Segmentation</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('customerSegmentation')}</h3>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -1542,7 +1536,7 @@ export default function AdminAnalytics() {
             >
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Loss Analysis</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">{t('lossAnalysis')}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => exportToPDF('Loss Analytics', lostAnalytics, 'Loss-Analysis')}
@@ -1562,7 +1556,7 @@ export default function AdminAnalytics() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                   <div className="bg-red-50 p-6 rounded-lg text-center">
                     <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-                    <p className="text-sm text-red-600">Cancelled Orders</p>
+                    <p className="text-sm text-red-600">{t('cancelledOrders')}</p>
                     <p className="text-2xl font-bold text-red-800">
                       {lostAnalytics.cancelledOrders || 0}
                     </p>
@@ -1570,7 +1564,7 @@ export default function AdminAnalytics() {
                   
                   <div className="bg-orange-50 p-6 rounded-lg text-center">
                     <DollarSign className="w-8 h-8 text-orange-500 mx-auto mb-2" />
-                    <p className="text-sm text-orange-600">Lost Revenue</p>
+                    <p className="text-sm text-orange-600">{t('lostRevenue')}</p>
                     <p className="text-2xl font-bold text-orange-800">
                       KWD {lostAnalytics.lostRevenue?.toFixed(2) || 0}
                     </p>
@@ -1578,7 +1572,7 @@ export default function AdminAnalytics() {
                   
                   <div className="bg-yellow-50 p-6 rounded-lg text-center">
                     <TrendingDown className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-                    <p className="text-sm text-yellow-600">Cancellation Rate</p>
+                    <p className="text-sm text-yellow-600">{t('cancellationRate')}</p>
                     <p className="text-2xl font-bold text-yellow-800">
                       {lostAnalytics.cancellationRate?.toFixed(1) || 0}%
                     </p>
@@ -1588,7 +1582,7 @@ export default function AdminAnalytics() {
                 {/* Loss Reasons Chart */}
                 {lostAnalytics.lossChart && lostAnalytics.lossChart.length > 0 && (
                   <div className="bg-white p-4 rounded-lg border border-gray-100">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Cancellation Reasons</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('cancellationReasons')}</h3>
                     <div className="h-80">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
