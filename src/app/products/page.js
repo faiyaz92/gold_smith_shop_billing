@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -60,7 +60,7 @@ function ProductsPageContent() {
     fetchData();
   }, [searchParams]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       // Fetch products
       const productsSnapshot = await getDocs(collection(db, getProductPath()));
@@ -81,7 +81,7 @@ function ProductsPageContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getProductPath, getCategoryPath, getSubcategoryPath]);
 
   const filteredProducts = products
     .filter(product => {
@@ -419,7 +419,7 @@ function ProductsPageContent() {
                   <Search className="w-12 h-12 text-rose-600" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">No fragrances found</h3>
-                <p className="text-gray-600 mb-8 max-w-md mx-auto">We couldn't find any perfumes matching your current filters. Try adjusting your search criteria or browse our full collection.</p>
+                <p className="text-gray-600 mb-8 max-w-md mx-auto">We couldn&apos;t find any perfumes matching your current filters. Try adjusting your search criteria or browse our full collection.</p>
                 <button
                   onClick={() => {
                     setSearchQuery('');

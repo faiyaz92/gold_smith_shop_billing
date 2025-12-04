@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -50,7 +50,7 @@ export default function ProductDetailPage() {
     }
   }, [productId]);
 
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     try {
       // Fetch product
       const productDoc = await getDoc(doc(db, getProductPath(), productId));
@@ -79,7 +79,7 @@ export default function ProductDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId, getProductPath, getCategoryPath, getSubcategoryPath]);
 
   const handleAddToCart = () => {
     if (product) {
@@ -103,7 +103,7 @@ export default function ProductDetailPage() {
             <Search className="w-12 h-12 text-rose-600" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Fragrance Not Found</h1>
-          <p className="text-gray-600 mb-8">The perfume you're looking for doesn't exist or has been removed.</p>
+          <p className="text-gray-600 mb-8">The perfume you&apos;re looking for doesn&apos;t exist or has been removed.</p>
           <Link
             href="/products"
             className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-rose-600 to-pink-600 text-white font-semibold rounded-full hover:from-rose-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
