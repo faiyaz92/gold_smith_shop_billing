@@ -1,0 +1,47 @@
+<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="woodyBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a29bfe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6c5ce7;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="woodyAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fd79a8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e84393;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="300" fill="url(#woodyBg)"/>
+
+  <!-- Tree silhouettes -->
+  <path d="M 80 150 L 80 250 L 60 250 L 60 150 Z" fill="#2d3436"/>
+  <path d="M 80 150 Q 70 120 80 100 Q 90 120 80 150 Z" fill="#636e72"/>
+  <path d="M 80 100 Q 65 80 80 70 Q 95 80 80 100 Z" fill="#636e72"/>
+
+  <path d="M 320 140 L 320 250 L 300 250 L 300 140 Z" fill="#2d3436"/>
+  <path d="M 320 140 Q 310 110 320 90 Q 330 110 320 140 Z" fill="#636e72"/>
+  <path d="M 320 90 Q 305 70 320 60 Q 335 70 320 90 Z" fill="#636e72"/>
+
+  <!-- Wood texture lines -->
+  <path d="M 60 160 L 100 160" stroke="#4a5568" stroke-width="2"/>
+  <path d="M 60 180 L 100 180" stroke="#4a5568" stroke-width="2"/>
+  <path d="M 60 200 L 100 200" stroke="#4a5568" stroke-width="2"/>
+  <path d="M 300 160 L 340 160" stroke="#4a5568" stroke-width="2"/>
+  <path d="M 300 180 L 340 180" stroke="#4a5568" stroke-width="2"/>
+  <path d="M 300 200 L 340 200" stroke="#4a5568" stroke-width="2"/>
+
+  <!-- Decorative wood pieces -->
+  <rect x="150" y="200" width="40" height="8" rx="4" fill="#8e44ad"/>
+  <rect x="210" y="180" width="35" height="8" rx="4" fill="#9b59b6"/>
+  <rect x="180" y="220" width="45" height="8" rx="4" fill="#8e44ad"/>
+
+  <!-- Category text -->
+  <rect x="50" y="220" width="300" height="60" rx="30" fill="rgba(255,255,255,0.9)" stroke="#6c5ce7" stroke-width="2"/>
+  <text x="200" y="250" text-anchor="middle" font-family="serif" font-size="24" font-weight="bold" fill="#6c5ce7">WOODY</text>
+  <text x="200" y="270" text-anchor="middle" font-family="serif" font-size="14" fill="#636e72">Sandalwood • Cedar • Patchouli</text>
+
+  <!-- Decorative elements -->
+  <circle cx="200" cy="80" r="15" fill="#a29bfe" opacity="0.6"/>
+  <circle cx="180" cy="100" r="10" fill="#fd79a8" opacity="0.4"/>
+  <circle cx="220" cy="100" r="10" fill="#fd79a8" opacity="0.4"/>
+</svg>

@@ -49,6 +49,14 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+// Validate config
+if (!firebaseConfig.apiKey) {
+  console.error('Firebase API key is missing!');
+}
+if (!firebaseConfig.projectId) {
+  console.error('Firebase project ID is missing!');
+}
+
 // Initialize app
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 

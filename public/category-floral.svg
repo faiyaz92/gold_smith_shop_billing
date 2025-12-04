@@ -1,0 +1,37 @@
+<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="floralBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffeaa7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fab1a0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="floralAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fdcb6e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e17055;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="300" fill="url(#floralBg)"/>
+
+  <!-- Decorative flowers -->
+  <circle cx="100" cy="80" r="25" fill="#ff7675" opacity="0.7"/>
+  <circle cx="320" cy="60" r="20" fill="#fd79a8" opacity="0.8"/>
+  <circle cx="80" cy="200" r="18" fill="#fdcb6e" opacity="0.6"/>
+  <circle cx="280" cy="180" r="22" fill="#e17055" opacity="0.7"/>
+  <circle cx="200" cy="120" r="30" fill="#fab1a0" opacity="0.8"/>
+
+  <!-- Flower petals -->
+  <ellipse cx="100" cy="80" rx="8" ry="15" fill="#ff7675" transform="rotate(45 100 80)"/>
+  <ellipse cx="100" cy="80" rx="8" ry="15" fill="#ff7675" transform="rotate(-45 100 80)"/>
+  <ellipse cx="320" cy="60" rx="6" ry="12" fill="#fd79a8" transform="rotate(30 320 60)"/>
+  <ellipse cx="320" cy="60" rx="6" ry="12" fill="#fd79a8" transform="rotate(-30 320 60)"/>
+
+  <!-- Category text -->
+  <rect x="50" y="220" width="300" height="60" rx="30" fill="rgba(255,255,255,0.9)" stroke="#e17055" stroke-width="2"/>
+  <text x="200" y="250" text-anchor="middle" font-family="serif" font-size="24" font-weight="bold" fill="#e17055">FLORAL</text>
+  <text x="200" y="270" text-anchor="middle" font-family="serif" font-size="14" fill="#636e72">Rose • Jasmine • Lily</text>
+
+  <!-- Decorative elements -->
+  <path d="M 50 50 Q 200 20 350 50" stroke="#fab1a0" stroke-width="3" fill="none" opacity="0.5"/>
+  <path d="M 350 250 Q 200 280 50 250" stroke="#fab1a0" stroke-width="3" fill="none" opacity="0.5"/>
+</svg>

@@ -1,10 +1,24 @@
+"use client";
+
+import { useLanguage } from '@/app/context/LanguageContext';
 import en from '../../../locales/en.json';
 import ar from '../../../locales/ar.json';
-import { useLanguage } from '../context/LanguageContext';
 
-export function useTranslation() {
+const translations = { en, ar };
+
+export const useTranslation = () => {
   const { language } = useLanguage();
-  const messages = language === 'ar' ? ar : en;
-  const t = (key) => messages[key] || key;
-  return { t, language };
-}
+
+  const t = (key) => {
+    const keys = key.split('.');
+    let value = translations[language];
+
+    for (const k of keys) {
+      value = value?.[k];
+    }
+
+    return value || key;
+  };
+
+  return { t };
+};
