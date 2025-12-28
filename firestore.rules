@@ -1,0 +1,459 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================================
+    // MULTI-TENANT SECURITY FUNCTIONS
+    // ============================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isValidUser() {
+      return isAuthenticated() &&
+             request.auth.token.email_verified == true;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isValidCompany(userData) {
+      return userData.companyId == resource.data.companyId;
+    }
+
+    function hasPermission(userData, resource, action) {
+      return userData.permissions.hasAny([resource + '.' + action, 'admin.*']);
+    }
+
+    function isCompanyAdmin(userData) {
+      return userData.role == 'company_admin';
+    }
+
+    function isGeneralManager(userData) {
+      return userData.role == 'general_manager';
+    }
+
+    function isBranchManager(userData) {
+      return userData.role == 'branch_manager';
+    }
+
+    function isSupervisor(userData) {
+      return userData.role == 'supervisor';
+    }
+
+    function isCashier(userData) {
+      return userData.role == 'cashier';
+    }
+
+    function isAccountant(userData) {
+      return userData.role == 'accountant';
+    }
+
+    function isInventoryManager(userData) {
+      return userData.role == 'inventory_manager';
+    }
+
+    function isVanSeller(userData) {
+      return userData.role == 'van_seller';
+    }
+
+    function isDeliveryStaff(userData) {
+      return userData.role == 'delivery_staff';
+    }
+
+    function isCustomerSupport(userData) {
+      return userData.role == 'customer_support';
+    }
+
+    function isAuditor(userData) {
+      return userData.role == 'auditor';
+    }
+
+    // ============================================================================
+    // DATA VALIDATION FUNCTIONS
+    // ============================================================================
+
+    function isValidEmail(email) {
+      return email.matches('[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}');
+    }
+
+    function isValidMobile(mobile) {
+      return mobile.matches('^\\+[1-9]\\d{1,14}$');
+    }
+
+    function isValidAccountCode(code) {
+      return code.matches('^(MAIN-\\d{4}|BR\\d{3}-\\w+|VS\\d{3}-\\w+|CUST-.+)$');
+    }
+
+    function isValidAmount(amount) {
+      return amount is number && amount > 0 && amount < 999999999.99;
+    }
+
+    function isValidQuantity(quantity) {
+      return quantity is number && quantity >= 0;
+    }
+
+    function isValidDate(date) {
+      return date is timestamp && date < request.time;
+    }
+
+    function hasRequiredFields(requiredFields) {
+      return request.resource.data.keys().hasAll(requiredFields);
+    }
+
+    // ============================================================================
+    // AUDIT LOGGING FUNCTIONS
+    // ============================================================================
+
+    function createAuditLog(action, entityType, entityId, details) {
+      let auditData = {
+        action: action,
+        entityType: entityType,
+        entityId: entityId,
+        userId: request.auth.uid,
+        timestamp: request.time,
+        ipAddress: request.auth.token.ip_address or 'unknown',
+        userAgent: request.auth.token.user_agent or 'unknown',
+        companyId: request.resource.data.companyId,
+        details: details,
+        beforeState: resource.data,
+        afterState: request.resource.data,
+        riskLevel: 'low'
+      };
+
+      // Set risk level based on action and entity
+      if (entityType in ['accounts', 'transactions', 'journals'] && action in ['delete', 'update']) {
+        auditData.riskLevel = 'critical';
+      } else if (entityType in ['inventory', 'stockAdjustments'] && action == 'update') {
+        auditData.riskLevel = 'high';
+      } else if (action == 'delete') {
+        auditData.riskLevel = 'high';
+      }
+
+      return createAuditEntry(auditData);
+    }
+
+    function createAuditEntry(auditData) {
+      // This would create an audit log entry - implemented in client code
+      return true;
+    }
+
+    // ============================================================================
+    // USERS COLLECTION
+    // ============================================================================
+
+    match /users/{userId} {
+      // Allow users to read/write their own profile
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Allow admins to read all users
+      allow read: if isValidUser() &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      // Allow admins to create/update users
+      allow create, update: if isValidUser() &&
+                               isCompanyAdmin(getUserData()) &&
+                               hasRequiredFields(['companyId', 'email', 'role']) &&
+                               isValidEmail(request.resource.data.email) &&
+                               createAuditLog('create', 'users', userId, {'role': request.resource.data.role});
+
+      // Data validation for user creation
+      allow create: if isValidUser() &&
+                       hasRequiredFields(['companyId', 'email', 'fullName', 'role']) &&
+                       isValidEmail(request.resource.data.email) &&
+                       request.resource.data.role in ['company_admin', 'general_manager', 'branch_manager',
+                                                     'supervisor', 'cashier', 'accountant', 'inventory_manager',
+                                                     'van_seller', 'delivery_staff', 'customer_support', 'auditor'];
+    }
+
+    // ============================================================================
+    // ACCOUNTS COLLECTION (39 Core Accounts)
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/accounts/{accountId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isAccountant(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create, update: if isValidUser() &&
+                               getUserData().companyId == companyId &&
+                               isAccountant(getUserData()) &&
+                               hasRequiredFields(['accountId', 'accountName', 'accountType']) &&
+                               isValidAccountCode(request.resource.data.accountId) &&
+                               request.resource.data.accountType in ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense'] &&
+                               createAuditLog('create', 'accounts', accountId, {'accountType': request.resource.data.accountType});
+
+      // Prevent deletion of core accounts
+      allow delete: if false;
+    }
+
+    // ============================================================================
+    // TRANSACTIONS COLLECTION (Double-Entry Accounting)
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/transactions/{transactionId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isAccountant(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create: if isValidUser() &&
+                       getUserData().companyId == companyId &&
+                       (isAccountant(getUserData()) || isCashier(getUserData())) &&
+                       hasRequiredFields(['debitAccountId', 'creditAccountId', 'amount', 'date']) &&
+                       isValidAmount(request.resource.data.amount) &&
+                       isValidDate(request.resource.data.date) &&
+                       createAuditLog('create', 'transactions', transactionId, {'amount': request.resource.data.amount});
+
+      // Transactions are immutable once created
+      allow update, delete: if false;
+    }
+
+    // ============================================================================
+    // INVENTORY COLLECTION
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/inventory/{inventoryId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isInventoryManager(getUserData()) ||
+                      isBranchManager(getUserData()) ||
+                      isSupervisor(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create, update: if isValidUser() &&
+                               getUserData().companyId == companyId &&
+                               isInventoryManager(getUserData()) &&
+                               hasRequiredFields(['productId', 'warehouseId', 'quantity']) &&
+                               isValidQuantity(request.resource.data.quantity) &&
+                               createAuditLog('update', 'inventory', inventoryId, {'quantity': request.resource.data.quantity});
+
+      allow delete: if false; // Inventory records should not be deleted
+    }
+
+    // ============================================================================
+    // ORDERS COLLECTION
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/orders/{orderId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isBranchManager(getUserData()) ||
+                      isSupervisor(getUserData()) ||
+                      isCashier(getUserData()) ||
+                      isDeliveryStaff(getUserData()) ||
+                      isCustomerSupport(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create, update: if isValidUser() &&
+                               getUserData().companyId == companyId &&
+                               (isCashier(getUserData()) ||
+                                isSupervisor(getUserData()) ||
+                                isBranchManager(getUserData()) ||
+                                isVanSeller(getUserData())) &&
+                               hasRequiredFields(['customerId', 'items', 'totalAmount']) &&
+                               isValidAmount(request.resource.data.totalAmount) &&
+                               createAuditLog('create', 'orders', orderId, {'totalAmount': request.resource.data.totalAmount});
+    }
+
+    // ============================================================================
+    // VAN SELLERS COLLECTION
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/vanSellers/{vanSellerId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isBranchManager(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create, update: if isValidUser() &&
+                               getUserData().companyId == companyId &&
+                               (isCompanyAdmin(getUserData()) || isBranchManager(getUserData())) &&
+                               hasRequiredFields(['vanSellerId', 'name', 'territoryId']) &&
+                               createAuditLog('create', 'vanSellers', vanSellerId, {'territoryId': request.resource.data.territoryId});
+
+      allow delete: if isValidUser() &&
+                       getUserData().companyId == companyId &&
+                       isCompanyAdmin(getUserData()) &&
+                       createAuditLog('delete', 'vanSellers', vanSellerId, {});
+    }
+
+    // ============================================================================
+    // GPS TRACKING COLLECTION
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/gpsTracking/{trackingId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isBranchManager(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create: if isValidUser() &&
+                       getUserData().companyId == companyId &&
+                       (isVanSeller(getUserData()) || isDeliveryStaff(getUserData())) &&
+                       hasRequiredFields(['vanSellerId', 'latitude', 'longitude', 'timestamp']) &&
+                       request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90 &&
+                       request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180;
+
+      // GPS data is append-only
+      allow update, delete: if false;
+    }
+
+    // ============================================================================
+    // STOCK ALLOCATIONS COLLECTION
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/stockAllocations/{allocationId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isInventoryManager(getUserData()) ||
+                      isBranchManager(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create, update: if isValidUser() &&
+                               getUserData().companyId == companyId &&
+                               isInventoryManager(getUserData()) &&
+                               hasRequiredFields(['vanSellerId', 'items', 'totalValue']) &&
+                               isValidAmount(request.resource.data.totalValue) &&
+                               createAuditLog('create', 'stockAllocations', allocationId, {'totalValue': request.resource.data.totalValue});
+    }
+
+    // ============================================================================
+    // COMMISSIONS COLLECTION
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/commissions/{commissionId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isBranchManager(getUserData()) ||
+                      isAccountant(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create, update: if isValidUser() &&
+                               getUserData().companyId == companyId &&
+                               (isAccountant(getUserData()) || isBranchManager(getUserData())) &&
+                               hasRequiredFields(['vanSellerId', 'totalCommission', 'status']) &&
+                               isValidAmount(request.resource.data.totalCommission) &&
+                               request.resource.data.status in ['calculated', 'approved', 'paid', 'cancelled'] &&
+                               createAuditLog('update', 'commissions', commissionId, {'status': request.resource.data.status});
+    }
+
+    // ============================================================================
+    // DASHBOARD METRICS COLLECTION
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/dashboardMetrics/{metricId} {
+      allow read: if isValidUser() && getUserData().companyId == companyId;
+      allow create, update: if false; // System-generated only
+      allow delete: if false;
+    }
+
+    // ============================================================================
+    // AUDIT LOGS COLLECTION
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/auditLogs/{auditId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create: if isValidUser() &&
+                       getUserData().companyId == companyId &&
+                       (isCompanyAdmin(getUserData()) ||
+                        isAuditor(getUserData()) ||
+                        isAccountant(getUserData()) ||
+                        isInventoryManager(getUserData()));
+
+      allow update, delete: if false; // Audit logs are immutable
+    }
+
+    // ============================================================================
+    // INVOICES COLLECTION (GST-Compliant)
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/invoices/{invoiceId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isAccountant(getUserData()) ||
+                      isBranchManager(getUserData()) ||
+                      isSupervisor(getUserData()) ||
+                      isCashier(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create: if isValidUser() &&
+                       getUserData().companyId == companyId &&
+                       (isCashier(getUserData()) ||
+                        isSupervisor(getUserData()) ||
+                        isBranchManager(getUserData())) &&
+                       hasRequiredFields(['invoiceId', 'customerId', 'items', 'totalAmount']) &&
+                       isValidAmount(request.resource.data.totalAmount) &&
+                       createAuditLog('create', 'invoices', invoiceId, {'totalAmount': request.resource.data.totalAmount});
+
+      allow update: if isValidUser() &&
+                       getUserData().companyId == companyId &&
+                       (isAccountant(getUserData()) || isCashier(getUserData())) &&
+                       createAuditLog('update', 'invoices', invoiceId, {'status': request.resource.data.status});
+
+      allow delete: if false; // Invoices should not be deleted for audit compliance
+    }
+
+    // ============================================================================
+    // CASH MEMOS COLLECTION
+    // ============================================================================
+
+    match /tenantCompanies/{companyId}/cashMemos/{memoId} {
+      allow read: if isValidUser() &&
+                     getUserData().companyId == companyId &&
+                     (isCompanyAdmin(getUserData()) ||
+                      isGeneralManager(getUserData()) ||
+                      isAccountant(getUserData()) ||
+                      isBranchManager(getUserData()) ||
+                      isSupervisor(getUserData()) ||
+                      isCashier(getUserData()) ||
+                      isAuditor(getUserData()));
+
+      allow create: if isValidUser() &&
+                       getUserData().companyId == companyId &&
+                       isCashier(getUserData()) &&
+                       hasRequiredFields(['memoId', 'items', 'subtotal', 'paymentMethod']) &&
+                       isValidAmount(request.resource.data.subtotal) &&
+                       request.resource.data.paymentMethod in ['cash', 'card', 'upi', 'online'] &&
+                       createAuditLog('create', 'cashMemos', memoId, {'subtotal': request.resource.data.subtotal});
+
+      // Cash memos are immutable once created
+      allow update, delete: if false;
+    }
+
+    // ============================================================================
+    // DEFAULT DENY RULE
+    // ============================================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,65 +1,218 @@
-'use client';
-
+"use client";
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import {
-  Users,
-  Search,
-  Loader2,
-  Plus,
-  Edit2,
-  Trash2,
-  Eye,
-  EyeOff,
-  AlertTriangle,
-  Crown,
-  Building,
-  Shield,
-  Truck,
-  Package,
-  CreditCard,
-} from 'lucide-react';
-import { motion } from 'framer-motion';
-import {
-  collection,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  serverTimestamp,
-  query,
-  orderBy,
-  setDoc
-} from 'firebase/firestore';
-import {
-  createUserWithEmailAndPassword,
-  signOut
-} from 'firebase/auth';
-import { db, auth } from '@/app/firebase';
-import AdminLayout from '../AdminLayout';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '@/app/firebase';
+import { useUserManagement } from '@/app/context/UserManagementContext';
+import { BarChart, PieChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, Bar, Pie } from 'recharts';
+import { Plus, Search, Loader2, Crown, Edit2, Trash2, EyeOff, Eye, AlertTriangle, Users } from 'lucide-react';
+import AdminLayout from '@/app/admin/AdminLayout';
 
-const USER_ROLES = [
-  { value: 'company_admin', label: 'Company Admin', icon: <Crown size={14} />, color: 'bg-purple-100 text-purple-800' },
-  { value: 'general_manager', label: 'General Manager', icon: <Shield size={14} />, color: 'bg-blue-100 text-blue-800' },
-  { value: 'branch_manager', label: 'Branch Manager', icon: <Building size={14} />, color: 'bg-green-100 text-green-800' },
-  { value: 'cashier', label: 'Cashier', icon: <CreditCard size={14} />, color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'delivery_man', label: 'Delivery Man', icon: <Truck size={14} />, color: 'bg-orange-100 text-orange-800' },
-  { value: 'pickup_man', label: 'Pickup Man', icon: <Package size={14} />, color: 'bg-teal-100 text-teal-800' },
-];
+// Metric Card Component
+function MetricCard({ title, value, trend, icon, color = "blue" }) {
+  return (
+    <div className={`bg-white p-6 rounded-lg shadow-md border-l-4 border-${color}-500`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-2xl font-bold text-gray-900">{value}</p>
+          {trend && (
+            <p className={`text-sm ${trend.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+              {trend} MoM
+            </p>
+          )}
+        </div>
+        {icon && <div className={`text-${color}-500 text-2xl`}>{icon}</div>}
+      </div>
+    </div>
+  );
+}
 
-const STATUS_OPTIONS = [
-  { value: 'active', label: 'Active', color: 'bg-green-100 text-green-800' },
-  { value: 'inactive', label: 'Inactive', color: 'bg-red-100 text-red-800' },
-  { value: 'suspended', label: 'Suspended', color: 'bg-gray-100 text-gray-800' },
-];
+// User Distribution Chart Component
+function UserDistributionChart({ data, title, type = "bar" }) {
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
 
-const USER_TYPES = [
-  { value: 'customer', label: 'Customer' },
-  { value: 'staff', label: 'Staff/Employee' },
-];
+  if (type === "pie") {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900">{title}</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={Object.entries(data).map(([key, value], index) => ({
+                name: key,
+                value,
+                fill: colors[index % colors.length]
+              }))}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+              outerRadius={80}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {Object.entries(data).map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
 
-export default function AdminUsers() {
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h3 className="text-lg font-semibold mb-4 text-gray-900">{title}</h3>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={Object.entries(data).map(([key, value]) => ({ name: key, value }))}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip />
+          <Bar dataKey="value" fill="#3B82F6" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// Recent User Activity Component
+function RecentUserActivity({ activities }) {
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'active': return 'text-green-600 bg-green-100';
+      case 'away': return 'text-yellow-600 bg-yellow-100';
+      case 'inactive': return 'text-red-600 bg-red-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const formatLastLogin = (lastLogin) => {
+    if (!lastLogin) return 'Never';
+
+    const now = new Date();
+    const loginTime = lastLogin.toDate ? lastLogin.toDate() : new Date(lastLogin);
+    const diffMs = now - loginTime;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 60) return `${diffMins} mins ago`;
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return loginTime.toLocaleDateString();
+  };
+
+  // Mock data for demonstration (in real implementation, this would come from userActivity collection)
+  const mockActivities = [
+    { name: 'John Smith', role: 'Manager', lastLogin: new Date(Date.now() - 2 * 60 * 1000), status: 'active' },
+    { name: 'Sarah Johnson', role: 'Cashier', lastLogin: new Date(Date.now() - 15 * 60 * 1000), status: 'active' },
+    { name: 'Mike Davis', role: 'Van Seller', lastLogin: new Date(Date.now() - 60 * 60 * 1000), status: 'active' },
+    { name: 'Lisa Brown', role: 'Supervisor', lastLogin: new Date(Date.now() - 3 * 60 * 60 * 1000), status: 'away' },
+    { name: 'David Wilson', role: 'Delivery', lastLogin: new Date(Date.now() - 24 * 60 * 60 * 1000), status: 'inactive' }
+  ];
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h3 className="text-lg font-semibold mb-4 text-gray-900">📋 Recent User Activity</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                User Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Role
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Last Login
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {mockActivities.map((user, index) => (
+              <tr key={index}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  {user.name}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {user.role}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {formatLastLogin(user.lastLogin)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(user.status)}`}>
+                    {user.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// User Management Alerts Component
+function UserManagementAlerts({ alerts }) {
+  return (
+    <div className="grid grid-cols-2 gap-6">
+      {/* Security Alerts */}
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900">⚠️ Security Alerts</h3>
+        <div className="space-y-3">
+          {alerts.securityAlerts.map((alert, index) => (
+            <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
+              <span className="text-sm text-gray-700">{alert.description}</span>
+              <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                {alert.count}
+              </span>
+            </div>
+          ))}
+        </div>
+        <button className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium">
+          [View All Alerts]
+        </button>
+      </div>
+
+      {/* Usage Analytics */}
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900">📈 Usage Analytics</h3>
+        <div className="space-y-3">
+          {alerts.usageAnalytics.map((analytic, index) => (
+            <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
+              <span className="text-sm text-gray-700">{analytic.description}</span>
+              <span className="text-xs text-gray-500">
+                {analytic.value}
+              </span>
+            </div>
+          ))}
+        </div>
+        <button className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium">
+          [View Analytics]
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Main User Management Dashboard Component
+export default function UserManagementDashboard() {
+  const { userStats, loading } = useUserManagement();
+
+  const formatPercentage = (value, total) => {
+    return total > 0 ? ` (${Math.round((value / total) * 100)}%)` : '';
+  };
+
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || '';
   const basePath = 'Easy2Solutions/companyDirectory';
   const tenantCompaniesPath = `${basePath}/tenantCompanies`;
@@ -155,6 +308,15 @@ export default function AdminUsers() {
       unsubscribeBranches();
     };
   }, [router]);
+
+  // Loading check after all hooks
+  if (loading || isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   const formatLastLogin = (timestamp) => {
     if (!timestamp) return 'Never logged in';

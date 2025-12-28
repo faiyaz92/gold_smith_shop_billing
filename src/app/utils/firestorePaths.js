@@ -34,6 +34,7 @@ export const useFirestorePaths = () => {
     getSingleOrderPath: (orderId) => `${tenantCompaniesPath}/${companyId}/orders/${orderId}`,
     getInvoicesPath: () => `${tenantCompaniesPath}/${companyId}/invoices`,
     getSingleInvoicePath: (invoiceId) => `${tenantCompaniesPath}/${companyId}/invoices/${invoiceId}`,
+    getInvoiceItemsPath: () => `${tenantCompaniesPath}/${companyId}/invoiceItems`,
     getCartsPath: () => `${tenantCompaniesPath}/${companyId}/carts`,
     getUserCartPath: (userId) => `${tenantCompaniesPath}/${companyId}/carts/${userId}`,
     getWishlistPath: () => `${tenantCompaniesPath}/${companyId}/wishlists`,

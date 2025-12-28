@@ -3,6 +3,9 @@ import "./globals.css";
 import { CartProvider } from "./context/CartContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import { AdminLanguageProvider } from "./context/AdminLanguageContext";
+import { AccountingProvider } from "./context/AccountingContext";
+import { VanSellerProvider } from "./context/VanSellerContext";
+import { UserManagementProvider } from "./context/UserManagementContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,8 +33,15 @@ export default function RootLayout({ children }) {
       >
         <LanguageProvider>
           <CartProvider>
-            <AdminLanguageProvider>            {children}
-</AdminLanguageProvider>
+            <AdminLanguageProvider>
+              <AccountingProvider>
+                <UserManagementProvider>
+                  <VanSellerProvider>
+                    {children}
+                  </VanSellerProvider>
+                </UserManagementProvider>
+              </AccountingProvider>
+            </AdminLanguageProvider>
             
           </CartProvider>
         </LanguageProvider>

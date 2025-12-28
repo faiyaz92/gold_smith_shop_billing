@@ -271,6 +271,9 @@ function BillingPage() {
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
 
+  // Transaction type state management for POS enhancements
+  const [transactionType, setTransactionType] = useState('cash_sale'); // 'new_order', 'cash_sale', 'credit_invoice'
+
   // POS user info and branch handling
   const [posUser, setPosUser] = useState({
     userId: '',
@@ -546,45 +549,93 @@ function BillingPage() {
     setCart(cart.filter(item => item.id !== productId));
   };
 
-  const addNewCustomer = async () => {
-    if (!newCustomerName) {
-      toast({
-        title: "Error",
-        description: "Customer name is required.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
+  // Enhanced customer creation in POS with accounting integration
+  const createCustomerInPOS = async (customerData) => {
     try {
-      const newCustomer = {
-        userId: `CUST-${Date.now()}`,
-        name: newCustomerName,
-        userName: newCustomerName,
-        userType: 'Customer',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
-      const userRef = doc(db, usersPath, newCustomer.userId);
-      await setDoc(userRef, newCustomer);
+      setIsLoading(true);
 
-      setCustomers([...customers, newCustomer]);
-      setCustomer(newCustomer);
-      setNewCustomerName('');
-      setCustomerSearch('');
-      setIsCustomerDialogOpen(false);
+      const { mobileNumber, customerName, creditLimit = 0 } = customerData;
+
+      // Validate mobile number uniqueness
+      const existingCustomerQuery = query(
+        collection(db, usersPath),
+        where('phone', '==', mobileNumber)
+      );
+      const existingCustomers = await getDocs(existingCustomerQuery);
+
+      if (!existingCustomers.empty) {
+        throw new Error('Mobile number already exists');
+      }
+
+      // Generate customer ID and account code
+      const customerId = `CUST-${Date.now()}`;
+      const accountCode = `CUST-${customerId}`;
+
+      // Create customer master record
+      const customerRecord = {
+        userId: customerId,
+        name: customerName,
+        userName: customerName,
+        phone: mobileNumber,
+        userType: 'Customer',
+        creditLimit: creditLimit,
+        accountCode: accountCode,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        // Migration-ready fields
+        _version: "2.0",
+        _migrationStatus: "active",
+        _v3Ready: true,
+        _v4Ready: false
+      };
+
+      // Save customer record
+      const customerRef = doc(db, usersPath, customerId);
+      await setDoc(customerRef, customerRecord);
+
+      // Auto-create receivable account under MAIN-1003 (Accounts Receivable)
+      const receivableAccount = {
+        accountCode: accountCode,
+        accountName: `${customerName} - Receivable`,
+        accountType: 'asset', // Current Asset
+        parentAccountId: 'MAIN-1003', // Accounts Receivable
+        parentAccountName: 'Accounts Receivable',
+        isActive: true,
+        balance: 0,
+        customerId: customerId,
+        customerName: customerName,
+        createdAt: serverTimestamp(),
+        createdBy: posUser.userId,
+        // Migration-ready fields
+        _version: "2.0",
+        _migrationStatus: "active",
+        _v3Ready: true,
+        _v4Ready: false
+      };
+
+      // Save receivable account
+      const accountsPath = `${tenantCompaniesPath}/${companyId}/accounts`;
+      const accountRef = doc(db, accountsPath, accountCode);
+      await setDoc(accountRef, receivableAccount);
+
+      // Add to local customers list
+      setCustomers([...customers, customerRecord]);
+
       toast({
-        title: "Success",
-        description: "Customer added successfully.",
+        title: "Customer Created",
+        description: `Customer ${customerName} created with account ${accountCode}`,
       });
-    } catch (e) {
-      console.error('Add customer error:', e);
+
+      return customerRecord;
+
+    } catch (error) {
+      console.error('Create customer error:', error);
       toast({
         title: "Error",
-        description: `Failed to add customer: ${e.message || e}`,
+        description: `Failed to create customer: ${error.message}`,
         variant: "destructive",
       });
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -594,6 +645,241 @@ function BillingPage() {
   const getBranchName = (branchId) => {
     const branch = branches.find(b => b.storeId === branchId);
     return branch ? branch.name : 'Unknown Branch';
+  };
+
+  // Transaction type handlers for POS enhancements
+  const handleTransactionTypeChange = (newTransactionType) => {
+    setTransactionType(newTransactionType);
+    // Reset relevant states when changing transaction type
+    if (newTransactionType === 'new_order') {
+      setPaymentMethod('Credit'); // New orders are typically credit
+      setOrderStatus('Order Placed');
+    } else if (newTransactionType === 'cash_sale') {
+      setPaymentMethod('Cash'); // Cash sales require immediate payment
+      setOrderStatus('Ready for Delivery');
+    } else if (newTransactionType === 'credit_invoice') {
+      setPaymentMethod('Credit'); // Credit invoices are on credit
+      setOrderStatus('Invoice Generated');
+    }
+  };
+
+  const handlePlaceOrder = async () => {
+    // New Order workflow - advance booking without immediate payment
+    if (!customer) {
+      toast({
+        title: "Customer Required",
+        description: "Please select a customer for new orders.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await generateBill();
+      toast({
+        title: "Order Placed",
+        description: "New order created successfully. Payment will be collected later.",
+      });
+    } catch (error) {
+      console.error('Place order error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCashSale = async () => {
+    // Cash Sale workflow - immediate payment and delivery
+    setIsLoading(true);
+    try {
+      // Ensure payment method is Cash
+      setPaymentMethod('Cash');
+      await generateBill();
+      toast({
+        title: "Cash Sale Completed",
+        description: "Payment received and sale completed successfully.",
+      });
+    } catch (error) {
+      console.error('Cash sale error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreditInvoice = async () => {
+    // Credit Invoice workflow - credit sale with receivable tracking
+    if (!customer) {
+      toast({
+        title: "Customer Required",
+        description: "Please select a customer for credit invoices.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Ensure payment method is Credit
+      setPaymentMethod('Credit');
+      await generateBill();
+      toast({
+        title: "Credit Invoice Generated",
+        description: "Invoice created. Amount will be added to customer receivable.",
+      });
+    } catch (error) {
+      console.error('Credit invoice error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch order by ID for editing existing orders
+  const fetchOrderById = async (orderId) => {
+    try {
+      setIsLoading(true);
+      const orderRef = doc(db, ordersPath, orderId);
+      const orderDoc = await getDoc(orderRef);
+
+      if (orderDoc.exists()) {
+        const orderData = orderDoc.data();
+
+        // Populate the form with existing order data
+        setCart(orderData.items || []);
+        setCustomer(orderData.customer || null);
+        setPaymentMethod(orderData.paymentMethod || 'Cash');
+        setOrderStatus(orderData.orderStatus || 'Received at Facility');
+        setBillNumber(orderData.billNumber || '');
+        setExistingBillNumber(orderData.billNumber || null);
+
+        // Set transaction type based on order data
+        if (orderData.transactionType) {
+          setTransactionType(orderData.transactionType);
+        } else {
+          // Infer transaction type from payment method and status
+          if (orderData.paymentMethod === 'Cash') {
+            setTransactionType('cash_sale');
+          } else if (orderData.orderStatus === 'Order Placed') {
+            setTransactionType('new_order');
+          } else {
+            setTransactionType('credit_invoice');
+          }
+        }
+
+        toast({
+          title: "Order Loaded",
+          description: `Order ${orderId} loaded successfully for editing.`,
+        });
+      } else {
+        toast({
+          title: "Order Not Found",
+          description: `Order ${orderId} not found.`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Fetch order error:', error);
+      toast({
+        title: "Error",
+        description: `Failed to fetch order: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Payment status tracking logic
+  const getPaymentStatus = (order) => {
+    if (!order) return 'unknown';
+
+    if (order.paymentMethod === 'Cash') {
+      return order.paymentReceived ? 'paid' : 'pending';
+    } else if (order.paymentMethod === 'Credit') {
+      return order.paymentReceived ? 'paid' : 'outstanding';
+    }
+
+    return 'unknown';
+  };
+
+  // WhatsApp job card forwarding functionality
+  const handleWhatsAppForward = (orderId, customerPhone) => {
+    if (!customerPhone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required for WhatsApp forwarding.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Format mobile number for WhatsApp (remove any non-numeric characters)
+      const formattedPhone = customerPhone.replace(/\D/g, '');
+
+      // Add Kuwait country code if not present (+965)
+      const phoneWithCountryCode = formattedPhone.startsWith('965') ? formattedPhone : `965${formattedPhone}`;
+
+      // Create job card message
+      const jobCardMessage = createJobCardMessage(orderId);
+
+      // Encode message for URL
+      const encodedMessage = encodeURIComponent(jobCardMessage);
+
+      // Create WhatsApp URL
+      const whatsappUrl = `https://wa.me/${phoneWithCountryCode}?text=${encodedMessage}`;
+
+      // Open WhatsApp in new window/tab
+      window.open(whatsappUrl, '_blank');
+
+      toast({
+        title: "WhatsApp Opened",
+        description: "Job card forwarded to customer's WhatsApp.",
+      });
+    } catch (error) {
+      console.error('WhatsApp forwarding error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to forward job card to WhatsApp.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const createJobCardMessage = (orderId) => {
+    // Find the order details
+    const order = {
+      id: orderId,
+      billNumber: billNumber,
+      items: cart,
+      customer: customer,
+      total: finalTotal,
+      orderDate: new Date().toLocaleDateString(),
+      deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString()
+    };
+
+    // Create formatted job card message
+    let message = `🧺 *PERFUME SELLER - JOB CARD*\n\n`;
+    message += `📄 Bill No: ${order.billNumber || orderId}\n`;
+    message += `👤 Customer: ${order.customer?.name || 'Walk-in Customer'}\n`;
+    message += `📅 Order Date: ${order.orderDate}\n`;
+    message += `🚚 Delivery Date: ${order.deliveryDate}\n\n`;
+
+    message += `📦 *Items:*\n`;
+    order.items.forEach((item, index) => {
+      message += `${index + 1}. ${item.name} - ${item.quantity} pcs\n`;
+      if (item.categoryName) {
+        message += `   Category: ${item.categoryName}\n`;
+      }
+    });
+
+    message += `\n💰 *Total: KWD ${order.total?.toFixed(3) || '0.000'}*\n\n`;
+    message += `📍 Branch: ${getBranchName(selectedBranch || posUser.branchId)}\n`;
+    message += `👨‍💼 Served by: ${posUser.userName}\n\n`;
+
+    message += `Thank you for choosing Perfume Seller! ✨\n`;
+    message += `Please keep this job card for your records.`;
+
+    return message;
   };
 
   const generateBill = async () => {
@@ -697,6 +983,7 @@ function BillingPage() {
         branchId: finalBranchId,
         branchName: getBranchName(finalBranchId),
         orderSource: 'POS',
+        transactionType: transactionType, // Add transaction type for POS enhancements
         
         // Initialize pickup/delivery tracking (empty initially)
         pickedUpBy: '',
@@ -1206,6 +1493,16 @@ function BillingPage() {
                   </>
                 )}
                 {/* Move payment and order status here */}
+                <div className="grid grid-cols-1 gap-4 mb-4">
+                  <div>
+                    <Label>Transaction Type</Label>
+                    <Select value={transactionType} onChange={handleTransactionTypeChange}>
+                      <option value="new_order">📋 New Order (Advance Booking)</option>
+                      <option value="cash_sale">💵 Cash Sale (Immediate Payment)</option>
+                      <option value="credit_invoice">📄 Credit Invoice (On Credit)</option>
+                    </Select>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Payment Method</Label>
@@ -1226,14 +1523,24 @@ function BillingPage() {
                   </div>
                 </div>
                 <Button
-                  onClick={generateBill}
+                  onClick={() => {
+                    if (transactionType === 'new_order') {
+                      handlePlaceOrder();
+                    } else if (transactionType === 'cash_sale') {
+                      handleCashSale();
+                    } else if (transactionType === 'credit_invoice') {
+                      handleCreditInvoice();
+                    }
+                  }}
                   variant="professional"
                   className="w-full flex items-center justify-center gap-2 py-3 text-base"
                   size="lg"
                   disabled={isLoading}
                 >
                   <Receipt className="w-5 h-5 inline-flex align-middle" />
-                  {existingBillNumber ? "Update Bill" : "Generate Bill"}
+                  {transactionType === 'new_order' && (existingBillNumber ? "Update Order" : "Place Order")}
+                  {transactionType === 'cash_sale' && (existingBillNumber ? "Update Sale" : "Complete Cash Sale")}
+                  {transactionType === 'credit_invoice' && (existingBillNumber ? "Update Invoice" : "Generate Credit Invoice")}
                 </Button>
               </CardContent>
             </Card>
@@ -1321,6 +1628,15 @@ function BillingPage() {
                     value={newCustomerMobile}
                     onChange={e => setNewCustomerMobile(e.target.value)}
                     placeholder="Enter mobile number"
+                    type="tel"
+                  />
+                  <Label>Credit Limit (KWD)</Label>
+                  <Input
+                    value={customer?.creditLimit || ''}
+                    onChange={e => setCustomer({ ...customer, creditLimit: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.000"
+                    type="number"
+                    step="0.001"
                   />
                   <Label>Email</Label>
                   <Input
@@ -1340,31 +1656,33 @@ function BillingPage() {
                         toast({ title: "Required", description: "Name and mobile are required.", variant: "destructive" });
                         return;
                       }
-                      setIsLoading(true);
-                      const newCustomer = {
-                        userId: `CUST-${newCustomerMobile}`,
-                        name: newCustomerName,
-                        userName: newCustomerName,
-                        phone: newCustomerMobile,
-                        email: customer?.email || '',
-                        address: customer?.address || '',
-                        userType: 'Customer',
-                        createdAt: serverTimestamp(),
-                        updatedAt: serverTimestamp()
-                      };
-                      const userRef = doc(db, usersPath, newCustomer.userId);
-                      await setDoc(userRef, newCustomer, { merge: true });
-                      setCustomers([...customers, newCustomer]);
-                      setCustomer(newCustomer);
-                      setIsCustomerDialogOpen(false);
-                      setNewCustomerName('');
-                      setNewCustomerMobile('');
-                      setIsLoading(false);
-                      toast({ title: "Customer Added", description: "Customer added successfully.", variant: "default" });
+
+                      // Validate mobile number format
+                      const mobileRegex = /^[569]\d{7}$/;
+                      if (!mobileRegex.test(newCustomerMobile)) {
+                        toast({ title: "Invalid Mobile", description: "Please enter a valid Kuwaiti mobile number.", variant: "destructive" });
+                        return;
+                      }
+
+                      try {
+                        const newCustomer = await createCustomerInPOS({
+                          mobileNumber: newCustomerMobile,
+                          customerName: newCustomerName,
+                          creditLimit: customer?.creditLimit || 0
+                        });
+
+                        setCustomer(newCustomer);
+                        setIsCustomerDialogOpen(false);
+                        setNewCustomerName('');
+                        setNewCustomerMobile('');
+                        setCustomer(null);
+                      } catch (error) {
+                        // Error already handled in createCustomerInPOS
+                      }
                     }}
                     disabled={isLoading}
                   >
-                    Add Customer
+                    {isLoading ? 'Creating...' : 'Create Customer'}
                   </Button>
                 </div>
               )}
@@ -1425,6 +1743,14 @@ function BillingPage() {
                   <Button onClick={handleDownloadPDF} className="flex-1">
                     Download PDF
                   </Button>
+                  {customer?.phone && (
+                    <Button
+                      onClick={() => handleWhatsAppForward(newOrderId || orderId, customer.phone)}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      📱 WhatsApp
+                    </Button>
+                  )}
                   <Button
                     onClick={() => {
                       setShowSuccessDialog(false);
