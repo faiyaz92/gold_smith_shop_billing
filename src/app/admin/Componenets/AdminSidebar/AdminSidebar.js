@@ -176,7 +176,7 @@ export default function AdminSidebar({ toggleSidebar }) {
       {/* Header with role indicator */}
       <div className="mb-6 px-4">
         <div className={`text-xl font-bold ${roleStyle.color} tracking-tight mb-2`}>
-          EASY2 Admin
+          GoldSmith Admin
         </div>
         {userRole && (
           <div

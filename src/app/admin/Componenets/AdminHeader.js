@@ -51,7 +51,7 @@ export default function AdminHeader({ toggleSidebar, isSidebarOpen }) {
           whileHover={{ scale: 1.05 }}
           className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-500 to-blue-600 bg-clip-text text-transparent"
         >
-          EASY2 Admin
+          GoldSmith Admin
         </motion.div>
       </div>
 

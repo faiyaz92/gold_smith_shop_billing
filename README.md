@@ -1,13 +1,13 @@
-# 🌟 Luxe Perfumes - Premium Fragrance E-commerce
+# 🌟 GoldSmith - Premium Jewelry E-commerce
 
-A sophisticated, modern e-commerce website for luxury perfumes built with Next.js 14, featuring premium design, advanced functionality, and seamless user experience.
+A sophisticated, modern e-commerce website for luxury gold jewelry built with Next.js 14, featuring premium design, advanced functionality, and seamless user experience.
 
-![Luxe Perfumes](https://img.shields.io/badge/Next.js-14-black) ![Firebase](https://img.shields.io/badge/Firebase-Firestore-orange) ![Tailwind](https://img.shields.io/badge/Tailwind-CSS-blue)
+![GoldSmith](https://img.shields.io/badge/Next.js-14-black) ![Firebase](https://img.shields.io/badge/Firebase-Firestore-orange) ![Tailwind](https://img.shields.io/badge/Tailwind-CSS-blue)
 
 ## ✨ Features
 
 ### 🛍️ **E-commerce Features**
-- **Complete Product Catalog** - Browse perfumes by category (Floral, Woody, Oriental)
+- **Complete Product Catalog** - Browse jewelry by category (Gold, Silver, Platinum)
 - **Advanced Search & Filters** - Search by name, filter by category, price range, and sorting
 - **Shopping Cart** - Add/remove items, quantity management, persistent cart
 - **Secure Checkout** - Multi-step checkout with validation, payment processing
@@ -45,7 +45,7 @@ A sophisticated, modern e-commerce website for luxury perfumes built with Next.j
 1. **Clone the repository**
    ```bash
    git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-   cd perfume-shop
+   cd goldsmith
    ```
 
 2. **Install dependencies**
@@ -82,7 +82,7 @@ A sophisticated, modern e-commerce website for luxury perfumes built with Next.j
 ## 📁 Project Structure
 
 ```
-perfume-shop/
+goldsmith/
 ├── src/
 │   ├── app/                    # Next.js App Router pages
 │   │   ├── admin/             # Admin panel pages
@@ -96,7 +96,7 @@ perfume-shop/
 │   ├── utils/                 # Utility functions
 │   └── firebase.js            # Firebase configuration
 ├── public/                     # Static assets
-│   ├── perfume-*.svg         # Perfume bottle illustrations
+│   ├── jewelry-*.svg         # Jewelry illustrations
 │   └── category-*.svg        # Category icons
 ├── docs/                      # Documentation
 └── package.json               # Dependencies and scripts
@@ -174,18 +174,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-For support, email support@luxeperfumes.com or join our Discord community.
+For support, email support@goldsmith.com or join our Discord community.
 
 ## 🙏 Acknowledgments
 
-- **Design Inspiration**: Luxury perfume brands and modern e-commerce trends
+- **Design Inspiration**: Luxury jewelry brands and modern e-commerce trends
 - **Icons**: Lucide React for consistent iconography
-- **Illustrations**: Custom SVG illustrations for perfume bottles
+- **Illustrations**: Custom SVG illustrations for jewelry pieces
 - **Framework**: Next.js team for the amazing framework
 
 ---
 
-**Made with ❤️ for perfume lovers worldwide**
+**Made with ❤️ for jewelry lovers worldwide**
 
 ---
 
@@ -2407,4 +2407,4 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 ---
 
-**Made with ❤️ for perfume lovers worldwide**
+**Made with ❤️ for jewelry lovers worldwide**

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Package, Boxes, ListTree } from 'lucide-react';
+import { Package, Boxes, ListTree, TrendingUp } from 'lucide-react';
 import AdminLayout from '../AdminLayout'; // Change this line
 
 export default function ProductsPage() {
@@ -12,7 +12,7 @@ export default function ProductsPage() {
         {
             id: 'categories',
             title: 'Categories',
-            description: 'Manage product categories',
+            description: 'Manage metal categories',
             icon: <ListTree className="w-8 h-8 text-blue-600" />,
             bgColor: 'bg-blue-50',
             borderColor: 'border-blue-200'
@@ -27,11 +27,19 @@ export default function ProductsPage() {
         },
         {
             id: 'product',
-            title: 'Product',
-            description: 'Manage all product',
+            title: 'Products',
+            description: 'Manage product catalog',
             icon: <Package className="w-8 h-8 text-blue-700" />,
             bgColor: 'bg-blue-50',
             borderColor: 'border-blue-200'
+        },
+        {
+            id: 'metal-rates',
+            title: 'Metal Rates',
+            description: 'Update metal rates and conversions',
+            icon: <TrendingUp className="w-8 h-8 text-green-600" />,
+            bgColor: 'bg-green-50',
+            borderColor: 'border-green-200'
         }
     ];
 

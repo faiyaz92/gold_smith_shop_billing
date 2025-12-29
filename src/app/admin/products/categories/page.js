@@ -8,13 +8,14 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Menu, X, Home, Package, ShoppingBag, Users,
-  Edit, Trash2, Save, XCircle, ArrowUp, ArrowDown
+  Edit, Trash2, Save, XCircle, ArrowUp, ArrowDown, TrendingUp
 } from 'lucide-react';
 import AdminLayout from '@/app/admin/AdminLayout'; // <-- Import AdminLayout
 
 export default function CategoriesPage() {
   const [categoriesname, setCategoriesname] = useState('');
   const [categoriesimage, setCategoriesimage] = useState(null);
+  const [metalRatePerGram, setMetalRatePerGram] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
   const [uploadError, setUploadError] = useState('');
 
@@ -24,6 +25,7 @@ export default function CategoriesPage() {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
   const [editImage, setEditImage] = useState(null);
+  const [editMetalRate, setEditMetalRate] = useState('');
   const [editPreviewUrl, setEditPreviewUrl] = useState('');
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -83,7 +85,11 @@ export default function CategoriesPage() {
 
   const handleAddCategory = async () => {
     if (!categoriesname) {
-      setUploadError('Category name is required');
+      setUploadError('Metal name is required');
+      return;
+    }
+    if (!metalRatePerGram || metalRatePerGram <= 0) {
+      setUploadError('Base metal rate per gram is required and must be greater than 0');
       return;
     }
     if (!categoriesimage) {
@@ -102,11 +108,14 @@ export default function CategoriesPage() {
         categoriesid,
         categoriesname,
         categoriesimage: imageUrl,
+        metalRatePerGram: parseFloat(metalRatePerGram),
+        active: true,
         sortOrder: categories.length,
         createdAt: new Date(),
       });
 
       setCategoriesname('');
+      setMetalRatePerGram('');
       setCategoriesimage(null);
       setPreviewUrl('');
       fetchCategories();
@@ -204,13 +213,18 @@ export default function CategoriesPage() {
   const handleEditCategory = (category) => {
     setEditingId(category.id);
     setEditName(category.categoriesname);
+    setEditMetalRate(category.metalRatePerGram || '');
     setEditPreviewUrl(category.categoriesimage);
     setEditImage(null);
   };
 
  const handleUpdateCategory = async () => {
     if (!editName) {
-      setUploadError('Category name cannot be empty');
+      setUploadError('Metal name cannot be empty');
+      return;
+    }
+    if (!editMetalRate || editMetalRate <= 0) {
+      setUploadError('Base metal rate per gram is required and must be greater than 0');
       return;
     }
 
@@ -218,7 +232,10 @@ export default function CategoriesPage() {
     setUploadError('');
 
     try {
-      const updateData = { categoriesname: editName };
+      const updateData = { 
+        categoriesname: editName,
+        metalRatePerGram: parseFloat(editMetalRate)
+      };
 
       if (editImage) {
         // Fetch the current category to get the existing image URL
@@ -240,6 +257,7 @@ export default function CategoriesPage() {
       await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/categories`, editingId), updateData);
       setEditingId(null);
       setEditName('');
+      setEditMetalRate('');
       setEditImage(null);
       setEditPreviewUrl('');
       fetchCategories();
@@ -254,6 +272,7 @@ export default function CategoriesPage() {
   const cancelEdit = () => {
     setEditingId(null);
     setEditName('');
+    setEditMetalRate('');
     setEditImage(null);
     setEditPreviewUrl('');
     setUploadError('');
@@ -279,7 +298,10 @@ export default function CategoriesPage() {
       <div className="p-6 space-y-8">
         {/* Add Category Form */}
         <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
-          <h2 className="text-2xl font-bold mb-4 text-blue-600">Add New Category</h2>
+          <h2 className="text-2xl font-bold mb-4 text-blue-600 flex items-center gap-2">
+            <TrendingUp className="w-6 h-6" />
+            Add New Metal Category
+          </h2>
           
           {uploadError && (
             <div className="mb-4 p-3 bg-red-100 text-red-700 rounded border border-red-200">
@@ -287,18 +309,34 @@ export default function CategoriesPage() {
             </div>
           )}
 
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Category Name</label>
+              <label className="block text-sm font-medium text-gray-700">Metal Name</label>
               <input
                 type="text"
-                placeholder="Enter category name"
+                placeholder="e.g., Gold, Silver, Platinum"
                 value={categoriesname}
                 onChange={(e) => {
                   setCategoriesname(e.target.value);
                   setUploadError('');
                 }}
                 className="w-full p-2 rounded bg-white border border-blue-200 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Base Rate (24k) ₹/gram</label>
+              <input
+                type="number"
+                placeholder="6000"
+                value={metalRatePerGram}
+                onChange={(e) => {
+                  setMetalRatePerGram(e.target.value);
+                  setUploadError('');
+                }}
+                className="w-full p-2 rounded bg-white border border-blue-200 text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                min="0"
+                step="0.01"
               />
             </div>
 
@@ -324,7 +362,7 @@ export default function CategoriesPage() {
                 onClick={handleAddCategory}
                 className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Adding...' : 'Add Category'}
+                {isLoading ? 'Adding...' : 'Add Metal Category'}
               </button>
             </div>
           </div>
@@ -346,11 +384,11 @@ export default function CategoriesPage() {
 
         {/* Categories List */}
         <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
-          <h2 className="text-2xl font-bold mb-6 text-blue-600">Categories List</h2>
+          <h2 className="text-2xl font-bold mb-6 text-blue-600">Metal Categories List</h2>
           
           {categories.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No categories found. Add your first category above.
+              No metal categories found. Add your first metal category above.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -359,7 +397,8 @@ export default function CategoriesPage() {
                   <tr className="bg-blue-50 text-blue-600">
                     <th className="p-3 text-left">#</th>
                     <th className="p-3 text-left">ID</th>
-                    <th className="p-3 text-left">Name</th>
+                    <th className="p-3 text-left">Metal Name</th>
+                    <th className="p-3 text-left">Base Rate (24k)</th>
                     <th className="p-3 text-left">Image</th>
                     <th className="p-3 text-left">Actions</th>
                   </tr>
@@ -379,6 +418,20 @@ export default function CategoriesPage() {
                           />
                         ) : (
                           <span>{cat.categoriesname}</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {editingId === cat.id ? (
+                          <input
+                            type="number"
+                            value={editMetalRate}
+                            onChange={(e) => setEditMetalRate(e.target.value)}
+                            className="w-full p-2 rounded bg-white border border-blue-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            min="0"
+                            step="0.01"
+                          />
+                        ) : (
+                          <span className="font-semibold text-green-600">₹{cat.metalRatePerGram?.toLocaleString() || 'N/A'}</span>
                         )}
                       </td>
                       <td className="p-3">

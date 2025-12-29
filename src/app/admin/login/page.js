@@ -105,7 +105,7 @@ export default function AdminLogin() {
                         whileHover={{ scale: 1.02 }}
                         className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-500 to-blue-700 bg-clip-text text-transparent"
                     >
-                        Admin Login
+                        GoldSmith Admin Login
                     </motion.h2>
                     <p className="mt-2 text-sm text-gray-600">Enter your credentials to access the dashboard</p>
                 </motion.div>

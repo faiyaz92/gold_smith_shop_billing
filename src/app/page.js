@@ -17,18 +17,18 @@ export default function Home() {
   const { cartCount, addToCart } = useCart();
   const { getProductPath, getCategoryPath } = useFirestorePaths();
 
-  // Static perfume images for demo purposes
-  const getDummyPerfumeImage = (productId, index) => {
-    // Static perfume bottle images (SVG files in public folder)
+  // Static gold jewelry images for demo purposes
+  const getDummyJewelryImage = (productId, index) => {
+    // Static gold jewelry images (SVG files in public folder)
     const staticImages = [
-      '/perfume-1.svg', // Midnight Rose EDP
-      '/perfume-2.svg', // Ocean Breeze EDT
-      '/perfume-3.svg', // Amber Nights EDP
-      '/perfume-4.svg', // Citrus Sunrise EDT
-      '/perfume-5.svg', // Vanilla Dreams EDP
-      '/perfume-6.svg', // Woody Essence EDT
-      '/perfume-7.svg', // Floral Fantasy EDP
-      '/perfume-8.svg'  // Fresh Green EDT
+      '/gold-necklace.svg', // Gold Necklace
+      '/gold-bangles.svg',  // Gold Bangles
+      '/gold-ring.svg',     // Gold Ring
+      '/gold-earrings.svg', // Gold Earrings
+      '/gold-chain.svg',    // Gold Chain
+      '/gold-bracelet.svg', // Gold Bracelet
+      '/gold-pendant.svg',  // Gold Pendant
+      '/gold-nose-ring.svg' // Gold Nose Ring
     ];
 
     return staticImages[index % staticImages.length];
@@ -37,88 +37,104 @@ export default function Home() {
   // Category images for shop by category section
   const getCategoryImage = (categoryName) => {
     const categoryImages = {
-      'Floral': '/category-floral.svg',
-      'Woody': '/category-woody.svg',
-      'Oriental': '/category-oriental.svg'
+      'Gold': '/category-gold.svg',
+      'Silver': '/category-silver.svg',
+      'Platinum': '/category-platinum.svg'
     };
 
-    return categoryImages[categoryName] || '/perfume-fallback.svg';
+    return categoryImages[categoryName] || '/jewelry-fallback.svg';
   };
 
   const [featuredProducts, setFeaturedProducts] = useState([
     {
       id: 'sample-1',
-      name: 'Midnight Rose EDP',
-      price: 85,
-      discountedPrice: 68,
-      image: '/hero-perfume.jpg', // Will be replaced with dummy perfume image
-      description: 'A luxurious floral scent with notes of damask rose, jasmine, and vanilla. Perfect for evening wear.',
-      notes: 'Top: Bergamot, Rose • Heart: Jasmine, Ylang-Ylang • Base: Vanilla, Patchouli'
+      name: 'Gold Necklace 22K',
+      price: 85000,
+      discountedPrice: 80000,
+      image: '/hero-jewelry.jpg', // Will be replaced with dummy jewelry image
+      description: 'Beautiful 22K gold necklace with intricate traditional design. Perfect for weddings and special occasions.',
+      karat: '22K',
+      weight: '25g',
+      makingCharge: '₹15,000'
     },
     {
       id: 'sample-2',
-      name: 'Ocean Mist Cologne',
-      price: 65,
-      image: '/hero-perfume.jpg', // Will be replaced with dummy perfume image
-      description: 'Fresh and invigorating aquatic fragrance inspired by the Mediterranean sea breeze.',
-      notes: 'Top: Sea Salt, Lemon • Heart: Marine Accord, Lavender • Base: Amber, Musk'
+      name: 'Gold Bangles Set',
+      price: 65000,
+      image: '/hero-jewelry.jpg', // Will be replaced with dummy jewelry image
+      description: 'Elegant set of 4 gold bangles in 22K purity. Classic design suitable for daily wear.',
+      karat: '22K',
+      weight: '40g',
+      makingCharge: '₹12,000'
     },
     {
       id: 'sample-3',
-      name: 'Golden Amber Parfum',
-      price: 120,
-      discountedPrice: 96,
-      image: '/hero-perfume.jpg', // Will be replaced with dummy perfume image
-      description: 'An oriental masterpiece blending warm amber with exotic spices and precious woods.',
-      notes: 'Top: Saffron, Cinnamon • Heart: Amber, Labdanum • Base: Oud, Sandalwood'
+      name: 'Gold Ring 24K',
+      price: 120000,
+      discountedPrice: 110000,
+      image: '/hero-jewelry.jpg', // Will be replaced with dummy jewelry image
+      description: 'Premium 24K pure gold ring with modern design. Ideal for investment and special occasions.',
+      karat: '24K',
+      weight: '15g',
+      makingCharge: '₹8,000'
     },
     {
       id: 'sample-4',
-      name: 'Fresh Citrus EDT',
-      price: 45,
-      image: '/hero-perfume.jpg', // Will be replaced with dummy perfume image
-      description: 'Bright and energizing citrus fragrance perfect for daytime wear and casual occasions.',
-      notes: 'Top: Grapefruit, Orange • Heart: Neroli, Petitgrain • Base: White Musk'
+      name: 'Gold Earrings 18K',
+      price: 45000,
+      image: '/hero-jewelry.jpg', // Will be replaced with dummy jewelry image
+      description: 'Stylish 18K gold earrings with contemporary design. Perfect for everyday elegance.',
+      karat: '18K',
+      weight: '8g',
+      makingCharge: '₹6,000'
     },
     {
       id: 'sample-5',
-      name: 'Velvet Jasmine EDP',
-      price: 75,
-      discountedPrice: 60,
-      image: '/hero-perfume.jpg', // Will be replaced with dummy perfume image
-      description: 'Sensual and romantic white floral fragrance featuring night-blooming jasmine.',
-      notes: 'Top: Night Jasmine, Orange Blossom • Heart: Tuberose, Gardenia • Base: White Chocolate, Tonka'
+      name: 'Gold Chain 22K',
+      price: 75000,
+      discountedPrice: 70000,
+      image: '/hero-jewelry.jpg', // Will be replaced with dummy jewelry image
+      description: 'Heavy 22K gold chain with traditional link design. Premium quality for discerning customers.',
+      karat: '22K',
+      weight: '30g',
+      makingCharge: '₹10,000'
     },
     {
       id: 'sample-6',
-      name: 'Woody Cedar Cologne',
-      price: 70,
-      image: '/hero-perfume.jpg', // Will be replaced with dummy perfume image
-      description: 'Masculine and sophisticated woody fragrance with fresh cedar and leather accents.',
-      notes: 'Top: Grapefruit, Black Pepper • Heart: Cedar, Juniper • Base: Leather, Vetiver'
+      name: 'Gold Bracelet 22K',
+      price: 70000,
+      image: '/hero-jewelry.jpg', // Will be replaced with dummy jewelry image
+      description: 'Beautiful 22K gold bracelet with intricate craftsmanship. Timeless piece for your collection.',
+      karat: '22K',
+      weight: '20g',
+      makingCharge: '₹9,000'
     },
     {
       id: 'sample-7',
-      name: 'Sweet Vanilla Parfum',
-      price: 95,
-      discountedPrice: 76,
-      image: '/hero-perfume.jpg', // Will be replaced with dummy perfume image
-      description: 'Warm and comforting gourmand fragrance perfect for cooler seasons.',
-      notes: 'Top: Caramel, Orange • Heart: Vanilla, Cinnamon • Base: Bourbon, Cocoa'
+      name: 'Gold Pendant Set',
+      price: 95000,
+      discountedPrice: 88000,
+      image: '/hero-jewelry.jpg', // Will be replaced with dummy jewelry image
+      description: 'Complete gold pendant set with chain in 22K purity. Traditional design with modern appeal.',
+      karat: '22K',
+      weight: '18g',
+      makingCharge: '₹7,000'
     },
     {
       id: 'sample-8',
-      name: 'Fresh Green EDT',
-      price: 50,
-      image: '/hero-perfume.jpg', // Will be replaced with dummy perfume image
-      description: 'Crisp and natural green fragrance inspired by fresh-cut grass and herbs.',
-      notes: 'Top: Green Apple, Basil • Heart: Green Tea, Fennel • Base: White Musk, Amber'
+      name: 'Gold Nose Ring 22K',
+      price: 50000,
+      image: '/hero-jewelry.jpg', // Will be replaced with dummy jewelry image
+      description: 'Delicate 22K gold nose ring with traditional design. Perfect for cultural occasions.',
+      karat: '22K',
+      weight: '2g',
+      makingCharge: '₹3,000'
     }
   ]);
   const [categories, setCategories] = useState([
-    { id: 'cat-1', categoriesname: 'Floral' },
-    { id: 'cat-2', categoriesname: 'Woody' },
-    { id: 'cat-3', categoriesname: 'Oriental' }
+    { id: 'cat-1', categoriesname: 'Gold' },
+    { id: 'cat-2', categoriesname: 'Silver' },
+    { id: 'cat-3', categoriesname: 'Platinum' }
   ]);
   const [loading, setLoading] = useState(true);
 
@@ -189,10 +205,10 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 to-pink-50">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-yellow-50">
       <Head>
-        <title>Luxe Perfumes - Premium Fragrances</title>
-        <meta name="description" content="Discover the finest collection of luxury perfumes" />
+        <title>GoldSmith - Premium Gold & Jewelry</title>
+        <meta name="description" content="Discover the finest collection of premium gold and jewelry" />
       </Head>
 
       {/* Navigation */}
@@ -200,22 +216,22 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Link href="/" className="text-2xl font-bold text-rose-600">
-                Luxe Perfumes
+              <Link href="/" className="text-2xl font-bold text-amber-600">
+                GoldSmith
               </Link>
             </div>
 
             <div className="hidden md:flex items-center space-x-8">
-              <Link href="/" className="text-gray-700 hover:text-rose-600 transition-colors">
+              <Link href="/" className="text-gray-700 hover:text-amber-600 transition-colors">
                 Home
               </Link>
-              <Link href="/products" className="text-gray-700 hover:text-rose-600 transition-colors">
-                Shop
+              <Link href="/products" className="text-gray-700 hover:text-amber-600 transition-colors">
+                Jewelry
               </Link>
-              <Link href="/about" className="text-gray-700 hover:text-rose-600 transition-colors">
+              <Link href="/about" className="text-gray-700 hover:text-amber-600 transition-colors">
                 About
               </Link>
-              <Link href="/contact" className="text-gray-700 hover:text-rose-600 transition-colors">
+              <Link href="/contact" className="text-gray-700 hover:text-amber-600 transition-colors">
                 Contact
               </Link>
             </div>
@@ -232,7 +248,7 @@ export default function Home() {
                   </span>
                 )}
               </Link>
-              <Link href="/auth" className="text-gray-700 hover:text-rose-600 transition-colors">
+              <Link href="/auth" className="text-gray-700 hover:text-amber-600 transition-colors">
                 Account
               </Link>
             </div>
@@ -251,22 +267,22 @@ export default function Home() {
             >
               <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
                 Discover Your
-                <span className="text-rose-600"> Signature</span>
+                <span className="text-amber-600"> Perfect</span>
                 <br />
-                Scent
+                Gold Jewelry
               </h1>
               <p className="text-xl text-gray-600 mb-8">
-                Explore our curated collection of luxury perfumes from the world&apos;s finest fragrance houses.
+                Explore our premium collection of 22K, 24K gold jewelry crafted with traditional craftsmanship and modern designs.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   href="/products"
-                  className="bg-rose-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-rose-700 transition-colors text-center"
+                  className="bg-amber-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-amber-700 transition-colors text-center"
                 >
-                  Shop Now
+                  Shop Jewelry
                 </Link>
-                <button className="border-2 border-rose-600 text-rose-600 px-8 py-3 rounded-full font-semibold hover:bg-rose-50 transition-colors">
-                  Learn More
+                <button className="border-2 border-amber-600 text-amber-600 px-8 py-3 rounded-full font-semibold hover:bg-amber-50 transition-colors">
+                  Custom Orders
                 </button>
               </div>
             </motion.div>
@@ -304,11 +320,11 @@ export default function Home() {
       </section>
 
       {/* Categories Section */}
-      <section className="py-20 bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50">
+      <section className="py-20 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Shop by Category</h2>
-            <p className="text-gray-600 text-lg">Discover fragrances that match your personality</p>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Shop by Metal</h2>
+            <p className="text-gray-600 text-lg">Discover jewelry that matches your style and budget</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
@@ -326,7 +342,7 @@ export default function Home() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent z-10"></div>
 
                     {/* Background pattern */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-rose-400/20 to-purple-600/20 z-5"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-amber-400/20 to-yellow-600/20 z-5"></div>
 
                     <Image
                       src={getCategoryImage(category.categoriesname)}
@@ -384,16 +400,16 @@ export default function Home() {
       </section>
 
       {/* Featured Products */}
-      <section className="py-20 bg-gradient-to-br from-slate-50 via-white to-rose-50">
+      <section className="py-20 bg-gradient-to-br from-slate-50 via-white to-amber-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <div className="inline-block p-1 bg-gradient-to-r from-rose-400 to-pink-400 rounded-full mb-4">
+            <div className="inline-block p-1 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full mb-4">
               <div className="bg-white rounded-full px-6 py-2">
-                <span className="text-sm font-semibold text-rose-600 uppercase tracking-wider">Premium Collection</span>
+                <span className="text-sm font-semibold text-amber-600 uppercase tracking-wider">Premium Collection</span>
               </div>
             </div>
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Featured Products</h2>
-            <p className="text-gray-600 text-lg max-w-2xl mx-auto">Discover our most beloved fragrances, carefully curated for the discerning perfume enthusiast</p>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Featured Jewelry</h2>
+            <p className="text-gray-600 text-lg max-w-2xl mx-auto">Discover our most beloved gold jewelry pieces, carefully crafted for the discerning customer</p>
           </div>
 
           {loading ? (
@@ -427,7 +443,7 @@ export default function Home() {
                     <Link href={`/product/${product.id}`}>
                       <div className="relative h-72 overflow-hidden">
                         <Image
-                          src={getDummyPerfumeImage(product.id, index)}
+                          src={getDummyJewelryImage(product.id, index)}
                           alt={product.name}
                           fill
                           className="object-cover group-hover:scale-110 transition-transform duration-700"
@@ -463,7 +479,7 @@ export default function Home() {
                     {/* Product Info */}
                     <div className="p-6">
                       <Link href={`/product/${product.id}`}>
-                        <h3 className="text-lg font-bold text-gray-900 mb-2 hover:text-rose-600 transition-colors overflow-hidden" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2 hover:text-amber-600 transition-colors overflow-hidden" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>
                           {product.name}
                         </h3>
                       </Link>
@@ -478,22 +494,25 @@ export default function Home() {
                         <span className="text-sm text-gray-600 ml-2">(4.5)</span>
                       </div>
 
-                      {/* Notes preview */}
-                      {product.notes && (
-                        <p className="text-xs text-gray-500 mb-4 italic overflow-hidden" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>
-                          {product.notes}
+                      {/* Jewelry Details */}
+                      <div className="space-y-1 mb-4">
+                        <p className="text-sm text-amber-600 font-medium">
+                          {product.karat} • {product.weight}
                         </p>
-                      )}
+                        <p className="text-sm text-gray-600">
+                          Making: {product.makingCharge}
+                        </p>
+                      </div>
 
                       {/* Price and Add to Cart */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <span className="text-xl font-bold text-gray-900">
-                            KWD {product.discountedPrice || product.price}
+                            ₹{product.discountedPrice || product.price}
                           </span>
                           {product.discountedPrice && (
                             <span className="text-sm text-gray-500 line-through">
-                              KWD {product.price}
+                              ₹{product.price}
                             </span>
                           )}
                         </div>
@@ -502,7 +521,7 @@ export default function Home() {
                           onClick={() => handleAddToCart(product)}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          className="bg-gradient-to-r from-rose-600 to-pink-600 text-white p-3 rounded-full hover:from-rose-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-xl group-hover:shadow-rose-200"
+                          className="bg-gradient-to-r from-amber-600 to-yellow-600 text-white p-3 rounded-full hover:from-amber-700 hover:to-yellow-700 transition-all duration-300 shadow-lg hover:shadow-xl group-hover:shadow-amber-200"
                         >
                           <ShoppingBag className="w-5 h-5" />
                         </motion.button>
@@ -510,7 +529,7 @@ export default function Home() {
                     </div>
 
                     {/* Decorative corner */}
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-rose-100 to-transparent rounded-bl-full opacity-50"></div>
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-amber-100 to-transparent rounded-bl-full opacity-50"></div>
                   </div>
                 </motion.div>
               ))}
@@ -522,9 +541,9 @@ export default function Home() {
             <div className="inline-block">
               <Link
                 href="/products"
-                className="group relative inline-flex items-center px-8 py-4 bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 text-white font-semibold rounded-full hover:from-rose-700 hover:via-pink-700 hover:to-purple-700 transition-all duration-500 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 overflow-hidden"
+                className="group relative inline-flex items-center px-8 py-4 bg-gradient-to-r from-amber-600 via-yellow-600 to-orange-600 text-white font-semibold rounded-full hover:from-amber-700 hover:via-yellow-700 hover:to-orange-700 transition-all duration-500 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 overflow-hidden"
               >
-                <span className="relative z-10">Explore All Fragrances</span>
+                <span className="relative z-10">Explore All Jewelry</span>
                 <svg className="w-5 h-5 ml-2 transform group-hover:translate-x-1 transition-transform relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
@@ -571,9 +590,9 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
-              <h3 className="text-xl font-bold mb-4">Luxe Perfumes</h3>
+              <h3 className="text-xl font-bold mb-4">GoldSmith</h3>
               <p className="text-gray-400">
-                Your destination for premium fragrances and luxury scents.
+                Your destination for premium gold jewelry and luxury pieces.
               </p>
             </div>
 
@@ -616,7 +635,7 @@ export default function Home() {
           </div>
 
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2024 Luxe Perfumes. All rights reserved.</p>
+            <p>&copy; 2024 GoldSmith. All rights reserved.</p>
           </div>
         </div>
       </footer>
