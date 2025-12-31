@@ -1,53 +1,302 @@
-// src/utils/initializeCoreAccounts.js
-// Script to initialize the 39 core MAIN-level accounts
-// Run this once per company to set up the basic chart of accounts
+// ✅ TASK 1.1 COMPLETED: Initialize 15 Chart of Accounts (BRD v2)
+// Purpose: Auto-create 15 default accounts on company first login
+// Reference: BRD_GoldSmith_v2.md Section 2.3.1, DatabaseInfo_GoldSmith_v2.md Section 2
 
-import { HierarchicalAccountManager } from './hierarchicalAccountManager.js';
+import { db } from '@/app/firebase';
+import { collection, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
- * Initialize core accounts for a company
- * @param {string} companyId - Company ID (e.g., 'laundry_q8')
- * @returns {Promise<object>} - Initialization results
+ * Initialize 15 default gold smith accounts
+ * Called automatically on company admin's first login
  */
-export async function initializeCoreAccountsForCompany(companyId) {
+export const initializeDefaultAccounts = async (companyId) => {
   try {
-    console.log(`Initializing core accounts for company: ${companyId}`);
+    console.log('🔍 Starting Gold Smith account initialization for company:', companyId);
 
-    const accountManager = new HierarchicalAccountManager(companyId);
-    const results = await accountManager.initializeCoreAccounts();
+    // 15 Default Accounts per BRD v2 Section 2.3.1
+    const defaultAccounts = [
+      {
+        accountCode: '1101',
+        accountName: 'Gold Bank (Sharaf)',
+        accountType: 'asset',
+        category: 'current_assets',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Gold custody at Sharaf Gold Bank',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '1102',
+        accountName: 'Gold in Transit',
+        accountType: 'asset',
+        category: 'current_assets',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Pure gold with manufacturers for production',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '1103',
+        accountName: 'Finished Goods Inventory',
+        accountType: 'asset',
+        category: 'current_assets',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Finished jewelry inventory in pure gold equivalent',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '1201',
+        accountName: 'Cash',
+        accountType: 'asset',
+        category: 'current_assets',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Cash on hand (USD)',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '1202',
+        accountName: 'Bank Account',
+        accountType: 'asset',
+        category: 'current_assets',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Bank deposits (USD)',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '1301',
+        accountName: 'Customer Receivables',
+        accountType: 'asset',
+        category: 'current_assets',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Pure gold owed by customers',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '2101',
+        accountName: 'Manufacturer Payables',
+        accountType: 'liability',
+        category: 'current_liabilities',
+        balanceType: 'credit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'USD owed to manufacturers for making charges',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '2102',
+        accountName: 'Other Payables',
+        accountType: 'liability',
+        category: 'current_liabilities',
+        balanceType: 'credit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Other amounts payable (USD)',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '3101',
+        accountName: "Owner's Capital",
+        accountType: 'equity',
+        category: 'equity',
+        balanceType: 'credit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Owner investment and capital',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '3201',
+        accountName: 'Retained Earnings',
+        accountType: 'equity',
+        category: 'equity',
+        balanceType: 'credit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Accumulated earnings in pure gold equivalent',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '4101',
+        accountName: 'Commission Income',
+        accountType: 'income',
+        category: 'revenue',
+        balanceType: 'credit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Commission earned in pure gold',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '5101',
+        accountName: 'Making Charges',
+        accountType: 'expense',
+        category: 'cost_of_goods_sold',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Making charges paid to manufacturers (USD)',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '5201',
+        accountName: 'Salaries',
+        accountType: 'expense',
+        category: 'operating_expenses',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Staff salaries and wages (USD)',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '5202',
+        accountName: 'Rent',
+        accountType: 'expense',
+        category: 'operating_expenses',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Shop and office rent (USD)',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '5203',
+        accountName: 'Utilities',
+        accountType: 'expense',
+        category: 'operating_expenses',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Electricity, water, internet, etc. (USD)',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+    ];
 
-    console.log('Core accounts initialization completed:');
-    console.log(`- Total accounts: ${results.totalAccounts}`);
-    console.log(`- Created: ${results.createdCount}`);
-    console.log(`- Skipped: ${results.skippedCount}`);
-    console.log(`- Errors: ${results.errorCount}`);
-
-    if (results.results.created.length > 0) {
-      console.log('\nCreated accounts:');
-      results.results.created.forEach(account => console.log(`  ✓ ${account}`));
+    // Create all accounts in correct path
+    const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
+    console.log('🔍 Creating Gold accounts at path:', accountsPath);
+    const accountsRef = collection(db, accountsPath);
+    
+    for (const account of defaultAccounts) {
+      const newAccountRef = doc(accountsRef);
+      const accountData = {
+        ...account,
+        accountId: newAccountRef.id,
+        companyId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      console.log('🔍 Creating account:', account.accountCode, account.accountName);
+      await setDoc(newAccountRef, accountData);
     }
 
-    if (results.results.skipped.length > 0) {
-      console.log('\nSkipped accounts (already exist):');
-      results.results.skipped.forEach(account => console.log(`  - ${account}`));
-    }
-
-    if (results.results.errors.length > 0) {
-      console.log('\nErrors:');
-      results.results.errors.forEach(error => console.log(`  ✗ ${error}`));
-    }
-
-    return results;
+    console.log('✅ Successfully initialized 15 default accounts for company:', companyId);
+    return { 
+      success: true, 
+      message: '15 default accounts created successfully',
+      accountCount: 15 
+    };
 
   } catch (error) {
-    console.error('Failed to initialize core accounts:', error);
-    throw error;
+    console.error('❌ Error initializing accounts:', error);
+    return { 
+      success: false, 
+      message: 'Failed to initialize accounts',
+      error: error.message 
+    };
   }
-}
+};
 
-// Example usage (uncomment to test):
+/**
+ * Get account by code
+ */
+export const getAccountByCode = async (companyId, accountCode) => {
+  try {
+    const accountDoc = await getDoc(
+      doc(db, 'companies', companyId, 'accounts', accountCode)
+    );
+    
+    if (accountDoc.exists()) {
+      return { success: true, account: { id: accountDoc.id, ...accountDoc.data() } };
+    } else {
+      return { success: false, message: 'Account not found' };
+    }
+  } catch (error) {
+    console.error('Error fetching account:', error);
+    return { success: false, message: 'Failed to fetch account', error: error.message };
+  }
+};
+
+/**
+ * Check if company accounts are initialized
+ */
+export const checkAccountsInitialized = async (companyId) => {
+  try {
+    const companyDoc = await getDoc(doc(db, 'companies', companyId));
+    return companyDoc.exists() && companyDoc.data().accountsInitialized === true;
+  } catch (error) {
+    console.error('Error checking initialization:', error);
+    return false;
+  }
+};
+
+// Example usage (uncomment to run manually):
 /*
-// For testing purposes - run this in browser console or Node.js
 initializeCoreAccountsForCompany('laundry_q8')
   .then(results => {
     console.log('Initialization successful:', results.success);

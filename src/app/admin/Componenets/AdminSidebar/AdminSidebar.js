@@ -22,27 +22,15 @@ import {
 } from 'lucide-react';
 import { useAdminTranslation } from '@/app/utils/useAdminTranslation';
 
+// ✅ TASK 0.1 COMPLETED: Simplified menu to 6 items only (BRD v2)
+// Removed: Analytics, Areas, Branches, Commission, Coupons, GPS, Inquiries, Products, Roles, Settings, Stock, Users, Van Sellers
 const allMenuItems = [
   { 
     id: 'dashboard', 
     label: 'dashboard',
     icon: <Home className="w-4 h-4" />, 
     href: '/admin/dashboard',
-    roles: ['company_admin', 'general_manager', 'branch_manager']
-  },
-  { 
-    id: 'analytics', 
-    label: 'analytics',
-    icon: <BarChart3 className="w-4 h-4" />, 
-    href: '/admin/analytics',
-    roles: ['company_admin', 'general_manager']
-  },
-  { 
-    id: 'billing', 
-    label: 'billing',
-    icon: <CreditCard className="w-4 h-4" />, 
-    href: '/admin/billing',
-    roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier']
+    roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier', 'delivery_man', 'pickup_man']
   },
   { 
     id: 'orders', 
@@ -52,53 +40,46 @@ const allMenuItems = [
     roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier', 'delivery_man', 'pickup_man']
   },
   { 
-    id: 'products', 
-    label: 'products',
-    icon: <Package className="w-4 h-4" />, 
-    href: '/admin/products',
+    id: 'billing', 
+    label: 'billing',
+    icon: <CreditCard className="w-4 h-4" />, 
+    href: '/admin/billing',
+    roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier']
+  },
+  { 
+    id: 'customers', 
+    label: 'customers',
+    icon: <Users className="w-4 h-4" />, 
+    href: '/admin/customers',
+    roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier']
+  },
+  { 
+    id: 'manufacturers', 
+    label: 'suppliers',
+    icon: <Building className="w-4 h-4" />, 
+    href: '/admin/manufacturers',
     roles: ['company_admin', 'general_manager', 'branch_manager']
   },
   { 
-    id: 'inquiries', 
-    label: 'inquiries',
-    icon: <MessageSquare className="w-4 h-4" />, 
-    href: '/admin/inquiries',
-    roles: ['company_admin', 'general_manager', 'branch_manager']
-  },
-  { 
-    id: 'users',
-    label: 'users',
-    icon: <Users className="w-4 h-4" />,
-    href: '/admin/users',
-    roles: ['company_admin', 'general_manager']
-  },
-  { 
-    id: 'coupons', 
-    label: 'coupons',
-    icon: <Tag className="w-4 h-4" />, 
-    href: '/admin/coupons',
-    roles: ['company_admin', 'general_manager', 'branch_manager']
-  },
-  { 
-    id: 'areas', 
-    label: 'areas',
-    icon: <Globe className="w-4 h-4" />, 
-    href: '/admin/areas',
-    roles: ['company_admin', 'general_manager']
-  },
-  { 
-    id: 'branches', 
-    label: 'branches',
+    id: 'goldbanks', 
+    label: 'goldBanks',
     icon: <MapPin className="w-4 h-4" />, 
-    href: '/admin/branches',
+    href: '/admin/goldbanks',
     roles: ['company_admin', 'general_manager']
   },
-  {
-    id: 'settings',
-    label: 'settings',
-    icon: <Settings className="w-4 h-4" />,
-    href: '/admin/settings',
-    roles: ['company_admin', 'general_manager']
+  { 
+    id: 'accounting', 
+    label: 'accounting',
+    icon: <Package className="w-4 h-4" />, 
+    href: '/admin/accounting',
+    roles: ['company_admin', 'general_manager', 'branch_manager']
+  },
+  { 
+    id: 'reports', 
+    label: 'reports',
+    icon: <BarChart3 className="w-4 h-4" />, 
+    href: '/admin/reports',
+    roles: ['company_admin', 'general_manager', 'branch_manager']
   },
 ];
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../../firebase';
+import { db } from '@/app/firebase';
 import Link from 'next/link';
 import { Plus, Search, Edit, ToggleLeft, ToggleRight, Upload } from 'lucide-react';
 

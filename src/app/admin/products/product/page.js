@@ -31,12 +31,14 @@ export default function ProductPage() {
   const [selectedCategory, setSelectedCategory] = useState(''); // For filtering product list
   const [selectedSubcategory, setSelectedSubcategory] = useState(''); // For filtering product list
   const [form, setForm] = useState({
-    name: '',
-    price: '',
-    discountedPrice: '',
-    image: '',
+    productName: '',
     categoryId: '',
-    subcategoryId: ''
+    subcategoryId: '',
+    makingChargePerGram: '',
+    karat: '22k',
+    description: '',
+    image: '',
+    active: true
   });
   const [editingId, setEditingId] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -137,32 +139,44 @@ export default function ProductPage() {
   };
 
 const handleSubmit = async () => {
-    if (!form.name || !form.image || !form.price || !form.categoryId) {
-      return alert('Name, image, price, and category are required');
+    if (!form.productName || !form.categoryId || !form.makingChargePerGram) {
+      return alert('Product name, category, and making charge are required');
     }
 
     try {
-      if (editingId) {
-        // Fetch the current product to get the existing image URL
-        const productDoc = await getDoc(doc(db, productPath, editingId));
-        if (productDoc.exists()) {
-          const productData = productDoc.data();
-          // Check if a new image is being uploaded (form.image has changed)
-          if (form.image !== productData.image && productData.image) {
-            // Delete the existing image from Cloudinary
-            await deleteFromCloudinary(productData.image);
-          }
-        }
+      const productData = {
+        productName: form.productName,
+        categoryId: form.categoryId,
+        subcategoryId: form.subcategoryId || '',
+        makingChargePerGram: parseFloat(form.makingChargePerGram),
+        karat: form.karat,
+        description: form.description || '',
+        image: form.image || '',
+        active: form.active !== false,
+        updatedAt: new Date()
+      };
 
-        // Update the product in Firebase
-        await updateDoc(doc(db, productPath, editingId), form);
+      if (editingId) {
+        // Update existing product
+        await updateDoc(doc(db, productPath, editingId), productData);
         setEditingId(null);
       } else {
         // Add new product
-        await addDoc(collection(db, productPath), form);
+        productData.createdAt = new Date();
+        await addDoc(collection(db, productPath), productData);
       }
-      setForm({ name: '', price: '', discountedPrice: '', image: '', categoryId: '', subcategoryId: '' });
-      setSubcategories([]); // Clear subcategories after submit
+      
+      setForm({
+        productName: '',
+        categoryId: '',
+        subcategoryId: '',
+        makingChargePerGram: '',
+        karat: '22k',
+        description: '',
+        image: '',
+        active: true
+      });
+      setSubcategories([]);
       await fetchProducts();
     } catch (error) {
       console.error('Error saving product:', error);
@@ -172,15 +186,19 @@ const handleSubmit = async () => {
 
   const handleEdit = async product => {
     setForm({
-      name: product.name,
-      price: product.price,
-      discountedPrice: product.discountedPrice || '',
-      image: product.image,
-      categoryId: product.categoryId,
-      subcategoryId: product.subcategoryId || ''
+      productName: product.productName || '',
+      categoryId: product.categoryId || '',
+      subcategoryId: product.subcategoryId || '',
+      makingChargePerGram: product.makingChargePerGram || '',
+      karat: product.karat || '22k',
+      description: product.description || '',
+      image: product.image || '',
+      active: product.active !== false
     });
     setEditingId(product.id);
-    await fetchSubcategories(product.categoryId); // Fetch subcategories for the product's category
+    if (product.categoryId) {
+      await fetchSubcategories(product.categoryId);
+    }
   };
 
   const handleDelete = async id => {
@@ -258,36 +276,29 @@ const handleSubmit = async () => {
         <div className="p-4 sm:p-6">
           <h2 className="text-xl font-bold mb-4 text-blue-600">Manage Products</h2>
 
-          {/* Add/Edit Product Section (Unchanged) */}
+          {/* Add/Edit Product Section - Gold Smith Jewelry Products */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <div className="col-span-full">
+              <h3 className="font-semibold text-gray-700 mb-2">
+                {editingId ? 'Edit Product' : 'Add New Product'}
+              </h3>
+            </div>
+            
             <input
               type="text"
-              placeholder="Product Name"
+              placeholder="Product Name (e.g., Gold Necklace - Design A)"
               className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-              value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })}
+              value={form.productName}
+              onChange={e => setForm({ ...form, productName: e.target.value })}
             />
-            <input
-              type="number"
-              placeholder="Price"
-              className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-              value={form.price}
-              onChange={e => setForm({ ...form, price: e.target.value })}
-            />
-            <input
-              type="number"
-              placeholder="Discounted Price"
-              className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-              value={form.discountedPrice}
-              onChange={e => setForm({ ...form, discountedPrice: e.target.value })}
-            />
+            
             <div className="relative">
               <select
                 className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-full appearance-none pr-8"
                 value={form.categoryId}
                 onChange={handleCategoryChange}
               >
-                <option value="">Select Category</option>
+                <option value="">Select Metal Category *</option>
                 {categories.map(cat => (
                   <option key={cat.id} value={cat.id}>
                     {cat.categoriesname}
@@ -296,6 +307,7 @@ const handleSubmit = async () => {
               </select>
               <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
             </div>
+            
             <div className="relative">
               <select
                 className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-full appearance-none pr-8"
@@ -303,7 +315,7 @@ const handleSubmit = async () => {
                 onChange={e => setForm({ ...form, subcategoryId: e.target.value })}
                 disabled={!form.categoryId || subcategories.length === 0}
               >
-                <option value="">Select Subcategory</option>
+                <option value="">Select Subcategory (Optional)</option>
                 {subcategories.map(subcat => (
                   <option key={subcat.id} value={subcat.id}>
                     {subcat.name}
@@ -312,8 +324,40 @@ const handleSubmit = async () => {
               </select>
               <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
             </div>
+            
+            <input
+              type="number"
+              placeholder="Making Charge per Gram (₹) *"
+              className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={form.makingChargePerGram}
+              onChange={e => setForm({ ...form, makingChargePerGram: e.target.value })}
+            />
+            
+            <div className="relative">
+              <select
+                className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-full appearance-none pr-8"
+                value={form.karat}
+                onChange={e => setForm({ ...form, karat: e.target.value })}
+              >
+                <option value="24k">24 Karat (Pure Gold)</option>
+                <option value="22k">22 Karat (91.67%)</option>
+                <option value="18k">18 Karat (75%)</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-gray-500" />
+            </div>
+            
             <div className="col-span-full">
-              <label className="block text-sm text-gray-600 mb-1">Product Image</label>
+              <textarea
+                placeholder="Description (Optional)"
+                className="border border-gray-300 bg-white text-gray-800 p-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+                rows="2"
+                value={form.description}
+                onChange={e => setForm({ ...form, description: e.target.value })}
+              />
+            </div>
+            
+            <div className="col-span-full">
+              <label className="block text-sm text-gray-600 mb-1">Product Image (Optional)</label>
               <input
                 type="file"
                 onChange={handleImageUpload}
@@ -403,11 +447,12 @@ const handleSubmit = async () => {
               <thead>
                 <tr className="bg-gray-100 border-b border-gray-200">
                   <th className="p-3 text-sm font-medium text-gray-600">Image</th>
-                  <th className="p-3 text-sm font-medium text-gray-600">Name</th>
-                  <th className="p-3 text-sm font-medium text-gray-600">Price</th>
-                  <th className="p-3 text-sm font-medium text-gray-600">Discount</th>
+                  <th className="p-3 text-sm font-medium text-gray-600">Product Name</th>
+                  <th className="p-3 text-sm font-medium text-gray-600">Making Charge/Gram</th>
+                  <th className="p-3 text-sm font-medium text-gray-600">Karat</th>
                   <th className="p-3 text-sm font-medium text-gray-600">Category</th>
                   <th className="p-3 text-sm font-medium text-gray-600">Subcategory</th>
+                  <th className="p-3 text-sm font-medium text-gray-600">Status</th>
                   <th className="p-3 text-sm font-medium text-gray-600">Actions</th>
                 </tr>
               </thead>
@@ -416,19 +461,32 @@ const handleSubmit = async () => {
                   filteredProducts.map(p => (
                     <tr key={p.id} className="border-b border-gray-200 hover:bg-gray-100 transition-colors">
                       <td className="p-3">
-                        <Image
-                          src={p.image}
-                          alt={p.name}
-                          width={60}
-                          height={60}
-                          className="rounded border border-gray-300"
-                        />
+                        {p.image ? (
+                          <Image
+                            src={p.image}
+                            alt={p.productName || 'Product'}
+                            width={60}
+                            height={60}
+                            className="rounded border border-gray-300 object-cover"
+                          />
+                        ) : (
+                          <div className="w-[60px] h-[60px] bg-gray-200 rounded border border-gray-300 flex items-center justify-center">
+                            <Package className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
                       </td>
-                      <td className="p-3">{p.name}</td>
-                      <td className="p-3">KWD {p.price}</td>
-                      <td className="p-3">{p.discountedPrice ? `KWD ${p.discountedPrice}` : '-'}</td>
+                      <td className="p-3 font-medium">{p.productName || '-'}</td>
+                      <td className="p-3 text-green-600 font-semibold">₹{p.makingChargePerGram || 0}/g</td>
+                      <td className="p-3">{p.karat || '22k'}</td>
                       <td className="p-3 text-gray-500">{p.categoryName}</td>
                       <td className="p-3 text-gray-500">{p.subcategoryName}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          p.active !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {p.active !== false ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
                       <td className="p-3">
                         <div className="flex gap-2">
                           <motion.button
@@ -453,7 +511,7 @@ const handleSubmit = async () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" className="p-4 text-center text-gray-500">
+                    <td colSpan="8" className="p-4 text-center text-gray-500">
                       No products found
                     </td>
                   </tr>

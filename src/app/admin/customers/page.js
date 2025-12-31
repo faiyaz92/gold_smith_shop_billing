@@ -1,16 +1,26 @@
 'use client';
 
+// ✅ TASK 3.1 UPGRADED: Customer Management Page (Pure Gold Balance - BRD v2)
+// ✅ TASK 3.3 COMPLETE: Customer Balance Statement Integration
+// Reference: BRD_GoldSmith_v2.md Section 6.5, 6.6, DatabaseInfo_GoldSmith_v2.md Section 4
+// Upgraded from v1 currency balance to v2 pure gold balance tracking
+// Added monthly balance statement generation with aging analysis
+
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Plus, Search, Edit, Eye, UserX, UserCheck } from 'lucide-react';
+import { Plus, Search, Edit, Eye, UserX, UserCheck, FileText } from 'lucide-react';
 import Link from 'next/link';
+import { downloadCustomerBalanceStatement, getCustomerTransactionsForStatement } from '@/utils/customerBalanceStatement';
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
 
   useEffect(() => {
     fetchCustomers();
@@ -18,7 +28,7 @@ export default function CustomersPage() {
 
   const fetchCustomers = async () => {
     try {
-      const customersRef = collection(db, 'customers');
+      const customersRef = collection(db, `${basePath}/customers`);
       const q = query(customersRef, orderBy('createdAt', 'desc'));
       const querySnapshot = await getDocs(q);
 
@@ -35,9 +45,40 @@ export default function CustomersPage() {
     }
   };
 
+  const handleDownloadStatement = async (customer) => {
+    try {
+      // Fetch customer transactions
+      const transactionsRef = collection(db, `${basePath}/transactions`);
+      const txnQuery = query(
+        transactionsRef,
+        where('customerId', '==', customer.id),
+        orderBy('date', 'desc')
+      );
+      const txnSnapshot = await getDocs(txnQuery);
+      const transactions = txnSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Get filtered transactions for statement period
+      const statementTxns = getCustomerTransactionsForStatement(transactions, customer.id, 'monthly');
+
+      // Fetch current gold price
+      const goldPriceRef = collection(db, 'goldPriceHistory');
+      const goldPriceQuery = query(goldPriceRef, orderBy('timestamp', 'desc'));
+      const goldPriceSnap = await getDocs(goldPriceQuery);
+      const goldPrice = goldPriceSnap.empty ? 145.43 : goldPriceSnap.docs[0].data().pricePerGram;
+
+      // Generate and download statement
+      downloadCustomerBalanceStatement(customer, statementTxns, goldPrice, 'monthly');
+
+      alert(`✅ Balance statement for ${customer.customerName || customer.name} downloaded successfully!`);
+    } catch (error) {
+      console.error('Error generating balance statement:', error);
+      alert('Failed to generate balance statement. Please try again.');
+    }
+  };
+
   const toggleCustomerStatus = async (customerId, currentStatus) => {
     try {
-      const customerRef = doc(db, 'customers', customerId);
+      const customerRef = doc(db, `${basePath}/customers`, customerId);
       await updateDoc(customerRef, {
         isActive: !currentStatus,
         updatedAt: new Date()
@@ -55,7 +96,8 @@ export default function CustomersPage() {
   };
 
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = customer.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          customer.phone?.includes(searchTerm) ||
                          customer.customerCode?.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -132,7 +174,7 @@ export default function CustomersPage() {
                   Phone
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Outstanding
+                  Pure Gold Balance (تیزابی)
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -149,13 +191,30 @@ export default function CustomersPage() {
                     {customer.customerCode}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {customer.name}
+                    {customer.customerName || customer.name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {customer.phone}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ₹{customer.outstandingBalance || 0}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {(() => {
+                      const goldBalance = customer.currentPureGoldBalance || customer.outstandingBalance || 0;
+                      const isGoldBalance = typeof goldBalance === 'number';
+                      return (
+                        <div>
+                          <div className={`text-sm font-semibold ${
+                            goldBalance > 0 ? 'text-red-600' : goldBalance < 0 ? 'text-green-600' : 'text-gray-900'
+                          }`}>
+                            {isGoldBalance ? `${goldBalance.toFixed(3)}g` : '₹0.00'}
+                          </div>
+                          {isGoldBalance && goldBalance !== 0 && (
+                            <div className="text-xs text-gray-500">
+                              ${(goldBalance * 145.43).toFixed(2)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -168,15 +227,24 @@ export default function CustomersPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDownloadStatement(customer)}
+                        className="text-purple-600 hover:text-purple-900"
+                        title="Download Balance Statement"
+                      >
+                        <FileText size={16} />
+                      </button>
                       <Link
                         href={`/admin/customers/${customer.id}`}
                         className="text-blue-600 hover:text-blue-900"
+                        title="View Details"
                       >
                         <Eye size={16} />
                       </Link>
                       <Link
                         href={`/admin/customers/${customer.id}/edit`}
                         className="text-yellow-600 hover:text-yellow-900"
+                        title="Edit Customer"
                       >
                         <Edit size={16} />
                       </Link>
@@ -187,6 +255,7 @@ export default function CustomersPage() {
                             ? 'text-red-600 hover:text-red-900'
                             : 'text-green-600 hover:text-green-900'
                         }`}
+                        title={customer.isActive ? 'Deactivate' : 'Activate'}
                       >
                         {customer.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
                       </button>

@@ -7,6 +7,7 @@
  */
 
 import { AccountingEngine } from './accountingEngine.js';
+import { InventoryService } from './inventoryService.js';
 
 /**
  * Record a sale transaction with automatic rollup

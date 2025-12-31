@@ -11,7 +11,7 @@
  */
 
 import { HierarchicalAccountManager } from './hierarchicalAccountManager.js';
-import { db } from '../firebase.js';
+import { db } from '../app/firebase.js';
 import { doc, updateDoc, getDoc, Timestamp, increment } from 'firebase/firestore';
 
 export class BalanceCalculationEngine {

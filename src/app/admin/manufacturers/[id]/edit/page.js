@@ -1,5 +1,8 @@
 'use client';
 
+// ✅ TASK 4.1 UPGRADED: Manufacturer Edit Form (USD Balance - BRD v2)
+// Reference: BRD_GoldSmith_v2.md Section 7.0, DatabaseInfo_GoldSmith_v2.md Section 5B
+
 import { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../../firebase';
@@ -12,15 +15,20 @@ export default function EditManufacturerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
+  
   const [formData, setFormData] = useState({
-    name: '',
+    manufacturerName: '',
+    contactPerson: '',
     phone: '',
     email: '',
     address: '',
     specialization: '',
     gstNumber: '',
+    makingChargeRateUSD: 0,
     paymentTerms: '15days',
-    creditLimit: 0,
+    creditLimitUSD: 0,
     notes: ''
   });
 
@@ -32,20 +40,22 @@ export default function EditManufacturerPage() {
 
   const fetchManufacturer = async () => {
     try {
-      const manufacturerRef = doc(db, 'manufacturers', params.id);
+      const manufacturerRef = doc(db, `${basePath}/manufacturers`, params.id);
       const manufacturerSnap = await getDoc(manufacturerRef);
 
       if (manufacturerSnap.exists()) {
         const data = manufacturerSnap.data();
         setFormData({
-          name: data.name || '',
+          manufacturerName: data.manufacturerName || data.name || '',
+          contactPerson: data.contactPerson || '',
           phone: data.phone || '',
           email: data.email || '',
           address: data.address || '',
           specialization: data.specialization || '',
           gstNumber: data.gstNumber || '',
+          makingChargeRateUSD: data.makingChargeRateUSD || 0,
           paymentTerms: data.paymentTerms || '15days',
-          creditLimit: data.creditLimit || 0,
+          creditLimitUSD: data.creditLimitUSD || data.creditLimit || 0,
           notes: data.notes || ''
         });
       } else {
@@ -63,7 +73,9 @@ export default function EditManufacturerPage() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'creditLimit' ? parseFloat(value) || 0 : value
+      [name]: (name === 'creditLimitUSD' || name === 'makingChargeRateUSD') 
+        ? parseFloat(value) || 0 
+        : value
     }));
   };
 
@@ -72,7 +84,7 @@ export default function EditManufacturerPage() {
     setSaving(true);
 
     try {
-      const manufacturerRef = doc(db, 'manufacturers', params.id);
+      const manufacturerRef = doc(db, `${basePath}/manufacturers`, params.id);
       await updateDoc(manufacturerRef, {
         ...formData,
         updatedAt: serverTimestamp()

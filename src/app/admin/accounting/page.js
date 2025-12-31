@@ -3,8 +3,11 @@ import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, where, orderBy, doc, writeBatch, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { useAccounting } from '@/app/context/AccountingContext';
-import { AccountingEngine } from '@/app/utils/accountingEngine';
+import { AccountingEngine } from '@/utils/accountingEngine';
+import { initializeDefaultAccounts } from '@/utils/initializeCoreAccounts';
 import { LineChart, BarChart, PieChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
+import { useRouter } from 'next/navigation';
+import { FolderTree, BookOpen, Scale, ArrowRightLeft } from 'lucide-react';
 
 // Metric Card Component
 function MetricCard({ title, value, trend, icon, color = "blue" }) {
@@ -239,10 +242,12 @@ export default function AccountingDashboard() {
   const [currentPeriod, setCurrentPeriod] = useState('thisMonth');
   const [alerts, setAlerts] = useState({ pendingTasks: [], recentEntries: [] });
   const [accountsInitialized, setAccountsInitialized] = useState(false);
+  const [goldAccountsInitialized, setGoldAccountsInitialized] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  const [initializingGold, setInitializingGold] = useState(false);
 
-  // Check if core accounts exist
-  const checkAccountsExist = async () => {
+  // Check if generic accounts exist
+  const checkGenericAccountsExist = async () => {
     if (!companyId) return false;
     try {
       const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
@@ -252,13 +257,72 @@ export default function AccountingDashboard() {
       const existingCodes = snapshot.docs.map(doc => doc.data().accountCode);
       return coreAccounts.every(code => existingCodes.includes(code));
     } catch (error) {
-      console.error('Error checking accounts:', error);
+      console.error('Error checking generic accounts:', error);
       return false;
     }
   };
 
-  // Initialize core accounts
-  const initializeAccounts = async () => {
+  // Check if Gold Smith accounts exist
+  const checkGoldAccountsExist = async () => {
+    if (!companyId) return false;
+    try {
+      const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
+      console.log('🔍 Checking path:', accountsPath);
+      const accountsQuery = query(collection(db, accountsPath));
+      const snapshot = await getDocs(accountsQuery);
+      console.log('🔍 Total accounts found:', snapshot.docs.length);
+      
+      const goldAccounts = ['1101', '1102', '1103', '1301', '4101'];
+      const existingCodes = snapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log('🔍 Account doc:', doc.id, 'Code:', data.accountCode, 'Name:', data.accountName || data.name);
+        return data.accountCode;
+      }).filter(code => code); // Filter out undefined
+      
+      console.log('🔍 All account codes found:', existingCodes);
+      console.log('🔍 Looking for gold codes:', goldAccounts);
+      const hasGold = goldAccounts.every(code => existingCodes.includes(code));
+      console.log('🔍 Gold accounts exist?', hasGold);
+      return hasGold;
+    } catch (error) {
+      console.error('Error checking gold accounts:', error);
+      return false;
+    }
+  };
+
+  // Initialize gold smith specific accounts (15 accounts)
+  const initializeGoldSmithAccounts = async () => {
+    if (!companyId || userRole !== 'company_admin') return;
+
+    setInitializingGold(true);
+    try {
+      const result = await initializeDefaultAccounts(companyId);
+      console.log('🔍 Initialization result:', result);
+      if (result.success) {
+        alert('✅ Gold Smith accounts initialized successfully!\n15 accounts created including Gold Bank (Sharaf), Gold in Transit, Commission Income, etc.');
+        // Wait a bit for Firestore to sync, then check again
+        setTimeout(async () => {
+          const goldExists = await checkGoldAccountsExist();
+          console.log('🔍 After creation, gold accounts exist?', goldExists);
+          setGoldAccountsInitialized(goldExists);
+          setInitializingGold(false);
+          if (!goldExists) {
+            alert('⚠️ Accounts created but not detected. Please refresh the page.');
+          }
+        }, 2000);
+      } else {
+        alert('❌ Failed to initialize Gold Smith accounts: ' + result.message);
+        setInitializingGold(false);
+      }
+    } catch (error) {
+      console.error('Gold Smith account initialization failed:', error);
+      alert('❌ Failed to initialize Gold Smith accounts. Please try again.');
+      setInitializingGold(false);
+    }
+  };
+
+  // Initialize generic business accounts (43 accounts)
+  const initializeGenericAccounts = async () => {
     if (!companyId || userRole !== 'company_admin') return;
 
     setInitializing(true);
@@ -347,8 +411,10 @@ export default function AccountingDashboard() {
   // Check accounts on component mount
   useEffect(() => {
     const checkAccounts = async () => {
-      const exists = await checkAccountsExist();
-      setAccountsInitialized(exists);
+      const genericExists = await checkGenericAccountsExist();
+      const goldExists = await checkGoldAccountsExist();
+      setAccountsInitialized(genericExists);
+      setGoldAccountsInitialized(goldExists);
     };
     if (companyId) {
       checkAccounts();
@@ -376,14 +442,55 @@ export default function AccountingDashboard() {
     }).format(amount);
   };
 
+  const router = useRouter();
+
   return (
     <div className="accounting-dashboard p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">💰 Accounting Dashboard</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-3xl font-bold text-gray-900">💰 Jewelry Accounting Dashboard</h1>
+          <div className="flex gap-3">
+            <button
+              onClick={() => router.push('/admin/accounting/chart-of-accounts')}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+            >
+              <FolderTree size={20} />
+              Chart of Accounts
+            </button>
+            <button
+              onClick={() => router.push('/admin/accounting/general-ledger')}
+              className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700"
+            >
+              <BookOpen size={20} />
+              General Ledger
+            </button>
+            <button
+              onClick={() => router.push('/admin/accounting/balance-sheet')}
+              className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700"
+            >
+              <Scale size={20} />
+              Balance Sheet
+            </button>
+            <button
+              onClick={() => router.push('/admin/accounting/quick-transfer')}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+            >
+              <ArrowRightLeft size={20} />
+              Quick Transfer
+            </button>
+            <button
+              onClick={() => router.push('/admin/accounting/journal-entries')}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            >
+              <BookOpen size={20} />
+              Journal Entries
+            </button>
+          </div>
+        </div>
         <div className="flex items-center justify-between">
           <p className="text-gray-600">
-            Fiscal Year: 2025-26 | As of: {new Date().toLocaleDateString('en-IN')}
+            Gold Smith Wholesaler | Fiscal Year: 2025-26 | As of: {new Date().toLocaleDateString('en-IN')}
           </p>
           <div className="flex space-x-2">
             <select
@@ -400,8 +507,8 @@ export default function AccountingDashboard() {
         </div>
       </div>
 
-      {/* Account Initialization Alert */}
-      {!accountsInitialized && userRole === 'company_admin' && (
+      {/* Gold Smith Account Initialization */}
+      {!goldAccountsInitialized && userRole === 'company_admin' && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
           <div className="flex">
             <div className="flex-shrink-0">
@@ -411,54 +518,87 @@ export default function AccountingDashboard() {
             </div>
             <div className="ml-3">
               <p className="text-sm text-yellow-700">
-                <strong>Accounting Setup Required</strong>
+                <strong>💎 Gold Smith Accounting Setup</strong>
               </p>
               <p className="text-sm text-yellow-700 mt-1">
-                Core accounting accounts not found. Click below to set up your company&apos;s chart of accounts automatically.
+                Gold Smith specific accounts not found. Initialize pure gold accounting system:
               </p>
               <div className="mt-3">
                 <button
-                  onClick={initializeAccounts}
-                  disabled={initializing}
+                  onClick={initializeGoldSmithAccounts}
+                  disabled={initializingGold}
                   className="bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-md text-sm disabled:opacity-50"
                 >
-                  {initializing ? 'Initializing...' : '🚀 Initialize Accounts'}
+                  {initializingGold ? 'Initializing...' : '💎 Initialize Gold Smith Accounts (15)'}
                 </button>
               </div>
               <p className="text-xs text-yellow-600 mt-2">
-                This will create 35-40 core accounts including assets, liabilities, income, expenses, and equity accounts.
+                Creates: Gold Bank (Sharaf), Gold in Transit, Customer Receivables (gold grams), Commission Income, Making Charges, etc.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Dashboard Content - Only show when accounts are initialized */}
-      {accountsInitialized && (
+      {/* Generic Account Initialization - TEMPORARILY HIDDEN (for reuse in other projects) */}
+      {false && !accountsInitialized && userRole === 'company_admin' && (
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-blue-700">
+                <strong>📊 Generic Business Accounting Setup</strong>
+              </p>
+              <p className="text-sm text-blue-700 mt-1">
+                Generic business accounts not found. Initialize standard accounting system:
+              </p>
+              <div className="mt-3">
+                <button
+                  onClick={initializeGenericAccounts}
+                  disabled={initializing}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm disabled:opacity-50"
+                >
+                  {initializing ? 'Initializing...' : '📊 Initialize Generic Accounts (43)'}
+                </button>
+              </div>
+              <p className="text-xs text-blue-600 mt-2">
+                Creates: Cash, Bank, Inventory, GST, Accounts Receivable/Payable, P&L accounts for any business.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Dashboard Content - Only show when any accounts are initialized */}
+      {(accountsInitialized || goldAccountsInitialized) && (
         <>
           {/* Financial Overview Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <MetricCard
-          title="💵 Cash Position"
-          value={financialData.cashPosition}
-          trend="+8%"
-          color="green"
-        />
-        <MetricCard
-          title="📈 Revenue"
-          value={financialData.revenue}
-          trend="+15%"
-          color="blue"
-        />
-        <MetricCard
-          title="💸 Expenses"
+            <MetricCard
+              title="💵 Cash Position"
+              value={financialData.cashPosition}
+              trend="+8%"
+              color="green"
+            />
+            <MetricCard
+              title="💎 Jewelry Sales"
+              value={financialData.revenue}
+              trend="+15%"
+              color="blue"
+            />
+            <MetricCard
+              title="🏪 Operating Expenses"
           value={financialData.expenses}
           trend="+12%"
           color="red"
         />
         <MetricCard
-          title="💎 Net Profit"
-          value={financialData.netProfit}
+          title="💰 Commission Income"
+          value={financialData.commissionIncome || 0}
           trend="+18%"
           color="purple"
         />
@@ -466,19 +606,19 @@ export default function AccountingDashboard() {
 
       {/* P&L Summary */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-6 text-gray-900">📊 P&L SUMMARY (Income Statement)</h2>
+        <h2 className="text-xl font-semibold mb-6 text-gray-900">📊 PROFIT & LOSS STATEMENT (Jewelry Business Performance)</h2>
         <PLStatement data={financialData.plData} />
       </div>
 
       {/* Balance Sheet */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-6 text-gray-900">📈 BALANCE SHEET (Financial Position)</h2>
+        <h2 className="text-xl font-semibold mb-6 text-gray-900">📈 BALANCE SHEET (Gold Smith Financial Position)</h2>
         <BalanceSheet data={financialData.balanceSheet} />
       </div>
 
       {/* Key Ratios & Metrics */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-        <h2 className="text-xl font-semibold mb-6 text-gray-900">📊 KEY RATIOS & METRICS</h2>
+        <h2 className="text-xl font-semibold mb-6 text-gray-900">📊 JEWELRY BUSINESS METRICS & RATIOS</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <MetricCard
             title="Current Ratio"
@@ -487,15 +627,15 @@ export default function AccountingDashboard() {
             color="blue"
           />
           <MetricCard
-            title="Quick Ratio"
-            value={financialData.ratios.quickRatio}
-            trend="+0.05 MoM"
+            title="Commission Margin"
+            value={financialData.commissionMargin || 0}
+            trend="+2.5%"
             color="green"
           />
           <MetricCard
-            title="Debt/Equity"
-            value={financialData.ratios.debtToEquity}
-            trend="-0.02 MoM"
+            title="Metal Inventory Turnover"
+            value={financialData.metalTurnover || 0}
+            trend="+0.3 MoM"
             color="yellow"
           />
           <MetricCard
@@ -516,17 +656,23 @@ export default function AccountingDashboard() {
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h2 className="text-xl font-semibold mb-6 text-gray-900">🛠️ ACCOUNTING ACTIONS (Quick Access)</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-medium transition-colors">
+          <a
+            href="/admin/accounting/journal-entries"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-medium transition-colors text-center"
+          >
             📝 New Journal Entry
-          </button>
+          </a>
           <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-lg font-medium transition-colors">
             💳 Record Payment
           </button>
-          <button className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-3 rounded-lg font-medium transition-colors">
-            📄 Generate Invoice
-          </button>
+          <a
+            href="/admin/accounting/reports"
+            className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-3 rounded-lg font-medium transition-colors text-center"
+          >
+            📊 View Reports
+          </a>
           <button className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-3 rounded-lg font-medium transition-colors">
-            📊 Run Reports
+            📄 Generate Invoice
           </button>
         </div>
       </div>

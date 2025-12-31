@@ -1,7 +1,11 @@
 'use client';
 
+// ✅ TASK 3.1 UPGRADED: Customer Creation Form (Pure Gold Balance - BRD v2)
+// Reference: BRD_GoldSmith_v2.md Section 6.6, DatabaseInfo_GoldSmith_v2.md Section 4
+// Auto-creates customer account with 1301-CUST-XXX code
+
 import { useState } from 'react';
-import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save } from 'lucide-react';
@@ -10,51 +14,111 @@ import Link from 'next/link';
 export default function NewCustomerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
+  
+  // Validation constants
+  const MAX_CREDIT_LIMIT_GOLD = 10000; // 10kg max
+  const MAX_CREDIT_LIMIT_USD = 1500000; // $1.5M max
+  
   const [formData, setFormData] = useState({
-    name: '',
+    customerName: '',
     phone: '',
     shopName: '',
     address: '',
     email: '',
     gstNumber: '',
-    creditLimit: 0,
+    creditLimitGold: 0,
+    creditLimitUSD: 0,
     paymentTerms: 'immediate',
     notes: ''
   });
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: name === 'creditLimit' ? parseFloat(value) || 0 : value
-    }));
+    
+    if (name === 'creditLimitGold') {
+      const goldGrams = parseFloat(value) || 0;
+      
+      // Validate
+      const newErrors = { ...errors };
+      if (goldGrams < 0) {
+        newErrors.creditLimitGold = 'Credit limit cannot be negative';
+      } else if (goldGrams > MAX_CREDIT_LIMIT_GOLD) {
+        newErrors.creditLimitGold = `Maximum credit limit is ${MAX_CREDIT_LIMIT_GOLD}g (${MAX_CREDIT_LIMIT_GOLD/1000}kg)`;
+      } else {
+        delete newErrors.creditLimitGold;
+      }
+      setErrors(newErrors);
+      
+      const goldPricePerGram = 145.43; // TODO: Fetch from goldPriceHistory
+      setFormData(prev => ({
+        ...prev,
+        creditLimitGold: goldGrams,
+        creditLimitUSD: goldGrams * goldPricePerGram
+      }));
+    } else if (name === 'creditLimitUSD') {
+      const usdAmount = parseFloat(value) || 0;
+      
+      // Validate
+      const newErrors = { ...errors };
+      if (usdAmount < 0) {
+        newErrors.creditLimitUSD = 'Credit limit cannot be negative';
+      } else if (usdAmount > MAX_CREDIT_LIMIT_USD) {
+        newErrors.creditLimitUSD = `Maximum credit limit is $${MAX_CREDIT_LIMIT_USD.toLocaleString()}`;
+      } else {
+        delete newErrors.creditLimitUSD;
+      }
+      setErrors(newErrors);
+      
+      const goldPricePerGram = 145.43;
+      setFormData(prev => ({
+        ...prev,
+        creditLimitUSD: usdAmount,
+        creditLimitGold: usdAmount / goldPricePerGram
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const generateCustomerCode = async () => {
     try {
-      const customersRef = collection(db, 'customers');
+      const customersRef = collection(db, `${basePath}/customers`);
       const querySnapshot = await getDocs(customersRef);
 
       // Find the highest customer code number
       let maxNumber = 0;
       querySnapshot.forEach((doc) => {
         const customerCode = doc.data().customerCode;
-        if (customerCode && customerCode.startsWith('CUST-')) {
-          const number = parseInt(customerCode.replace('CUST-', ''));
+        if (customerCode && customerCode.startsWith('1301-CUST-')) {
+          const number = parseInt(customerCode.replace('1301-CUST-', ''));
           if (number > maxNumber) maxNumber = number;
         }
       });
 
-      return `CUST-${String(maxNumber + 1).padStart(3, '0')}`;
+      // Format: 1301-CUST-XXX (1301 = Accounts Receivable parent code)
+      return `1301-CUST-${String(maxNumber + 1).padStart(3, '0')}`;
     } catch (error) {
       console.error('Error generating customer code:', error);
       // Fallback to timestamp-based code
-      return `CUST-${Date.now().toString().slice(-6)}`;
+      return `1301-CUST-${Date.now().toString().slice(-6)}`;
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Check for validation errors
+    if (Object.keys(errors).length > 0) {
+      alert('Please fix validation errors before submitting');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -64,15 +128,45 @@ export default function NewCustomerPage() {
         ...formData,
         customerCode,
         isActive: true,
-        outstandingBalance: 0,
-        totalOrders: 0,
-        totalPayments: 0,
+        currentPureGoldBalance: 0,           // v2: Pure gold balance in grams
+        totalPureGoldOrdered: 0,             // v2: Lifetime ordered (grams)
+        totalPureGoldPaid: 0,                // v2: Lifetime paid (grams)
+        availableCreditGold: formData.creditLimitGold || 0,
+        transactions: [],                     // v2: Transaction history array
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        companyId
       };
 
-      const docRef = await addDoc(collection(db, 'customers'), customerData);
+      const docRef = await addDoc(collection(db, `${basePath}/customers`), customerData);
 
+      // ✅ Auto-create accounting receivable sub-account
+      const accountsPath = `${basePath}/accounts`;
+      const customerAccountData = {
+        accountCode: customerCode,
+        accountName: formData.customerName,
+        name: formData.customerName,
+        accountType: 'asset',
+        category: 'Current Assets',
+        balanceType: 'debit',
+        parentAccount: '1301', // Customer Receivables parent
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: `Customer receivable account for ${formData.customerName}`,
+        customerId: docRef.id,
+        isSystem: false,
+        isActive: true,
+        level: 2,
+        companyId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: 'system'
+      };
+
+      const accountRef = await addDoc(collection(db, accountsPath), customerAccountData);
+      await updateDoc(accountRef, { accountId: accountRef.id });
+
+      alert('✅ Customer and account created successfully!');
       router.push('/admin/customers');
     } catch (error) {
       console.error('Error creating customer:', error);
@@ -104,9 +198,9 @@ export default function NewCustomerPage() {
               </label>
               <input
                 type="text"
-                name="name"
+                name="customerName"
                 required
-                value={formData.name}
+                value={formData.customerName}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                 placeholder="Enter customer name"
@@ -190,18 +284,50 @@ export default function NewCustomerPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Credit Limit (₹)
+                Credit Limit (Pure Gold - g)
               </label>
               <input
                 type="number"
-                name="creditLimit"
-                value={formData.creditLimit}
+                name="creditLimitGold"
+                value={formData.creditLimitGold}
                 onChange={handleInputChange}
                 min="0"
-                step="1000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                placeholder="Enter credit limit"
+                step="any"
+                className={`w-full px-3 py-2 border ${errors.creditLimitGold ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent`}
+                placeholder="Enter credit limit in grams"
               />
+              {errors.creditLimitGold && (
+                <p className="text-xs text-red-600 mt-1">⚠️ {errors.creditLimitGold}</p>
+              )}
+              {formData.creditLimitGold > 0 && !errors.creditLimitGold && (
+                <p className="text-xs text-gray-500 mt-1">
+                  USD Reference: ${formData.creditLimitUSD.toFixed(2)} @ $145.43/g
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Credit Limit (USD Reference)
+              </label>
+              <input
+                type="number"
+                name="creditLimitUSD"
+                value={formData.creditLimitUSD}
+                onChange={handleInputChange}
+                min="0"
+                step="any"
+                className={`w-full px-3 py-2 border ${errors.creditLimitUSD ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent`}
+                placeholder="Enter credit limit in USD"
+              />
+              {errors.creditLimitUSD && (
+                <p className="text-xs text-red-600 mt-1">⚠️ {errors.creditLimitUSD}</p>
+              )}
+              {formData.creditLimitUSD > 0 && !errors.creditLimitUSD && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Gold Equivalent: {formData.creditLimitGold.toFixed(3)}g
+                </p>
+              )}
             </div>
           </div>
 

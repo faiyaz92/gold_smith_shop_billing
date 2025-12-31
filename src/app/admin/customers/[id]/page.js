@@ -1,10 +1,13 @@
 'use client';
 
+// ✅ TASK 3.1 UPGRADED: Customer Detail View (Pure Gold Balance - BRD v2)
+// Reference: BRD_GoldSmith_v2.md Section 6.6, DatabaseInfo_GoldSmith_v2.md Section 4
+
 import { useState, useEffect } from 'react';
 import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Edit, DollarSign, ShoppingCart, CreditCard, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Edit, DollarSign, ShoppingCart, CreditCard, TrendingUp, Scale } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CustomerViewPage() {
@@ -14,6 +17,9 @@ export default function CustomerViewPage() {
   const [orders, setOrders] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
 
   useEffect(() => {
     if (params.id) {
@@ -24,14 +30,14 @@ export default function CustomerViewPage() {
   const fetchCustomerData = async () => {
     try {
       // Fetch customer details
-      const customerDoc = await getDoc(doc(db, 'customers', params.id));
+      const customerDoc = await getDoc(doc(db, `${basePath}/customers`, params.id));
       if (customerDoc.exists()) {
         setCustomer({ id: customerDoc.id, ...customerDoc.data() });
       }
 
       // Fetch customer orders
       const ordersQuery = query(
-        collection(db, 'orders'),
+        collection(db, `${basePath}/orders`),
         where('customerId', '==', params.id),
         orderBy('createdAt', 'desc')
       );
@@ -44,7 +50,7 @@ export default function CustomerViewPage() {
 
       // Fetch customer payments
       const paymentsQuery = query(
-        collection(db, 'payments'),
+        collection(db, `${basePath}/payments`),
         where('customerId', '==', params.id),
         orderBy('createdAt', 'desc')
       );
@@ -63,14 +69,19 @@ export default function CustomerViewPage() {
   };
 
   const calculateBalanceSheet = () => {
-    const totalOrders = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-    const totalPayments = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-    const outstandingBalance = totalOrders - totalPayments;
+    // v2: Use pure gold balance from customer document (pre-calculated)
+    const currentGoldBalance = customer?.currentPureGoldBalance || 0;
+    const totalGoldOrdered = customer?.totalPureGoldOrdered || 0;
+    const totalGoldPaid = customer?.totalPureGoldPaid || 0;
+    const goldPricePerGram = 145.43; // TODO: Fetch from goldPriceHistory
 
     return {
-      totalOrders,
-      totalPayments,
-      outstandingBalance
+      totalGoldOrdered,
+      totalGoldPaid,
+      currentGoldBalance,
+      currentGoldBalanceUSD: currentGoldBalance * goldPricePerGram,
+      totalOrderedUSD: totalGoldOrdered * goldPricePerGram,
+      totalPaidUSD: totalGoldPaid * goldPricePerGram
     };
   };
 
@@ -111,7 +122,7 @@ export default function CustomerViewPage() {
             <ArrowLeft size={24} />
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{customer.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{customer.customerName || customer.name}</h1>
             <p className="text-gray-600">{customer.customerCode}</p>
           </div>
         </div>
@@ -139,25 +150,28 @@ export default function CustomerViewPage() {
               Payment Terms: {customer.paymentTerms || 'Immediate'}
             </span>
           </div>
-          {customer.creditLimit > 0 && (
+          {customer.creditLimitGold > 0 && (
             <span className="text-sm text-gray-600">
-              Credit Limit: ₹{customer.creditLimit.toLocaleString()}
+              Credit Limit: {customer.creditLimitGold.toFixed(3)}g (${customer.creditLimitUSD?.toFixed(2) || (customer.creditLimitGold * 145.43).toFixed(2)})
             </span>
           )}
         </div>
       </div>
 
-      {/* Balance Sheet Cards */}
+      {/* Pure Gold Balance Cards - v2 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 rounded-lg">
-              <ShoppingCart className="h-6 w-6 text-blue-600" />
+              <Scale className="h-6 w-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Orders</p>
+              <p className="text-sm font-medium text-gray-600">Total Gold Ordered</p>
               <p className="text-2xl font-bold text-gray-900">
-                ₹{balanceSheet.totalOrders.toLocaleString()}
+                {balanceSheet.totalGoldOrdered.toFixed(3)}g
+              </p>
+              <p className="text-xs text-gray-500">
+                ${balanceSheet.totalOrderedUSD.toFixed(2)}
               </p>
             </div>
           </div>
@@ -166,12 +180,15 @@ export default function CustomerViewPage() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center">
             <div className="p-2 bg-green-100 rounded-lg">
-              <CreditCard className="h-6 w-6 text-green-600" />
+              <Scale className="h-6 w-6 text-green-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Payments</p>
+              <p className="text-sm font-medium text-gray-600">Total Gold Paid</p>
               <p className="text-2xl font-bold text-gray-900">
-                ₹{balanceSheet.totalPayments.toLocaleString()}
+                {balanceSheet.totalGoldPaid.toFixed(3)}g
+              </p>
+              <p className="text-xs text-gray-500">
+                ${balanceSheet.totalPaidUSD.toFixed(2)}
               </p>
             </div>
           </div>
@@ -180,24 +197,34 @@ export default function CustomerViewPage() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center">
             <div className={`p-2 rounded-lg ${
-              balanceSheet.outstandingBalance > 0
+              balanceSheet.currentGoldBalance > 0
                 ? 'bg-red-100'
-                : 'bg-green-100'
+                : balanceSheet.currentGoldBalance < 0
+                ? 'bg-green-100'
+                : 'bg-gray-100'
             }`}>
-              <DollarSign className={`h-6 w-6 ${
-                balanceSheet.outstandingBalance > 0
+              <Scale className={`h-6 w-6 ${
+                balanceSheet.currentGoldBalance > 0
                   ? 'text-red-600'
-                  : 'text-green-600'
+                  : balanceSheet.currentGoldBalance < 0
+                  ? 'text-green-600'
+                  : 'text-gray-600'
               }`} />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Outstanding Balance</p>
+              <p className="text-sm font-medium text-gray-600">Current Balance (تیزابی)</p>
               <p className={`text-2xl font-bold ${
-                balanceSheet.outstandingBalance > 0
+                balanceSheet.currentGoldBalance > 0
                   ? 'text-red-600'
-                  : 'text-green-600'
+                  : balanceSheet.currentGoldBalance < 0
+                  ? 'text-green-600'
+                  : 'text-gray-900'
               }`}>
-                ₹{Math.abs(balanceSheet.outstandingBalance).toLocaleString()}
+                {Math.abs(balanceSheet.currentGoldBalance).toFixed(3)}g
+              </p>
+              <p className="text-xs text-gray-500">
+                ${Math.abs(balanceSheet.currentGoldBalanceUSD).toFixed(2)}
+                {balanceSheet.currentGoldBalance > 0 ? ' (Owed)' : balanceSheet.currentGoldBalance < 0 ? ' (Credit)' : ''}
               </p>
             </div>
           </div>
@@ -211,7 +238,7 @@ export default function CustomerViewPage() {
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium text-gray-600">Name</label>
-              <p className="text-gray-900">{customer.name}</p>
+              <p className="text-gray-900">{customer.customerName || customer.name}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-600">Phone</label>
@@ -262,20 +289,33 @@ export default function CustomerViewPage() {
               <span className="font-medium">{payments.length}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Credit Limit:</span>
+              <span className="text-gray-600">Credit Limit (Gold):</span>
               <span className="font-medium">
-                ₹{(customer.creditLimit || 0).toLocaleString()}
+                {(customer.creditLimitGold || 0).toFixed(3)}g
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Credit Limit (USD):</span>
+              <span className="font-medium">
+                ${(customer.creditLimitUSD || (customer.creditLimitGold || 0) * 145.43).toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between border-t pt-2">
-              <span className="text-gray-600 font-medium">Outstanding:</span>
-              <span className={`font-bold ${
-                balanceSheet.outstandingBalance > 0
-                  ? 'text-red-600'
-                  : 'text-green-600'
-              }`}>
-                ₹{Math.abs(balanceSheet.outstandingBalance).toLocaleString()}
-              </span>
+              <span className="text-gray-600 font-medium">Current Balance (تیزابی):</span>
+              <div className="text-right">
+                <span className={`font-bold block ${
+                  balanceSheet.currentGoldBalance > 0
+                    ? 'text-red-600'
+                    : balanceSheet.currentGoldBalance < 0
+                    ? 'text-green-600'
+                    : 'text-gray-900'
+                }`}>
+                  {Math.abs(balanceSheet.currentGoldBalance).toFixed(3)}g
+                </span>
+                <span className="text-xs text-gray-500">
+                  ${Math.abs(balanceSheet.currentGoldBalanceUSD).toFixed(2)}
+                </span>
+              </div>
             </div>
           </div>
         </div>

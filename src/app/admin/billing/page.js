@@ -1,1769 +1,899 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import AdminLayout from '../AdminLayout';
 import { db } from '@/app/firebase';
 import {
   collection,
-  addDoc,
-  doc,
-  getDoc,
-  updateDoc,
   query,
+  orderBy,
+  onSnapshot,
   where,
-  getDocs,
-  setDoc,
+  doc,
+  updateDoc,
+  addDoc,
   serverTimestamp,
-  onSnapshot
+  getDocs,
+  getDoc
 } from 'firebase/firestore';
 import {
-  ShoppingCart,
-  Plus,
-  Minus,
-  Search,
-  Trash2,
   Receipt,
   CreditCard,
   Banknote,
-  UserPlus,
-  Check
+  Plus,
+  Search,
+  Eye,
+  Edit,
+  DollarSign,
+  Calendar,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  IndianRupee,
+  FileText,
+  Phone
 } from 'lucide-react';
-import jsPDF from 'jspdf';
+import { motion } from 'framer-motion';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { AccountingEngine } from '@/utils/accountingEngine';
+import { AutomatedTransactionEngine } from '@/app/utils/automatedTransactionEngine';
 
-const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'laundry_q8';
-
-// Define Firestore paths
-const basePath = 'Easy2Solutions/companyDirectory';
-const tenantCompaniesPath = `${basePath}/tenantCompanies`;
-
-// Helper function to safely convert to number and format price
-const formatPrice = (price) => {
-  const numPrice = parseFloat(price) || 0;
-  return numPrice.toFixed(2);
-};
-
-// Helper function to get the actual price from your product structure
-const getProductPrice = (product) => {
-  // Use discountedPrice if available, otherwise use regular price
-  const price = product.discountedPrice || product.price || 0;
-  return parseFloat(price) || 0;
-};
-
-// UI Components (matching your original design)
-const Card = ({ children, className = '' }) => (
-  <div className={`bg-white rounded-lg shadow border border-gray-200 ${className}`}>
-    {children}
-  </div>
-);
-
-const CardHeader = ({ children }) => (
-  <div className="p-6 border-b border-gray-200">
-    {children}
-  </div>
-);
-
-const CardTitle = ({ children, className = '' }) => (
-  <h2 className={`text-xl font-semibold text-gray-900 ${className}`}>
-    {children}
-  </h2>
-);
-
-const CardDescription = ({ children }) => (
-  <p className="text-gray-600 text-sm mt-1">{children}</p>
-);
-
-const CardContent = ({ children, className = '' }) => (
-  <div className={`p-6 ${className}`}>
-    {children}
-  </div>
-);
-
-const Button = ({ children, onClick, disabled, variant = 'default', size = 'default', className = '' }) => {
-  const baseClasses = 'font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
-  const variants = {
-    default: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
-    outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500',
-    professional: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
-    destructive: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500'
-  };
-  const sizes = {
-    sm: 'px-2 py-1 text-xs',
-    default: 'px-4 py-2 text-sm',
-    lg: 'px-6 py-3 text-base'
-  };
-
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
-    >
-      {children}
-    </button>
-  );
-};
-
-const Input = ({ placeholder, value, onChange, className = '' }) => (
-  <input
-    type="text"
-    placeholder={placeholder}
-    value={value}
-    onChange={onChange}
-    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${className}`}
-  />
-);
-
-const Select = ({ value, onChange, children, className = '' }) => (
-  <select
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-    className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${className}`}
-  >
-    {children}
-  </select>
-);
-
-const Badge = ({ children, variant = 'default' }) => {
-  const variants = {
-    default: 'bg-blue-100 text-blue-800',
-    secondary: 'bg-yellow-100 text-yellow-800',
-    destructive: 'bg-red-100 text-red-800'
-  };
-
-  return (
-    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${variants[variant]}`}>
-      {children}
-    </span>
-  );
-};
-
-const Label = ({ children, htmlFor }) => (
-  <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1">
-    {children}
-  </label>
-);
-
-const Separator = () => (
-  <hr className="border-gray-200" />
-);
-
-const Dialog = ({ open, onOpenChange, children }) => {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto relative">
-        {children}
-        <button
-          onClick={() => onOpenChange(false)}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-        >
-          ✕
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const DialogHeader = ({ children }) => (
-  <div className="p-6 border-b border-gray-200">
-    {children}
-  </div>
-);
-
-const DialogTitle = ({ children }) => (
-  <h3 className="text-lg font-medium text-gray-900">{children}</h3>
-);
-
-const DialogContent = ({ children }) => (
-  <div className="p-6">
-    {children}
-  </div>
-);
-
-const LoadingDialog = ({ isOpen, title, description }) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
-          <p className="text-sm text-gray-600">{description}</p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Toast hook (simplified)
-const useToast = () => ({
-  toast: ({ title, description, variant }) => {
-    console.log(`Toast: ${title} - ${description} (${variant})`);
-  }
-});
-
-// Custom debounce hook
-function useDebounce(value, delay) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
-export default function BillingPageWrapper() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <BillingPage />
-    </Suspense>
-  );
-}
-
-function BillingPage() {
+// Gold Smith Billing & Payment Management System
+export default function GoldSmithBilling() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId');
-  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState('overview');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Define Firestore paths
-  const usersPath = `${tenantCompaniesPath}/${companyId}/users`;
-  const ordersPath = `${tenantCompaniesPath}/${companyId}/orders`;
-  const branchesPath = `${tenantCompaniesPath}/${companyId}/branches`;
-  const productsPath = `${tenantCompaniesPath}/${companyId}/products`;
-  const categoriesPath = `${tenantCompaniesPath}/${companyId}/categories`;
-  const subcategoriesPath = `${tenantCompaniesPath}/${companyId}/subcategories`;
-
-  // State variables
-  const [products, setProducts] = useState([]);
-  const [cart, setCart] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('');
-  const [branches, setBranches] = useState([]);
-  const [customer, setCustomer] = useState(null);
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [newCustomerName, setNewCustomerName] = useState('');
+  // Core Data States
+  const [orders, setOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [orderStatus, setOrderStatus] = useState('Received at Facility'); // Changed from 'pending'
-  const [existingBillNumber, setExistingBillNumber] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
-  const [billNumber, setBillNumber] = useState('');
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [newOrderId, setNewOrderId] = useState(null);
-  const [error, setError] = useState(null);
-  const [customerTab, setCustomerTab] = useState('new'); // Add this line
-  const [walkInMobile, setWalkInMobile] = useState('');
-  const [newCustomerMobile, setNewCustomerMobile] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedSubcategory, setSelectedSubcategory] = useState('');
-  const [categories, setCategories] = useState([]);
-  const [subcategories, setSubcategories] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [invoices, setInvoices] = useState([]);
 
-  // Transaction type state management for POS enhancements
-  const [transactionType, setTransactionType] = useState('cash_sale'); // 'new_order', 'cash_sale', 'credit_invoice'
-
-  // POS user info and branch handling
-  const [posUser, setPosUser] = useState({
-    userId: '',
-    userName: '',
-    userRole: '',
-    branchId: '',
-    branchName: ''
-  });
-  const [canEditBranch, setCanEditBranch] = useState(false);
-
-  // Schedule preferences
-  const [schedule, setSchedule] = useState({
-    pickupTime: 'morning',
-    deliveryPref: 'standard',
+  // UI States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [paymentData, setPaymentData] = useState({
+    amount: '',
+    method: 'cash',
+    reference: '',
+    notes: ''
   });
 
-  const debouncedCustomerSearch = useDebounce(customerSearch, 500);
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const ordersPath = `companies/${companyId}/orders`;
+  const customersPath = `companies/${companyId}/customers`;
+  const paymentsPath = `companies/${companyId}/payments`;
+  const invoicesPath = `companies/${companyId}/invoices`;
 
-  // Get POS user info from localStorage and determine branch permissions
   useEffect(() => {
-    const userId = localStorage.getItem('userId') || '';
-    const userName = localStorage.getItem('userName') || '';
-    const userRole = localStorage.getItem('userRole') || '';
-    const branchId = localStorage.getItem('userBranchId') || '';
-
-    setPosUser({ userId, userName, userRole, branchId, branchName: '' });
-
-    // Determine if user can edit branch selection
-    const canEdit = userRole === 'company_admin' || userRole === 'general_manager' || userRole === 'branch_manager';
-    setCanEditBranch(canEdit);
-
-    if (!canEdit) {
-      setSelectedBranch(branchId);
-    }
+    fetchBillingData();
   }, []);
 
-  // Fetch branches and get branch name
-  useEffect(() => {
-    const fetchBranches = () => {
-      const branchesCollection = collection(db, branchesPath);
-      const unsubscribe = onSnapshot(branchesCollection, (snapshot) => {
-        const branchesData = snapshot.docs.map((doc) => ({
-          storeId: doc.id,
-          name: doc.data().name,
-          ...doc.data(),
-        }));
-        setBranches(branchesData.filter(b => b.isActive));
-
-        // Set branch name for current user
-        const currentBranch = branchesData.find(b => b.storeId === posUser.branchId);
-        if (currentBranch) {
-          setPosUser(prev => ({ ...prev, branchName: currentBranch.name }));
-        }
-
-        // Set default selected branch if user can edit
-        if (canEditBranch && !selectedBranch && branchesData.length > 0) {
-          setSelectedBranch(branchesData[0].storeId);
-        }
-      });
-      return unsubscribe;
-    };
-
-    return fetchBranches();
-  }, [posUser.branchId, canEditBranch, selectedBranch]);
-
-  // Fetch products (using same structure as your Products.js component)
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setIsLoading(true);
-
-        const unsubProducts = onSnapshot(
-          collection(db, productsPath),
-          async (productsSnapshot) => {
-            try {
-              const productsData = await Promise.all(
-                productsSnapshot.docs.map(async (docSnap) => {
-                  const data = docSnap.data();
-                  let categoryName = 'Uncategorized';
-                  let subcategoryName = 'None';
-
-                  // Fetch category name if categoryId exists
-                  if (data.categoryId) {
-                    const categoryDoc = await getDoc(doc(db, categoriesPath, data.categoryId));
-                    if (categoryDoc.exists()) {
-                      categoryName = categoryDoc.data().categoriesname || 'Uncategorized';
-                    }
-                  }
-
-                  // Fetch subcategory name if subcategoryId exists
-                  if (data.subcategoryId) {
-                    const subcategoryDoc = await getDoc(doc(db, subcategoriesPath, data.subcategoryId));
-                    if (subcategoryDoc.exists()) {
-                      subcategoryName = subcategoryDoc.data().name || 'None';
-                    }
-                  }
-
-                  return {
-                    id: docSnap.id, // Using 'id' as in your Products.js
-                    name: data.name || '',
-                    price: parseFloat(data.price) || 0,
-                    discountedPrice: data.discountedPrice ? parseFloat(data.discountedPrice) : null,
-                    image: data.image || '/placeholder.png',
-                    categoryId: data.categoryId || '',
-                    subcategoryId: data.subcategoryId || '',
-                    categoryName,
-                    subcategoryName,
-                    sortOrder: data.sortOrder ?? 999,
-                    createdAt: data.createdAt || new Date().toISOString(),
-                  };
-                })
-              );
-
-              // Sort products by sortOrder as in your Products.js
-              const sortedProductsData = productsData.sort((a, b) =>
-                (a.sortOrder ?? a.createdAt) < (b.sortOrder ?? b.createdAt) ? -1 : 1
-              );
-
-              setProducts(sortedProductsData);
-              setIsLoading(false);
-            } catch (err) {
-              setError('Failed to load products: ' + err.message);
-              setIsLoading(false);
-            }
-          },
-          (err) => {
-            setError('Error fetching products: ' + err.message);
-            setIsLoading(false);
-          }
-        );
-
-        return unsubProducts;
-      } catch (err) {
-        console.error('Error setting up products listener:', err);
-        setError('Failed to fetch products');
-        setIsLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, []);
-
-  // Fetch customers
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        const usersRef = collection(db, usersPath);
-        const querySnapshot = await getDocs(usersRef);
-        const customersList = querySnapshot.docs.map((doc) => ({
-          userId: doc.id,
-          name: doc.data().name || '',
-          userName: doc.data().userName || '',
-          phone: doc.data().phone || '',
-          email: doc.data().email || '',
-          address: doc.data().address || '',
-          city: doc.data().city || '',
-          zip: doc.data().zip || ''
-        }));
-        setCustomers(customersList);
-      } catch (err) {
-        console.error('Error fetching customers:', err);
-      }
-    };
-
-    fetchCustomers();
-  }, []);
-
-  // Fetch categories and subcategories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      const catRef = collection(db, categoriesPath);
-      const catSnap = await getDocs(catRef);
-      setCategories(catSnap.docs.map(doc => ({
-        id: doc.id,
-        name: doc.data().categoriesname || doc.data().name || 'Unnamed'
-      })));
-    };
-    const fetchSubcategories = async () => {
-      const subcatRef = collection(db, subcategoriesPath);
-      const subcatSnap = await getDocs(subcatRef);
-      setSubcategories(subcatSnap.docs.map(doc => ({
-        id: doc.id,
-        name: doc.data().name || 'Unnamed'
-      })));
-    };
-    fetchCategories();
-    fetchSubcategories();
-  }, []);
-
-  // Filter products based on search term
-  const filteredProducts = products.filter(
-    product =>
-      (selectedCategory ? product.categoryId === selectedCategory : true) &&
-      (selectedSubcategory ? product.subcategoryId === selectedSubcategory : true) &&
-      (
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (product.categoryName && product.categoryName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (product.subcategoryName && product.subcategoryName.toLowerCase().includes(searchTerm.toLowerCase()))
-      )
-  );
-
-  const filteredCustomers = customers.filter(
-    customer =>
-    (customer.name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-      customer.userName?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-      customer.phone?.toLowerCase().includes(customerSearch.toLowerCase()))
-  );
-
-  const addToCart = (product) => {
-    if (existingBillNumber) {
-      toast({
-        title: "Cannot Add",
-        description: "Cannot add new items to an existing bill.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const productPrice = getProductPrice(product);
-    const existingItem = cart.find(item => item.id === product.id); // Using 'id' as in your structure
-
-    if (existingItem) {
-      updateQuantity(product.id, existingItem.quantity + 1);
-    } else {
-      const newItem = {
-        id: product.id, // Using 'id' as in your structure
-        productId: product.id, // Also keep productId for compatibility
-        name: product.name, // Using 'name' as in your structure
-        productName: product.name, // Also keep productName for compatibility
-        price: productPrice,
-        originalPrice: parseFloat(product.price) || 0,
-        discountedPrice: product.discountedPrice ? parseFloat(product.discountedPrice) : null,
-        categoryName: product.categoryName,
-        subcategoryName: product.subcategoryName,
-        quantity: 1,
-        tax: 0, // No tax for laundry services
-        taxAmount: 0,
-      };
-      setCart([...cart, newItem]);
-    }
-  };
-
-  const updateQuantity = (productId, newQuantity) => {
-    if (existingBillNumber && newQuantity > cart.find(item => item.id === productId).quantity) {
-      toast({
-        title: "Cannot Increase",
-        description: "Cannot increase quantity for an existing bill.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (newQuantity <= 0) {
-      setCart(cart.filter(item => item.id !== productId));
-      return;
-    }
-
-    setCart(
-      cart.map(item => {
-        if (item.id === productId) {
-          return {
-            ...item,
-            quantity: newQuantity,
-            taxAmount: (item.price * newQuantity * item.tax) / 100,
-          };
-        }
-        return item;
-      })
-    );
-  };
-
-  const removeFromCart = (productId) => {
-    setCart(cart.filter(item => item.id !== productId));
-  };
-
-  // Enhanced customer creation in POS with accounting integration
-  const createCustomerInPOS = async (customerData) => {
+  const fetchBillingData = async () => {
     try {
       setIsLoading(true);
 
-      const { mobileNumber, customerName, creditLimit = 0 } = customerData;
-
-      // Validate mobile number uniqueness
-      const existingCustomerQuery = query(
-        collection(db, usersPath),
-        where('phone', '==', mobileNumber)
+      // Fetch orders (delivered but not completed)
+      const ordersQuery = query(
+        collection(db, ordersPath),
+        where('status', 'in', ['Delivered', 'Completed']),
+        orderBy('updatedAt', 'desc')
       );
-      const existingCustomers = await getDocs(existingCustomerQuery);
+      const ordersUnsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+        const ordersData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date(),
+          updatedAt: doc.data().updatedAt?.toDate() || new Date()
+        }));
+        setOrders(ordersData);
+      });
 
-      if (!existingCustomers.empty) {
-        throw new Error('Mobile number already exists');
+      // Fetch customers
+      const customersQuery = query(collection(db, customersPath));
+      const customersUnsubscribe = onSnapshot(customersQuery, (snapshot) => {
+        const customersData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setCustomers(customersData);
+      });
+
+      // Fetch payments
+      const paymentsQuery = query(collection(db, paymentsPath), orderBy('createdAt', 'desc'));
+      const paymentsUnsubscribe = onSnapshot(paymentsQuery, (snapshot) => {
+        const paymentsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date()
+        }));
+        setPayments(paymentsData);
+      });
+
+      // Fetch invoices
+      const invoicesQuery = query(collection(db, invoicesPath), orderBy('createdAt', 'desc'));
+      const invoicesUnsubscribe = onSnapshot(invoicesQuery, (snapshot) => {
+        const invoicesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date(),
+          dueDate: doc.data().dueDate?.toDate() || null
+        }));
+        setInvoices(invoicesData);
+      });
+
+      return () => {
+        ordersUnsubscribe();
+        customersUnsubscribe();
+        paymentsUnsubscribe();
+        invoicesUnsubscribe();
+      };
+
+    } catch (error) {
+      console.error('Error fetching billing data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Calculate billing metrics
+  const billingMetrics = useMemo(() => {
+    const today = new Date();
+    const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    // Pending billing (delivered but not billed)
+    const pendingBilling = orders.filter(order =>
+      order.status === 'Delivered' && !order.billingStatus
+    );
+
+    // Outstanding invoices
+    const outstandingInvoices = invoices.filter(invoice =>
+      invoice.status !== 'Paid' && invoice.dueDate
+    );
+
+    // Overdue invoices
+    const overdueInvoices = outstandingInvoices.filter(invoice =>
+      invoice.dueDate < today
+    );
+
+    // Today's payments
+    const todayPayments = payments.filter(payment => {
+      const paymentDate = new Date(payment.createdAt);
+      return paymentDate.toDateString() === today.toDateString();
+    });
+
+    // This month's revenue
+    const monthlyRevenue = payments
+      .filter(payment => payment.createdAt >= thisMonth)
+      .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
+    return {
+      pendingBilling: pendingBilling.length,
+      outstandingAmount: outstandingInvoices.reduce((sum, inv) => sum + (inv.remainingBalance || inv.total || 0), 0),
+      overdueAmount: overdueInvoices.reduce((sum, inv) => sum + (inv.remainingBalance || inv.total || 0), 0),
+      todayPayments: todayPayments.length,
+      todayPaymentAmount: todayPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0),
+      monthlyRevenue
+    };
+  }, [orders, invoices, payments]);
+
+  // Filter orders for billing
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchesSearch = !searchTerm ||
+        order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus = statusFilter === 'all' ||
+        (statusFilter === 'pending' && order.status === 'Delivered' && !order.billingStatus) ||
+        (statusFilter === 'billed' && order.billingStatus === 'Billed') ||
+        (statusFilter === 'paid' && order.billingStatus === 'Paid');
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [orders, searchTerm, statusFilter]);
+
+  const handleBillOrder = async (order, paymentType) => {
+    try {
+      if (paymentType === 'cash') {
+        // Create bill/receipt for cash payment
+        const billData = {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerId: order.customerId,
+          customerName: order.customerName,
+          total: order.total,
+          paymentType: 'cash',
+          paymentMethod: 'cash',
+          status: 'Paid',
+          createdAt: serverTimestamp(),
+          items: order.items || [],
+          billingType: 'bill'
+        };
+
+        await addDoc(collection(db, invoicesPath), billData);
+
+        // Update order status
+        await updateDoc(doc(db, ordersPath, order.id), {
+          billingStatus: 'Paid',
+          status: 'Completed',
+          paymentMethod: 'cash',
+          updatedAt: serverTimestamp()
+        });
+
+        // Generate PDF receipt
+        generateBillPDF(billData, 'bill');
+
+      } else if (paymentType === 'credit') {
+        // Create invoice for credit payment
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 15); // 15 days credit
+
+        const invoiceData = {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerId: order.customerId,
+          customerName: order.customerName,
+          total: order.total,
+          remainingBalance: order.total,
+          dueDate: dueDate,
+          status: 'Billed',
+          createdAt: serverTimestamp(),
+          items: order.items || [],
+          billingType: 'invoice'
+        };
+
+        await addDoc(collection(db, invoicesPath), invoiceData);
+
+        // Update order status
+        await updateDoc(doc(db, ordersPath, order.id), {
+          billingStatus: 'Billed',
+          status: 'Delivered',
+          paymentMethod: 'credit',
+          updatedAt: serverTimestamp()
+        });
+
+        // Generate PDF invoice
+        generateBillPDF(invoiceData, 'invoice');
       }
 
-      // Generate customer ID and account code
-      const customerId = `CUST-${Date.now()}`;
-      const accountCode = `CUST-${customerId}`;
+      alert(`Order ${paymentType === 'cash' ? 'billed and completed' : 'invoiced'} successfully!`);
 
-      // Create customer master record
-      const customerRecord = {
-        userId: customerId,
-        name: customerName,
-        userName: customerName,
-        phone: mobileNumber,
-        userType: 'Customer',
-        creditLimit: creditLimit,
-        accountCode: accountCode,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        // Migration-ready fields
-        _version: "2.0",
-        _migrationStatus: "active",
-        _v3Ready: true,
-        _v4Ready: false
+    } catch (error) {
+      console.error('Error billing order:', error);
+      alert('Error processing billing. Please try again.');
+    }
+  };
+
+  // Calculate and record commission for completed order
+  const calculateAndRecordCommission = async (orderId) => {
+    try {
+      // Get order details
+      const orderDoc = await getDoc(doc(db, ordersPath, orderId));
+      if (!orderDoc.exists()) return;
+
+      const order = orderDoc.data();
+
+      // Calculate commission: Customer Price - Manufacturing Cost
+      const customerPrice = order.total || 0;
+      const manufacturingCost = order.metalCost + (order.makingChargeTotal || 0);
+      const commissionAmount = customerPrice - manufacturingCost;
+
+      if (commissionAmount <= 0) {
+        console.log('No commission to record for order:', orderId);
+        return;
+      }
+
+      // Initialize accounting engines
+      const accountingEngine = new AccountingEngine(companyId);
+      const transactionEngine = new AutomatedTransactionEngine(companyId);
+
+      // Record commission recognition (income)
+      const commissionEntry = transactionEngine.createCommissionRecognitionEntry({
+        orderId,
+        commissionAmount,
+        date: new Date()
+      });
+
+      // Record the transaction
+      await accountingEngine.recordTransaction({
+        description: commissionEntry.description,
+        debitAccountId: commissionEntry.lines[0].accountId, // Commission Income
+        creditAccountId: commissionEntry.lines[1].accountId, // Current Year Profit/Loss
+        amount: commissionAmount,
+        referenceType: 'commission_recognition',
+        referenceId: orderId
+      });
+
+      // Update order with commission details
+      await updateDoc(doc(db, ordersPath, orderId), {
+        commissionAmount,
+        commissionRecorded: true,
+        commissionRecordedAt: serverTimestamp()
+      });
+
+      console.log(`Commission recorded: ₹${commissionAmount} for order ${orderId}`);
+
+    } catch (error) {
+      console.error('Error calculating commission:', error);
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    if (!selectedOrder || !paymentData.amount) return;
+
+    try {
+      const paymentAmount = parseFloat(paymentData.amount);
+
+      // Create payment record
+      const paymentRecord = {
+        orderId: selectedOrder.id,
+        invoiceId: selectedOrder.invoiceId,
+        customerId: selectedOrder.customerId,
+        customerName: selectedOrder.customerName,
+        amount: paymentAmount,
+        method: paymentData.method,
+        reference: paymentData.reference,
+        notes: paymentData.notes,
+        createdAt: serverTimestamp()
       };
 
-      // Save customer record
-      const customerRef = doc(db, usersPath, customerId);
-      await setDoc(customerRef, customerRecord);
+      await addDoc(collection(db, paymentsPath), paymentRecord);
 
-      // Auto-create receivable account under MAIN-1003 (Accounts Receivable)
-      const receivableAccount = {
-        accountCode: accountCode,
-        accountName: `${customerName} - Receivable`,
-        accountType: 'asset', // Current Asset
-        parentAccountId: 'MAIN-1003', // Accounts Receivable
-        parentAccountName: 'Accounts Receivable',
-        isActive: true,
-        balance: 0,
-        customerId: customerId,
-        customerName: customerName,
-        createdAt: serverTimestamp(),
-        createdBy: posUser.userId,
-        // Migration-ready fields
-        _version: "2.0",
-        _migrationStatus: "active",
-        _v3Ready: true,
-        _v4Ready: false
-      };
+      // Update invoice balance
+      if (selectedOrder.invoiceId) {
+        const invoiceRef = doc(db, invoicesPath, selectedOrder.invoiceId);
+        const invoiceSnap = await getDoc(invoiceRef);
 
-      // Save receivable account
-      const accountsPath = `${tenantCompaniesPath}/${companyId}/accounts`;
-      const accountRef = doc(db, accountsPath, accountCode);
-      await setDoc(accountRef, receivableAccount);
+        if (invoiceSnap.exists()) {
+          const invoice = invoiceSnap.data();
+          const newBalance = (invoice.remainingBalance || invoice.total) - paymentAmount;
 
-      // Add to local customers list
-      setCustomers([...customers, customerRecord]);
+          await updateDoc(invoiceRef, {
+            remainingBalance: Math.max(0, newBalance),
+            status: newBalance <= 0 ? 'Paid' : 'Partially Paid',
+            updatedAt: serverTimestamp()
+          });
 
-      toast({
-        title: "Customer Created",
-        description: `Customer ${customerName} created with account ${accountCode}`,
-      });
+          // Update order status if fully paid
+          if (newBalance <= 0) {
+            await updateDoc(doc(db, ordersPath, selectedOrder.id), {
+              billingStatus: 'Paid',
+              status: 'Completed',
+              updatedAt: serverTimestamp()
+            });
 
-      return customerRecord;
-
-    } catch (error) {
-      console.error('Create customer error:', error);
-      toast({
-        title: "Error",
-        description: `Failed to create customer: ${error.message}`,
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Get branch name
-  const getBranchName = (branchId) => {
-    const branch = branches.find(b => b.storeId === branchId);
-    return branch ? branch.name : 'Unknown Branch';
-  };
-
-  // Transaction type handlers for POS enhancements
-  const handleTransactionTypeChange = (newTransactionType) => {
-    setTransactionType(newTransactionType);
-    // Reset relevant states when changing transaction type
-    if (newTransactionType === 'new_order') {
-      setPaymentMethod('Credit'); // New orders are typically credit
-      setOrderStatus('Order Placed');
-    } else if (newTransactionType === 'cash_sale') {
-      setPaymentMethod('Cash'); // Cash sales require immediate payment
-      setOrderStatus('Ready for Delivery');
-    } else if (newTransactionType === 'credit_invoice') {
-      setPaymentMethod('Credit'); // Credit invoices are on credit
-      setOrderStatus('Invoice Generated');
-    }
-  };
-
-  const handlePlaceOrder = async () => {
-    // New Order workflow - advance booking without immediate payment
-    if (!customer) {
-      toast({
-        title: "Customer Required",
-        description: "Please select a customer for new orders.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await generateBill();
-      toast({
-        title: "Order Placed",
-        description: "New order created successfully. Payment will be collected later.",
-      });
-    } catch (error) {
-      console.error('Place order error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCashSale = async () => {
-    // Cash Sale workflow - immediate payment and delivery
-    setIsLoading(true);
-    try {
-      // Ensure payment method is Cash
-      setPaymentMethod('Cash');
-      await generateBill();
-      toast({
-        title: "Cash Sale Completed",
-        description: "Payment received and sale completed successfully.",
-      });
-    } catch (error) {
-      console.error('Cash sale error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCreditInvoice = async () => {
-    // Credit Invoice workflow - credit sale with receivable tracking
-    if (!customer) {
-      toast({
-        title: "Customer Required",
-        description: "Please select a customer for credit invoices.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // Ensure payment method is Credit
-      setPaymentMethod('Credit');
-      await generateBill();
-      toast({
-        title: "Credit Invoice Generated",
-        description: "Invoice created. Amount will be added to customer receivable.",
-      });
-    } catch (error) {
-      console.error('Credit invoice error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch order by ID for editing existing orders
-  const fetchOrderById = async (orderId) => {
-    try {
-      setIsLoading(true);
-      const orderRef = doc(db, ordersPath, orderId);
-      const orderDoc = await getDoc(orderRef);
-
-      if (orderDoc.exists()) {
-        const orderData = orderDoc.data();
-
-        // Populate the form with existing order data
-        setCart(orderData.items || []);
-        setCustomer(orderData.customer || null);
-        setPaymentMethod(orderData.paymentMethod || 'Cash');
-        setOrderStatus(orderData.orderStatus || 'Received at Facility');
-        setBillNumber(orderData.billNumber || '');
-        setExistingBillNumber(orderData.billNumber || null);
-
-        // Set transaction type based on order data
-        if (orderData.transactionType) {
-          setTransactionType(orderData.transactionType);
-        } else {
-          // Infer transaction type from payment method and status
-          if (orderData.paymentMethod === 'Cash') {
-            setTransactionType('cash_sale');
-          } else if (orderData.orderStatus === 'Order Placed') {
-            setTransactionType('new_order');
-          } else {
-            setTransactionType('credit_invoice');
+            // Calculate and record commission if not already done
+            if (!selectedOrder.commissionRecorded) {
+              await calculateAndRecordCommission(selectedOrder.id);
+            }
           }
         }
-
-        toast({
-          title: "Order Loaded",
-          description: `Order ${orderId} loaded successfully for editing.`,
-        });
-      } else {
-        toast({
-          title: "Order Not Found",
-          description: `Order ${orderId} not found.`,
-          variant: "destructive",
-        });
       }
+
+      // Generate payment receipt
+      generatePaymentReceipt(paymentRecord);
+
+      setShowPaymentModal(false);
+      setSelectedOrder(null);
+      setPaymentData({ amount: '', method: 'cash', reference: '', notes: '' });
+
+      alert('Payment recorded successfully!');
+
     } catch (error) {
-      console.error('Fetch order error:', error);
-      toast({
-        title: "Error",
-        description: `Failed to fetch order: ${error.message}`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+      console.error('Error recording payment:', error);
+      alert('Error recording payment. Please try again.');
     }
   };
 
-  // Payment status tracking logic
-  const getPaymentStatus = (order) => {
-    if (!order) return 'unknown';
+  const generateBillPDF = (data, type) => {
+    const pdf = new jsPDF();
 
-    if (order.paymentMethod === 'Cash') {
-      return order.paymentReceived ? 'paid' : 'pending';
-    } else if (order.paymentMethod === 'Credit') {
-      return order.paymentReceived ? 'paid' : 'outstanding';
-    }
+    // Header
+    pdf.setFontSize(20);
+    pdf.text('GOLD SMITH WHOLESALER', 105, 20, { align: 'center' });
 
-    return 'unknown';
-  };
+    pdf.setFontSize(12);
+    pdf.text(`${type.toUpperCase()}: ${data.orderNumber}`, 105, 35, { align: 'center' });
+    pdf.text(`Date: ${new Date().toLocaleDateString()}`, 20, 45);
 
-  // WhatsApp job card forwarding functionality
-  const handleWhatsAppForward = (orderId, customerPhone) => {
-    if (!customerPhone) {
-      toast({
-        title: "No Phone Number",
-        description: "Customer phone number is required for WhatsApp forwarding.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Customer details
+    pdf.text(`Customer: ${data.customerName}`, 20, 60);
+    pdf.text(`Order #: ${data.orderNumber}`, 20, 70);
 
-    try {
-      // Format mobile number for WhatsApp (remove any non-numeric characters)
-      const formattedPhone = customerPhone.replace(/\D/g, '');
+    // Items table
+    const tableData = data.items.map(item => [
+      item.categoryName || 'Gold Jewelry',
+      `${item.weight}g ${item.karat}k`,
+      `₹${item.metalRatePerGram}/g`,
+      `₹${item.makingChargePerGram}/g`,
+      `₹${item.subtotal}`
+    ]);
 
-      // Add Kuwait country code if not present (+965)
-      const phoneWithCountryCode = formattedPhone.startsWith('965') ? formattedPhone : `965${formattedPhone}`;
-
-      // Create job card message
-      const jobCardMessage = createJobCardMessage(orderId);
-
-      // Encode message for URL
-      const encodedMessage = encodeURIComponent(jobCardMessage);
-
-      // Create WhatsApp URL
-      const whatsappUrl = `https://wa.me/${phoneWithCountryCode}?text=${encodedMessage}`;
-
-      // Open WhatsApp in new window/tab
-      window.open(whatsappUrl, '_blank');
-
-      toast({
-        title: "WhatsApp Opened",
-        description: "Job card forwarded to customer's WhatsApp.",
-      });
-    } catch (error) {
-      console.error('WhatsApp forwarding error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to forward job card to WhatsApp.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const createJobCardMessage = (orderId) => {
-    // Find the order details
-    const order = {
-      id: orderId,
-      billNumber: billNumber,
-      items: cart,
-      customer: customer,
-      total: finalTotal,
-      orderDate: new Date().toLocaleDateString(),
-      deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString()
-    };
-
-    // Create formatted job card message
-    let message = `🧺 *PERFUME SELLER - JOB CARD*\n\n`;
-    message += `📄 Bill No: ${order.billNumber || orderId}\n`;
-    message += `👤 Customer: ${order.customer?.name || 'Walk-in Customer'}\n`;
-    message += `📅 Order Date: ${order.orderDate}\n`;
-    message += `🚚 Delivery Date: ${order.deliveryDate}\n\n`;
-
-    message += `📦 *Items:*\n`;
-    order.items.forEach((item, index) => {
-      message += `${index + 1}. ${item.name} - ${item.quantity} pcs\n`;
-      if (item.categoryName) {
-        message += `   Category: ${item.categoryName}\n`;
-      }
+    pdf.autoTable({
+      startY: 80,
+      head: [['Item', 'Details', 'Metal Rate', 'Making', 'Amount']],
+      body: tableData,
+      theme: 'grid'
     });
 
-    message += `\n💰 *Total: KWD ${order.total?.toFixed(3) || '0.000'}*\n\n`;
-    message += `📍 Branch: ${getBranchName(selectedBranch || posUser.branchId)}\n`;
-    message += `👨‍💼 Served by: ${posUser.userName}\n\n`;
+    // Total
+    const finalY = pdf.lastAutoTable.finalY + 10;
+    pdf.text(`Total: ₹${data.total}`, 150, finalY);
 
-    message += `Thank you for choosing Perfume Seller! ✨\n`;
-    message += `Please keep this job card for your records.`;
-
-    return message;
-  };
-
-  const generateBill = async () => {
-    if (cart.length === 0 && !existingBillNumber) {
-      toast({
-        title: "Empty Cart",
-        description: "Please add items to cart before generating bill.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!selectedBranch && !posUser.branchId) {
-      toast({
-        title: "Select Branch",
-        description: "Please select a branch before generating bill.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!customer) {
-      toast({
-        title: "Select Customer",
-        description: "Please select a customer before generating bill.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const subtotalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const taxAmountTotal = cart.reduce((sum, item) => sum + item.taxAmount, 0);
-      const expressDeliveryFee = schedule.deliveryPref === 'express' ? 5 : 0;
-      
-      // Calculate consistent with website
-      const orderTotal = subtotalAmount + taxAmountTotal + expressDeliveryFee;
-      const discountAmount = 0; // POS doesn't have coupons yet
-      const finalTotal = orderTotal - discountAmount;
-      
-      const finalBillNumber = existingBillNumber || `BILL-${Date.now()}`;
-      const finalBranchId = selectedBranch || posUser.branchId;
-
-      // Save customer info first
-      const customerId = customer.userId || customer.phone || `CUST-${Date.now()}`;
-      const userRef = doc(db, usersPath, customerId);
-
-      await setDoc(userRef, {
-        name: customer.name || customer.userName,
-        userName: customer.userName || customer.name,
-        email: customer.email || '',
-        phone: customer.phone || '',
-        address: customer.address || '',
-        city: customer.city || '',
-        zip: customer.zip || '',
-        userType: 'Customer',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      // Create order data with proper status and tracking fields
-      const orderData = {
-        userId: customerId,
-        name: customer.name || customer.userName,
-        userName: customer.userName || customer.name,
-        email: customer.email || '',
-        phone: customer.phone || '',
-        address: customer.address || '',
-        city: customer.city || '',
-        zip: customer.zip || '',
-        items: cart,
-        
-        // ✅ Consistent pricing structure
-        subtotal: subtotalAmount,
-        expressDeliveryFee: expressDeliveryFee,
-        orderTotal: orderTotal,
-        discountAmount: discountAmount,
-        finalTotal: finalTotal,
-        
-        // ✅ Keep legacy 'total' for backward compatibility
-        total: finalTotal,
-        amount: finalTotal,
-        
-        billNumber: finalBillNumber,
-        paymentStatus: paymentMethod === 'Cash' ? 'paid' : 'unpaid',
-        paymentMethod: paymentMethod,
-        status: orderStatus, // This will now be "Received at Facility"
-        pickupTime: schedule.pickupTime,
-        deliveryPref: schedule.deliveryPref,
-        timestamp: serverTimestamp(),
-        deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-        
-        // Order tracking - who took the order
-        orderTakenBy: posUser.userId,
-        orderTakenByName: posUser.userName,
-        orderTakenByRole: posUser.userRole,
-        orderTakenAt: serverTimestamp(),
-        
-        // Branch info
-        branchId: finalBranchId,
-        branchName: getBranchName(finalBranchId),
-        orderSource: 'POS',
-        transactionType: transactionType, // Add transaction type for POS enhancements
-        
-        // Initialize pickup/delivery tracking (empty initially)
-        pickedUpBy: '',
-        pickedUpByName: '',
-        pickedUpAt: null,
-        deliveredBy: '',
-        deliveredByName: '',
-        deliveredAt: null,
-        
-        // Last updated tracking
-        lastUpdatedBy: posUser.userId,
-        lastUpdatedByName: posUser.userName,
-        lastUpdatedAt: serverTimestamp(),
-        
-        // Laundry status
-        laundryStatus: {
-          pickupManVerified: false,
-          customerPickupVerified: false,
-          receivedAtFacility: true, // Set to true since default status is "Received at Facility"
-          sortingDone: false,
-          washingDone: false,
-          dryingDone: false,
-          ironingDone: false,
-          foldingDone: false,
-          qualityCheckDone: false,
-          deliveryManDone: false,
-          customerDeliveryConfirmed: false,
-        }
-      };
-
-      let finalOrderId = orderId;
-
-      if (orderId) {
-        // Update existing order
-        const orderRef = doc(db, ordersPath, orderId);
-        await updateDoc(orderRef, orderData);
-        console.log('Order updated:', orderId);
-      } else {
-        // Create new order
-        const orderRef = await addDoc(collection(db, ordersPath), orderData);
-        finalOrderId = orderRef.id;
-        setNewOrderId(finalOrderId);
-        console.log('Order created:', finalOrderId);
-      }
-
-      setBillNumber(finalBillNumber);
-      setShowSuccessDialog(true);
-
-      toast({
-        title: "Success",
-        description: `Bill generated successfully. ${paymentMethod === "Cash" ? "Payment recorded." : "Credit sale recorded."}`,
-      });
-    } catch (e) {
-      console.error('Generate bill error:', e);
-      toast({
-        title: "Error",
-        description: `Failed to generate bill: ${e.message || e}`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Generate PDF using jsPDF with improved design from reference
-  const generatePDF = () => {
-    const customerData = customer || {};
-    const date = new Date().toLocaleDateString();
-    const deliveryDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString();
-    const finalBillNumber = billNumber || 'BILL-' + Date.now();
-    const currentBranchName = getBranchName(selectedBranch || posUser.branchId);
-
-    const doc = new jsPDF();
-
-    // Colors and styling
-    const primaryColor = [41, 98, 255]; // Blue
-    const secondaryColor = [107, 114, 128]; // Gray
-    const textColor = [17, 24, 39]; // Dark gray
-
-    // Header with company branding
-    doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, 210, 25, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont(undefined, 'bold');
-    doc.text('EASY2 Solutions Laundry', 105, 16, { align: 'center' });
-
-    // Invoice title
-    doc.setTextColor(...textColor);
-    doc.setFontSize(18);
-    doc.setFont(undefined, 'bold');
-    doc.text('INVOICE', 105, 40, { align: 'center' });
-
-    // Invoice details section
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(...secondaryColor);
-
-    // Left side - Bill info
-    doc.setFont(undefined, 'bold');
-    doc.text('Bill Information:', 20, 55);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Bill Number: ${finalBillNumber}`, 20, 63);
-    doc.text(`Date: ${date}`, 20, 71);
-    doc.text(`Estimated Delivery: ${deliveryDate}`, 20, 79);
-    doc.text(`Payment Method: ${paymentMethod}`, 20, 87);
-
-    // Right side - Branch & Staff info
-    doc.setFont(undefined, 'bold');
-    doc.text('Service Information:', 110, 55);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Branch: ${currentBranchName}`, 110, 63);
-    doc.text(`Processed by: ${posUser.userName}`, 110, 71);
-    doc.text(`Role: ${posUser.userRole}`, 110, 79);
-    doc.text(`Pickup Time: ${schedule.pickupTime}`, 110, 87);
-    doc.text(`Delivery Pref: ${schedule.deliveryPref}`, 110, 95);
-
-    // Customer Details section
-    doc.setFillColor(248, 250, 252);
-    doc.rect(15, 105, 180, 25, 'F');
-    
-    doc.setTextColor(...textColor);
-    doc.setFont(undefined, 'bold');
-    doc.text('CUSTOMER DETAILS', 20, 115);
-    
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(...secondaryColor);
-    doc.text(`Name: ${customerData.name || customerData.userName || 'N/A'}`, 20, 123);
-    doc.text(`Phone: ${customerData.phone || 'N/A'}`, 110, 123);
-
-    // Services Table Header
-    const tableStartY = 145;
-    doc.setFillColor(...primaryColor);
-    doc.rect(15, tableStartY, 180, 10, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(9);
-    doc.text('SERVICE', 20, tableStartY + 7);
-    doc.text('CATEGORY', 70, tableStartY + 7);
-    doc.text('QTY', 115, tableStartY + 7);
-    doc.text('UNIT PRICE', 135, tableStartY + 7);
-    doc.text('TOTAL', 170, tableStartY + 7);
-
-    // Services Table Content
-    let yPosition = tableStartY + 15;
-    doc.setTextColor(...textColor);
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(8);
-
-    cart.forEach((item, index) => {
-      if (yPosition > 270) {
-        doc.addPage();
-        yPosition = 20;
-      }
-
-      // Alternate row background
-      if (index % 2 === 0) {
-        doc.setFillColor(248, 250, 252);
-        doc.rect(15, yPosition - 5, 180, 10, 'F');
-      }
-
-      const itemTotal = item.price * item.quantity;
-      
-      doc.text(item.name.substring(0, 25), 20, yPosition);
-      doc.text(item.categoryName || 'General', 70, yPosition);
-      doc.text(item.quantity.toString(), 115, yPosition);
-      doc.text(`KWD ${formatPrice(item.price)}`, 135, yPosition);
-      doc.text(`KWD ${formatPrice(itemTotal)}`, 170, yPosition);
-      
-      yPosition += 10;
-    });
-
-    // Summary section
-    const summaryStartY = yPosition + 10;
-    
-    // Summary background
-    doc.setFillColor(248, 250, 252);
-    doc.rect(120, summaryStartY, 75, 35, 'F');
-
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...secondaryColor);
-    
-    const subtotalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const taxAmountTotal = cart.reduce((sum, item) => sum + item.taxAmount, 0);
-    const totalAmount = subtotalAmount + taxAmountTotal;
-    const expressCharge = schedule.deliveryPref === 'express' ? 5 : 0;
-    const finalTotal = totalAmount + expressCharge;
-
-    doc.text('Subtotal:', 125, summaryStartY + 8);
-    doc.text(`KWD ${formatPrice(subtotalAmount)}`, 170, summaryStartY + 8);
-    
-    if (taxAmountTotal > 0) {
-      doc.text('Tax:', 125, summaryStartY + 16);
-      doc.text(`KWD ${formatPrice(taxAmountTotal)}`, 170, summaryStartY + 16);
-    }
-    
-    if (expressCharge > 0) {
-      doc.text('Express Delivery:', 125, summaryStartY + 24);
-      doc.text(`KWD ${formatPrice(expressCharge)}`, 170, summaryStartY + 24);
-    }
-
-    // Total line with emphasis
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...primaryColor);
-    doc.text('TOTAL:', 125, summaryStartY + 32);
-    doc.text(`KWD ${formatPrice(finalTotal)}`, 165, summaryStartY + 32);
-
-    // Footer section
-    const footerY = summaryStartY + 50;
-    doc.setFontSize(8);
-    doc.setFont(undefined, 'normal');
-    doc.setTextColor(...secondaryColor);
-    
-    doc.text('Terms & Conditions:', 20, footerY);
-    doc.text('• Items are cleaned with care but company is not liable for damages to delicate items', 20, footerY + 8);
-    doc.text('• Unclaimed items after 30 days will be donated', 20, footerY + 16);
-    doc.text('• Payment due upon delivery for credit orders', 20, footerY + 24);
-    
-    // Company footer
-    doc.setTextColor(...primaryColor);
-    doc.setFont(undefined, 'bold');
-    doc.text('Thank you for choosing EASY2 Solutions Laundry!', 105, footerY + 40, { align: 'center' });
-    
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(...secondaryColor);
-    doc.text('For support: support@easy2solutions.com | Phone: +965-XXXX-XXXX', 105, footerY + 48, { align: 'center' });
-
-    return doc;
-  };
-
-  const handleDownloadPDF = () => {
-    const pdf = generatePDF();
-    const finalBillNumber = billNumber || 'BILL-' + Date.now();
-    pdf.save(`laundry_invoice_${finalBillNumber}.pdf`);
-
-    setCart([]);
-    setCustomer(null);
-    setShowSuccessDialog(false);
-
-    if (newOrderId) {
-      router.push(`/admin/orders?orderId=${newOrderId}`);
+    if (type === 'invoice') {
+      pdf.text(`Due Date: ${data.dueDate.toLocaleDateString()}`, 20, finalY + 10);
+      pdf.text('Payment Terms: 15 days', 20, finalY + 20);
     } else {
-      router.push('/admin/orders');
+      pdf.text('Payment Status: PAID', 20, finalY + 10);
     }
+
+    pdf.save(`${type}_${data.orderNumber}.pdf`);
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const taxAmount = cart.reduce((sum, item) => sum + item.taxAmount, 0);
-  const total = subtotal + taxAmount;
+  const generatePaymentReceipt = (payment) => {
+    const pdf = new jsPDF();
+
+    pdf.setFontSize(20);
+    pdf.text('PAYMENT RECEIPT', 105, 20, { align: 'center' });
+
+    pdf.setFontSize(12);
+    pdf.text(`Receipt #: ${payment.id.slice(-8)}`, 105, 35, { align: 'center' });
+    pdf.text(`Date: ${new Date().toLocaleDateString()}`, 20, 45);
+
+    pdf.text(`Customer: ${payment.customerName}`, 20, 60);
+    pdf.text(`Order #: ${payment.orderId}`, 20, 70);
+    pdf.text(`Amount: ₹${payment.amount}`, 20, 80);
+    pdf.text(`Method: ${payment.method}`, 20, 90);
+
+    if (payment.reference) {
+      pdf.text(`Reference: ${payment.reference}`, 20, 100);
+    }
+
+    pdf.save(`receipt_${payment.id.slice(-8)}.pdf`);
+  };
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
-      <div className="space-y-2 p-1">
-        <LoadingDialog
-          isOpen={isLoading}
-          title="Processing Bill..."
-          description="Generating invoice and updating records."
-        />
+      <div className="p-6">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-800">Billing & Payments</h1>
+          <p className="text-gray-600 mt-2">Manage invoices, payments, and billing for gold smith orders</p>
+        </div>
 
-        {/* Header Card */}
-        <Card>
-          <CardContent className="py-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <Receipt className="w-8 h-8 text-blue-600" />
-                <div>
-                  <h1 className="text-3xl font-bold text-foreground">Billing System</h1>
-                  <p className="text-gray-600 text-sm">Generate bills and manage customer transactions</p>
-                </div>
+        {/* Billing Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-l-4 border-orange-500"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pending Billing</p>
+                <p className="text-2xl font-bold text-gray-900">{billingMetrics.pendingBilling}</p>
+                <p className="text-sm text-gray-500">Orders to bill</p>
               </div>
-              {posUser.userName && (
-                <div className="text-sm text-gray-600 sm:text-right">
-                  <div>Operator: <span className="font-medium">{posUser.userName}</span> ({posUser.userRole})</div>
-                  <div>Branch: <span className="font-medium">{getBranchName(selectedBranch || posUser.branchId)}</span></div>
-                </div>
-              )}
+              <Receipt className="w-8 h-8 text-orange-500" />
             </div>
-          </CardContent>
-        </Card>
+          </motion.div>
 
-        {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm border border-red-200">{error}</div>}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-l-4 border-red-500"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Outstanding</p>
+                <p className="text-2xl font-bold text-gray-900">₹{billingMetrics.outstandingAmount.toLocaleString()}</p>
+                <p className="text-sm text-gray-500">Unpaid invoices</p>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+          </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
-          {/* Product Search & Selection */}
-          <div className="lg:col-span-2 space-y-4 pr-2">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Search className="w-5 h-5" />
-                  Service Selection
-                </CardTitle>
-                <CardDescription>Search and add laundry services to cart</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col md:flex-row gap-2">
-                  <Input
-                    placeholder="Search by service name, category..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Select
-                    value={selectedCategory}
-                    onChange={setSelectedCategory}
-                    className="md:w-48 w-full"
-                  >
-                    <option value="">All Categories</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </Select>
-                  <Select
-                    value={selectedSubcategory}
-                    onChange={setSelectedSubcategory}
-                    className="md:w-48 w-full"
-                  >
-                    <option value="">All Subcategories</option>
-                    {subcategories
-                      .filter(sub => !selectedCategory || products.some(p => p.categoryId === selectedCategory && p.subcategoryId === sub.id))
-                      .map(sub => (
-                        <option key={sub.id} value={sub.id}>{sub.name}</option>
-                      ))}
-                  </Select>
-                  {canEditBranch && (
-                    <Select value={selectedBranch} onChange={setSelectedBranch} className="md:w-48 w-full">
-                      <option value="">Select Branch</option>
-                      {branches.map(branch => (
-                        <option key={branch.storeId} value={branch.storeId}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </Select>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto">
-                  {filteredProducts.length === 0 ? (
-                    <div className="col-span-full text-center py-8 text-gray-500">
-                      {searchTerm ? 'No services found matching your search.' : 'No services available.'}
-                    </div>
-                  ) : (
-                    filteredProducts.map(product => {
-                      const inCart = cart.some(item => item.id === product.id);
-                      return (
-                        <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow flex flex-col h-full">
-                          <CardContent className="flex flex-col justify-between flex-1">
-                            <div>
-                              <div className="flex justify-between items-start">
-                                <div className="min-h-[2.5rem]">
-                                  <h4 className="font-medium text-sm break-words">{product.name}</h4>
-                                  <p className="text-xs text-gray-500">{product.categoryName}</p>
-                                  {product.subcategoryName && product.subcategoryName !== 'None' && (
-                                    <p className="text-xs text-gray-500">{product.subcategoryName}</p>
-                                  )}
-                                </div>
-                                <Badge variant="default">
-                                  Available
-                                </Badge>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between mt-4">
-                              <div>
-                                {product.discountedPrice ? (
-                                  <div>
-                                    <span className="font-bold text-green-600">KWD {formatPrice(product.discountedPrice)}</span>
-                                    <div className="text-xs text-gray-400 line-through">
-                                      KWD {formatPrice(product.price)}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className="font-bold">KWD {formatPrice(product.price)}</span>
-                                )}
-                              </div>
-                              <div>
-                                {inCart ? (
-                                  <span className="inline-flex items-center justify-center rounded-full bg-green-100 text-green-700 p-2">
-                                    <Check className="w-5 h-5" />
-                                  </span>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => addToCart(product)}
-                                    className="flex items-center justify-center"
-                                  >
-                                    <Plus className="w-4 h-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-l-4 border-green-500"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Today&apos;s Payments</p>
+                <p className="text-2xl font-bold text-gray-900">{billingMetrics.todayPayments}</p>
+                <p className="text-sm text-gray-500">₹{billingMetrics.todayPaymentAmount.toLocaleString()}</p>
+              </div>
+              <IndianRupee className="w-8 h-8 text-green-500" />
+            </div>
+          </motion.div>
 
-          {/* Cart & Billing */}
-          <div className="space-y-4 pl-2">
-            {/* Customer Info */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Customer Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid gap-2">
-                  <Label htmlFor="customer-name">Customer</Label>
-                  <Button
-                    variant="outline"
-                    className="w-full flex justify-between"
-                    onClick={() => setIsCustomerDialogOpen(true)}
-                  >
-                    {customer ? customer.name || customer.userName : "Select Customer"}
-                    <UserPlus className="w-4 h-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-l-4 border-blue-500"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Monthly Revenue</p>
+                <p className="text-2xl font-bold text-gray-900">₹{billingMetrics.monthlyRevenue.toLocaleString()}</p>
+                <p className="text-sm text-gray-500">This month</p>
+              </div>
+              <DollarSign className="w-8 h-8 text-blue-500" />
+            </div>
+          </motion.div>
+        </div>
 
-            {/* Cart */}
-            <Card className="flex-1">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5" />
-                  Cart ({cart.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {cart.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
-                    <ShoppingCart className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>Cart is empty</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {cart.map(item => (
-                      <div key={`cart-${item.id}`} className="p-2 border rounded space-y-2">
-                        {/* First Row: Product name and price per unit */}
-                        <div className="flex justify-between items-center">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium truncate">{item.name}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {item.categoryName || '—'} / {item.subcategoryName || '—'}
-                            </p>
-                          </div>
-                          <span className="text-xs text-gray-500">KWD {formatPrice(item.price)} each</span>
-                        </div>
-
-                        {/* Second Row: Quantity controls and total price */}
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                            >
-                              <Minus className="w-4 h-4" />
-                            </Button>
-                            <span className="text-sm font-medium">{item.quantity}</span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            >
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => removeFromCart(item.id)}
-                              className="text-red-600 hover:text-red-700 ml-2"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <span className="text-sm font-bold">KWD {formatPrice(item.price * item.quantity)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {cart.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Subtotal:</span>
-                        <span>KWD {formatPrice(subtotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Tax:</span>
-                        <span>KWD {formatPrice(taxAmount)}</span>
-                      </div>
-                      <Separator />
-                      <div className="flex justify-between font-bold">
-                        <span>Total:</span>
-                        <span>KWD {formatPrice(total)}</span>
-                      </div>
-                    </div>
-                  </>
-                )}
-                {/* Move payment and order status here */}
-                <div className="grid grid-cols-1 gap-4 mb-4">
-                  <div>
-                    <Label>Transaction Type</Label>
-                    <Select value={transactionType} onChange={handleTransactionTypeChange}>
-                      <option value="new_order">📋 New Order (Advance Booking)</option>
-                      <option value="cash_sale">💵 Cash Sale (Immediate Payment)</option>
-                      <option value="credit_invoice">📄 Credit Invoice (On Credit)</option>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Payment Method</Label>
-                    <Select value={paymentMethod} onChange={setPaymentMethod}>
-                      <option value="Cash">💵 Cash</option>
-                      <option value="Credit">💳 Credit</option>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Order Status</Label>
-                    <Select value={orderStatus} onChange={setOrderStatus}>
-                      <option value="Pending">Pending</option>
-                      <option value="Received at Facility">Received at Facility</option>
-                      <option value="In Sorting/Inspection">In Sorting/Inspection</option>
-                      <option value="In Washing">In Washing</option>
-                      <option value="Ready for Delivery">Ready for Delivery</option>
-                    </Select>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => {
-                    if (transactionType === 'new_order') {
-                      handlePlaceOrder();
-                    } else if (transactionType === 'cash_sale') {
-                      handleCashSale();
-                    } else if (transactionType === 'credit_invoice') {
-                      handleCreditInvoice();
-                    }
-                  }}
-                  variant="professional"
-                  className="w-full flex items-center justify-center gap-2 py-3 text-base"
-                  size="lg"
-                  disabled={isLoading}
+        {/* Navigation Tabs */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              {[
+                { id: 'overview', label: 'Overview', icon: Eye },
+                { id: 'pending', label: 'Pending Billing', icon: Clock },
+                { id: 'invoices', label: 'Invoices', icon: FileText },
+                { id: 'payments', label: 'Payments', icon: DollarSign }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
                 >
-                  <Receipt className="w-5 h-5 inline-flex align-middle" />
-                  {transactionType === 'new_order' && (existingBillNumber ? "Update Order" : "Place Order")}
-                  {transactionType === 'cash_sale' && (existingBillNumber ? "Update Sale" : "Complete Cash Sale")}
-                  {transactionType === 'credit_invoice' && (existingBillNumber ? "Update Invoice" : "Generate Credit Invoice")}
-                </Button>
-              </CardContent>
-            </Card>
+                  <tab.icon className="w-4 h-4 inline mr-2" />
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
           </div>
         </div>
 
-        {/* Customer Selection Dialog */}
-        <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
-          <DialogHeader>
-            <DialogTitle>Select or Add Customer</DialogTitle>
-          </DialogHeader>
-          <DialogContent>
-            <div className="space-y-4">
-              {/* Tabs */}
-              <div className="flex border-b mb-4">
+        {/* Tab Content */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Quick Actions */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <button
-                  className={`flex-1 py-2 text-center ${customerTab === 'new' ? 'border-b-2 border-blue-600 font-semibold' : 'text-gray-500'}`}
-                  onClick={() => setCustomerTab('new')}
+                  onClick={() => setActiveTab('pending')}
+                  className="flex flex-col items-center p-4 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
                 >
-                  New Customer
+                  <Receipt className="w-8 h-8 text-orange-600 mb-2" />
+                  <span className="text-sm font-medium text-orange-600">Bill Orders</span>
                 </button>
+
                 <button
-                  className={`flex-1 py-2 text-center ${customerTab === 'walkin' ? 'border-b-2 border-blue-600 font-semibold' : 'text-gray-500'}`}
-                  onClick={() => setCustomerTab('walkin')}
+                  onClick={() => setActiveTab('invoices')}
+                  className="flex flex-col items-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                 >
-                  Walk In
+                  <FileText className="w-8 h-8 text-blue-600 mb-2" />
+                  <span className="text-sm font-medium text-blue-600">View Invoices</span>
                 </button>
+
                 <button
-                  className={`flex-1 py-2 text-center ${customerTab === 'list' ? 'border-b-2 border-blue-600 font-semibold' : 'text-gray-500'}`}
-                  onClick={() => setCustomerTab('list')}
+                  onClick={() => setActiveTab('payments')}
+                  className="flex flex-col items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
                 >
-                  Customers
+                  <DollarSign className="w-8 h-8 text-green-600 mb-2" />
+                  <span className="text-sm font-medium text-green-600">Record Payment</span>
+                </button>
+
+                <button
+                  onClick={() => router.push('/admin/customers')}
+                  className="flex flex-col items-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+                >
+                  <Phone className="w-8 h-8 text-purple-600 mb-2" />
+                  <span className="text-sm font-medium text-purple-600">Customer Balances</span>
                 </button>
               </div>
-              {/* Tab Content */}
-              {customerTab === 'walkin' && (
-                <div className="space-y-3">
-                  <Label>Mobile Number <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={walkInMobile}
-                    onChange={e => setWalkInMobile(e.target.value)}
-                    placeholder="Enter mobile number"
-                  />
-                  <Button
-                    onClick={async () => {
-                      if (!walkInMobile) {
-                        toast({ title: "Mobile required", description: "Please enter mobile number.", variant: "destructive" });
-                        return;
-                      }
-                      setIsLoading(true);
-                      const walkInCustomer = {
-                        userId: `WALKIN-${walkInMobile}`,
-                        name: 'Walk In',
-                        userName: 'Walk In',
-                        phone: walkInMobile,
-                        userType: 'walkin',
-                        createdAt: serverTimestamp(),
-                        updatedAt: serverTimestamp()
-                      };
-                      const userRef = doc(db, usersPath, walkInCustomer.userId);
-                      await setDoc(userRef, walkInCustomer, { merge: true });
-                      setCustomers([...customers, walkInCustomer]);
-                      setCustomer(walkInCustomer);
-                      setIsCustomerDialogOpen(false);
-                      setWalkInMobile('');
-                      setIsLoading(false);
-                      toast({ title: "Walk In Added", description: "Walk in customer added.", variant: "default" });
-                    }}
-                    disabled={isLoading}
-                  >
-                    Add Walk In
-                  </Button>
-                </div>
-              )}
-              {customerTab === 'new' && (
-                <div className="space-y-3">
-                  <Label>Name <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={newCustomerName}
-                    onChange={e => setNewCustomerName(e.target.value)}
-                    placeholder="Enter customer name"
-                  />
-                  <Label>Mobile Number <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={newCustomerMobile}
-                    onChange={e => setNewCustomerMobile(e.target.value)}
-                    placeholder="Enter mobile number"
-                    type="tel"
-                  />
-                  <Label>Credit Limit (KWD)</Label>
-                  <Input
-                    value={customer?.creditLimit || ''}
-                    onChange={e => setCustomer({ ...customer, creditLimit: parseFloat(e.target.value) || 0 })}
-                    placeholder="0.000"
-                    type="number"
-                    step="0.001"
-                  />
-                  <Label>Email</Label>
-                  <Input
-                    value={customer?.email || ''}
-                    onChange={e => setCustomer({ ...customer, email: e.target.value })}
-                    placeholder="Optional"
-                  />
-                  <Label>Address</Label>
-                  <Input
-                    value={customer?.address || ''}
-                    onChange={e => setCustomer({ ...customer, address: e.target.value })}
-                    placeholder="Optional"
-                  />
-                  <Button
-                    onClick={async () => {
-                      if (!newCustomerName || !newCustomerMobile) {
-                        toast({ title: "Required", description: "Name and mobile are required.", variant: "destructive" });
-                        return;
-                      }
+            </div>
 
-                      // Validate mobile number format
-                      const mobileRegex = /^[569]\d{7}$/;
-                      if (!mobileRegex.test(newCustomerMobile)) {
-                        toast({ title: "Invalid Mobile", description: "Please enter a valid Kuwaiti mobile number.", variant: "destructive" });
-                        return;
-                      }
-
-                      try {
-                        const newCustomer = await createCustomerInPOS({
-                          mobileNumber: newCustomerMobile,
-                          customerName: newCustomerName,
-                          creditLimit: customer?.creditLimit || 0
-                        });
-
-                        setCustomer(newCustomer);
-                        setIsCustomerDialogOpen(false);
-                        setNewCustomerName('');
-                        setNewCustomerMobile('');
-                        setCustomer(null);
-                      } catch (error) {
-                        // Error already handled in createCustomerInPOS
-                      }
-                    }}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? 'Creating...' : 'Create Customer'}
-                  </Button>
-                </div>
-              )}
-              {customerTab === 'list' && (
-                <div>
-                  <Input
-                    placeholder="Search customers..."
-                    value={customerSearch}
-                    onChange={e => setCustomerSearch(e.target.value)}
-                  />
-                  <div className="max-h-64 overflow-y-auto mt-2">
-                    {filteredCustomers.length === 0 ? (
-                      <p className="text-center text-gray-500">No customers available</p>
-                    ) : (
-                      filteredCustomers.map(c => (
-                        <div
-                          key={`customer-${c.userId}`}
-                          className="p-2 hover:bg-gray-100 cursor-pointer rounded"
-                          onClick={() => {
-                            setCustomer(c);
-                            setIsCustomerDialogOpen(false);
-                          }}
-                        >
-                          <p className="font-medium">{c.name || c.userName}</p>
-                          <p className="text-xs text-gray-500">ID: {c.userId}</p>
-                          {c.phone && <p className="text-xs text-gray-500">Phone: {c.phone}</p>}
-                        </div>
-                      ))
-                    )
-                  }
+            {/* Recent Activity */}
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-semibold mb-4">Recent Billing Activity</h3>
+              <div className="space-y-3">
+                {payments.slice(0, 5).map((payment) => (
+                  <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <DollarSign className="w-5 h-5 text-green-500" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          Payment from {payment.customerName}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          ₹{payment.amount} • {payment.method}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {payment.createdAt.toLocaleDateString()}
+                    </span>
                   </div>
+                ))}
+                {payments.length === 0 && (
+                  <p className="text-gray-500 text-center py-8">No recent payments</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'pending' && (
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-semibold">Orders Ready for Billing</h3>
+              <div className="flex space-x-4">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search orders..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
                 </div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending Billing</option>
+                  <option value="billed">Billed</option>
+                  <option value="paid">Paid</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {filteredOrders.map((order) => (
+                <div key={order.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h4 className="font-medium text-gray-900">{order.orderNumber}</h4>
+                      <p className="text-sm text-gray-600">{order.customerName}</p>
+                      <p className="text-sm text-gray-500">
+                        {order.weight}g {order.karat} • ₹{order.total?.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        order.status === 'Delivered' && !order.billingStatus
+                          ? 'bg-orange-100 text-orange-800'
+                          : order.billingStatus === 'Billed'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {order.status === 'Delivered' && !order.billingStatus
+                          ? 'Ready to Bill'
+                          : order.billingStatus || 'Completed'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {order.status === 'Delivered' && !order.billingStatus && (
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => handleBillOrder(order, 'cash')}
+                        className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        <Banknote className="w-4 h-4 mr-2" />
+                        Cash Payment
+                      </button>
+                      <button
+                        onClick={() => handleBillOrder(order, 'credit')}
+                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Credit Invoice
+                      </button>
+                    </div>
+                  )}
+
+                  {order.billingStatus === 'Billed' && (
+                    <button
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setShowPaymentModal(true);
+                      }}
+                      className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                    >
+                      <DollarSign className="w-4 h-4 mr-2" />
+                      Record Payment
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              {filteredOrders.length === 0 && (
+                <p className="text-gray-500 text-center py-8">No orders found</p>
               )}
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
 
-        {/* Success Dialog */}
-        {showSuccessDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-              <div className="text-center">
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                  <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {orderId ? 'Order Updated Successfully!' : 'Order Placed Successfully!'}
-                </h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  Order ID: {newOrderId || orderId}
-                </p>
-                <p className="text-sm text-gray-700 mb-6">
-                  Would you like to download the invoice?
-                </p>
-                <div className="flex gap-3">
-                  <Button onClick={handleDownloadPDF} className="flex-1">
-                    Download PDF
-                  </Button>
-                  {customer?.phone && (
-                    <Button
-                      onClick={() => handleWhatsAppForward(newOrderId || orderId, customer.phone)}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      📱 WhatsApp
-                    </Button>
+        {activeTab === 'invoices' && (
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold mb-6">Invoice Management</h3>
+            <div className="space-y-4">
+              {invoices.map((invoice) => (
+                <div key={invoice.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h4 className="font-medium text-gray-900">
+                        Invoice #{invoice.id.slice(-8)}
+                      </h4>
+                      <p className="text-sm text-gray-600">{invoice.customerName}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-900">₹{invoice.total?.toLocaleString()}</p>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        invoice.status === 'Paid'
+                          ? 'bg-green-100 text-green-800'
+                          : invoice.status === 'Partially Paid'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {invoice.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {invoice.remainingBalance > 0 && (
+                    <div className="flex justify-between items-center text-sm text-gray-600">
+                      <span>Remaining: ₹{invoice.remainingBalance?.toLocaleString()}</span>
+                      <span>Due: {invoice.dueDate?.toLocaleDateString()}</span>
+                    </div>
                   )}
-                  <Button
-                    onClick={() => {
-                      setShowSuccessDialog(false);
-                      setCart([]);
-                      setCustomer(null);
-                      router.push('/admin/orders');
-                    }}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Skip
-                  </Button>
                 </div>
+              ))}
+
+              {invoices.length === 0 && (
+                <p className="text-gray-500 text-center py-8">No invoices found</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'payments' && (
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-semibold mb-6">Payment History</h3>
+            <div className="space-y-4">
+              {payments.map((payment) => (
+                <div key={payment.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-medium text-gray-900">
+                        Payment from {payment.customerName}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        ₹{payment.amount} • {payment.method}
+                      </p>
+                      {payment.reference && (
+                        <p className="text-xs text-gray-500">Ref: {payment.reference}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">
+                        {payment.createdAt.toLocaleDateString()}
+                      </p>
+                      <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                        Completed
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {payments.length === 0 && (
+                <p className="text-gray-500 text-center py-8">No payments found</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Payment Modal */}
+        {showPaymentModal && selectedOrder && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold mb-4">Record Payment</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Recording payment for {selectedOrder.customerName} - {selectedOrder.orderNumber}
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={paymentData.amount}
+                    onChange={(e) => setPaymentData({...paymentData, amount: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter payment amount"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Method
+                  </label>
+                  <select
+                    value={paymentData.method}
+                    onChange={(e) => setPaymentData({...paymentData, method: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="upi">UPI</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reference Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentData.reference}
+                    onChange={(e) => setPaymentData({...paymentData, reference: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Cheque number, UTR, etc."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={paymentData.notes}
+                    onChange={(e) => setPaymentData({...paymentData, notes: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows="3"
+                    placeholder="Additional notes"
+                  />
+                </div>
+              </div>
+
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRecordPayment}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Record Payment
+                </button>
               </div>
             </div>
           </div>

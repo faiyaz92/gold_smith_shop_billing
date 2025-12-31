@@ -368,18 +368,22 @@ export class HierarchicalAccountManager {
   async initializeCoreAccounts() {
     try {
       const coreAccounts = [
-        // ASSETS (1000-1999) - 16 Accounts
-        // Current Assets (1000-1099) - 6 Accounts
+        // ASSETS (1000-1999) - 20 Accounts
+        // Current Assets (1000-1099) - 10 Accounts
         { accountCode: 'MAIN-1001', accountName: 'Cash in Hand', accountType: 'asset', category: 'Current Asset' },
         { accountCode: 'MAIN-1002', accountName: 'Bank Account - Primary', accountType: 'asset', category: 'Current Asset' },
         { accountCode: 'MAIN-1003', accountName: 'Accounts Receivable', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1004', accountName: 'Inventory', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1005', accountName: 'Prepaid Expenses', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1006', accountName: 'GST Input Tax Credit', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1004', accountName: 'Gold Inventory (24k Gold)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1005', accountName: 'Silver Inventory (999 Silver)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1006', accountName: 'Platinum Inventory (999 Platinum)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1007', accountName: 'Diamond Inventory (by carat)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1008', accountName: 'Stone Inventory (precious/semi-precious)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1009', accountName: 'Prepaid Expenses', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1010', accountName: 'GST Input Tax Credit', accountType: 'asset', category: 'Current Asset' },
 
         // Fixed Assets (1200-1299) - 6 Accounts
-        { accountCode: 'MAIN-1201', accountName: 'Furniture & Fixtures', accountType: 'asset', category: 'Fixed Asset' },
-        { accountCode: 'MAIN-1202', accountName: 'Equipment', accountType: 'asset', category: 'Fixed Asset' },
+        { accountCode: 'MAIN-1201', accountName: 'Jewelry Display Cases & Fixtures', accountType: 'asset', category: 'Fixed Asset' },
+        { accountCode: 'MAIN-1202', accountName: 'Jewelry Making Equipment', accountType: 'asset', category: 'Fixed Asset' },
         { accountCode: 'MAIN-1203', accountName: 'Vehicles', accountType: 'asset', category: 'Fixed Asset' },
         { accountCode: 'MAIN-1204', accountName: 'Buildings', accountType: 'asset', category: 'Fixed Asset' },
         { accountCode: 'MAIN-1205', accountName: 'Accumulated Depreciation', accountType: 'asset', category: 'Fixed Asset' },
@@ -405,23 +409,27 @@ export class HierarchicalAccountManager {
         { accountCode: 'MAIN-3004', accountName: 'Opening Balance Equity', accountType: 'equity', category: 'Equity' },
         { accountCode: 'MAIN-3005', accountName: 'Drawings', accountType: 'equity', category: 'Equity' },
 
-        // INCOME (4000-4999) - 6 Accounts
-        { accountCode: 'MAIN-4001', accountName: 'Sales Revenue', accountType: 'income', category: 'Revenue' },
-        { accountCode: 'MAIN-4002', accountName: 'Service Income', accountType: 'income', category: 'Revenue' },
-        { accountCode: 'MAIN-4003', accountName: 'Other Income', accountType: 'income', category: 'Revenue' },
+        // INCOME (4000-4999) - 8 Accounts
+        { accountCode: 'MAIN-4001', accountName: 'Jewelry Sales Revenue', accountType: 'income', category: 'Revenue' },
+        { accountCode: 'MAIN-4002', accountName: 'Making Charges Income', accountType: 'income', category: 'Revenue' },
+        { accountCode: 'MAIN-4003', accountName: 'Commission Income', accountType: 'income', category: 'Revenue' },
         { accountCode: 'MAIN-4004', accountName: 'Interest Income', accountType: 'income', category: 'Revenue' },
         { accountCode: 'MAIN-4005', accountName: 'Discount Received', accountType: 'income', category: 'Revenue' },
         { accountCode: 'MAIN-4006', accountName: 'Late Payment Fees', accountType: 'income', category: 'Revenue' },
+        { accountCode: 'MAIN-4007', accountName: 'Hallmarking & Certification Fees', accountType: 'income', category: 'Revenue' },
+        { accountCode: 'MAIN-4008', accountName: 'Repair Service Income', accountType: 'income', category: 'Revenue' },
 
-        // EXPENSES (5000-5999) - 8 Accounts
-        { accountCode: 'MAIN-5001', accountName: 'Cost of Goods Sold', accountType: 'expense', category: 'Expense' },
+        // EXPENSES (5000-5999) - 10 Accounts
+        { accountCode: 'MAIN-5001', accountName: 'Cost of Metals Purchased', accountType: 'expense', category: 'Expense' },
+        { accountCode: 'MAIN-5002', accountName: 'Manufacturing Cost Paid', accountType: 'expense', category: 'Expense' },
         { accountCode: 'MAIN-5101', accountName: 'Salaries & Wages', accountType: 'expense', category: 'Expense' },
         { accountCode: 'MAIN-5102', accountName: 'Utilities', accountType: 'expense', category: 'Expense' },
         { accountCode: 'MAIN-5103', accountName: 'Rent', accountType: 'expense', category: 'Expense' },
         { accountCode: 'MAIN-5104', accountName: 'Insurance', accountType: 'expense', category: 'Expense' },
         { accountCode: 'MAIN-5105', accountName: 'Repairs & Maintenance', accountType: 'expense', category: 'Expense' },
         { accountCode: 'MAIN-5106', accountName: 'Advertising & Marketing', accountType: 'expense', category: 'Expense' },
-        { accountCode: 'MAIN-5107', accountName: 'Office Supplies', accountType: 'expense', category: 'Expense' }
+        { accountCode: 'MAIN-5107', accountName: 'Wastage Loss', accountType: 'expense', category: 'Expense' },
+        { accountCode: 'MAIN-5108', accountName: 'Hallmarking & Certification', accountType: 'expense', category: 'Expense' }
       ];
 
       const results = {

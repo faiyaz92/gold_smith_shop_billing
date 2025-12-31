@@ -1,5 +1,8 @@
 'use client';
 
+// ✅ TASK 3.1 UPGRADED: Customer Edit Form (Pure Gold Balance - BRD v2)
+// Reference: BRD_GoldSmith_v2.md Section 6.6, DatabaseInfo_GoldSmith_v2.md Section 4
+
 import { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../../firebase';
@@ -12,14 +15,18 @@ export default function EditCustomerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
+  
   const [formData, setFormData] = useState({
-    name: '',
+    customerName: '',
     phone: '',
     shopName: '',
     address: '',
     email: '',
     gstNumber: '',
-    creditLimit: 0,
+    creditLimitGold: 0,
+    creditLimitUSD: 0,
     paymentTerms: 'immediate',
     notes: ''
   });
@@ -32,17 +39,18 @@ export default function EditCustomerPage() {
 
   const fetchCustomer = async () => {
     try {
-      const customerDoc = await getDoc(doc(db, 'customers', params.id));
+      const customerDoc = await getDoc(doc(db, `${basePath}/customers`, params.id));
       if (customerDoc.exists()) {
         const customerData = customerDoc.data();
         setFormData({
-          name: customerData.name || '',
+          customerName: customerData.customerName || customerData.name || '',
           phone: customerData.phone || '',
           shopName: customerData.shopName || '',
           address: customerData.address || '',
           email: customerData.email || '',
           gstNumber: customerData.gstNumber || '',
-          creditLimit: customerData.creditLimit || 0,
+          creditLimitGold: customerData.creditLimitGold || 0,
+          creditLimitUSD: customerData.creditLimitUSD || 0,
           paymentTerms: customerData.paymentTerms || 'immediate',
           notes: customerData.notes || ''
         });
@@ -56,10 +64,29 @@ export default function EditCustomerPage() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: name === 'creditLimit' ? parseFloat(value) || 0 : value
-    }));
+    
+    if (name === 'creditLimitGold') {
+      const goldGrams = parseFloat(value) || 0;
+      const goldPricePerGram = 145.43;
+      setFormData(prev => ({
+        ...prev,
+        creditLimitGold: goldGrams,
+        creditLimitUSD: goldGrams * goldPricePerGram
+      }));
+    } else if (name === 'creditLimitUSD') {
+      const usdAmount = parseFloat(value) || 0;
+      const goldPricePerGram = 145.43;
+      setFormData(prev => ({
+        ...prev,
+        creditLimitUSD: usdAmount,
+        creditLimitGold: usdAmount / goldPricePerGram
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -67,7 +94,7 @@ export default function EditCustomerPage() {
     setSaving(true);
 
     try {
-      const customerRef = doc(db, 'customers', params.id);
+      const customerRef = doc(db, `${basePath}/customers`, params.id);
       await updateDoc(customerRef, {
         ...formData,
         updatedAt: serverTimestamp()
@@ -112,9 +139,9 @@ export default function EditCustomerPage() {
               </label>
               <input
                 type="text"
-                name="name"
+                name="customerName"
                 required
-                value={formData.name}
+                value={formData.customerName}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                 placeholder="Enter customer name"
@@ -198,18 +225,44 @@ export default function EditCustomerPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Credit Limit (₹)
+                Credit Limit (Pure Gold - g)
               </label>
               <input
                 type="number"
-                name="creditLimit"
-                value={formData.creditLimit}
+                name="creditLimitGold"
+                value={formData.creditLimitGold}
                 onChange={handleInputChange}
                 min="0"
-                step="1000"
+                step="0.001"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                placeholder="Enter credit limit"
+                placeholder="Enter credit limit in grams"
               />
+              {formData.creditLimitGold > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  USD Reference: ${formData.creditLimitUSD.toFixed(2)} @ $145.43/g
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Credit Limit (USD Reference)
+              </label>
+              <input
+                type="number"
+                name="creditLimitUSD"
+                value={formData.creditLimitUSD}
+                onChange={handleInputChange}
+                min="0"
+                step="100"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                placeholder="Enter credit limit in USD"
+              />
+              {formData.creditLimitUSD > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Gold Equivalent: {formData.creditLimitGold.toFixed(3)}g
+                </p>
+              )}
             </div>
           </div>
 

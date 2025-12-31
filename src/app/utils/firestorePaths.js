@@ -48,5 +48,7 @@ export const useFirestorePaths = () => {
     getVisitorCountersPath: () => `${tenantCompaniesPath}/${companyId}/analytics/visitorCounters/daily`,
     getUserAddressesPath: (userId) => `${tenantCompaniesPath}/${companyId}/users/${userId}/addresses`,
     getSettingsPath: () => `${tenantCompaniesPath}/${companyId}/settings/general`,
+    getInventoryPath: () => `${tenantCompaniesPath}/${companyId}/inventory`,
+    getInventoryItemPath: (productId) => `${tenantCompaniesPath}/${companyId}/inventory/${productId}`,
   }), [companyId]);
 };

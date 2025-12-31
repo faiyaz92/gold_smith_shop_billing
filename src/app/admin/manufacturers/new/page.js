@@ -1,7 +1,11 @@
 'use client';
 
+// ✅ TASK 4.1 UPGRADED: Manufacturer Creation Form (USD Balance - BRD v2)
+// Reference: BRD_GoldSmith_v2.md Section 7.0, DatabaseInfo_GoldSmith_v2.md Section 5B
+// Manufacturers paid in USD for making charges only
+
 import { useState } from 'react';
-import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save } from 'lucide-react';
@@ -10,15 +14,20 @@ import Link from 'next/link';
 export default function NewManufacturerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
+  
   const [formData, setFormData] = useState({
-    name: '',
+    manufacturerName: '',
+    contactPerson: '',
     phone: '',
     email: '',
     address: '',
     specialization: '',
     gstNumber: '',
+    makingChargeRateUSD: 0,
     paymentTerms: '15days',
-    creditLimit: 0,
+    creditLimitUSD: 0,
     notes: ''
   });
 
@@ -26,30 +35,33 @@ export default function NewManufacturerPage() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'creditLimit' ? parseFloat(value) || 0 : value
+      [name]: (name === 'creditLimitUSD' || name === 'makingChargeRateUSD') 
+        ? parseFloat(value) || 0 
+        : value
     }));
   };
 
   const generateManufacturerCode = async () => {
     try {
-      const manufacturersRef = collection(db, 'manufacturers');
+      const manufacturersRef = collection(db, `${basePath}/manufacturers`);
       const querySnapshot = await getDocs(manufacturersRef);
 
       // Find the highest manufacturer code number
       let maxNumber = 0;
       querySnapshot.forEach((doc) => {
         const manufacturerCode = doc.data().manufacturerCode;
-        if (manufacturerCode && manufacturerCode.startsWith('MANU-')) {
-          const number = parseInt(manufacturerCode.replace('MANU-', ''));
+        if (manufacturerCode && manufacturerCode.startsWith('2101-MFG-')) {
+          const number = parseInt(manufacturerCode.replace('2101-MFG-', ''));
           if (number > maxNumber) maxNumber = number;
         }
       });
 
-      return `MANU-${String(maxNumber + 1).padStart(3, '0')}`;
+      // Format: 2101-MFG-XXX (2101 = Accounts Payable parent code)
+      return `2101-MFG-${String(maxNumber + 1).padStart(3, '0')}`;
     } catch (error) {
       console.error('Error generating manufacturer code:', error);
       // Fallback to timestamp-based code
-      return `MANU-${Date.now().toString().slice(-6)}`;
+      return `2101-MFG-${Date.now().toString().slice(-6)}`;
     }
   };
 
@@ -64,15 +76,48 @@ export default function NewManufacturerPage() {
         ...formData,
         manufacturerCode,
         isActive: true,
-        outstandingBalance: 0,
-        totalPurchases: 0,
-        totalPayments: 0,
+        currentBalanceUSD: 0,              // v2: USD balance (making charges)
+        totalMakingChargesUSD: 0,          // v2: Lifetime making charges
+        totalPaidUSD: 0,                   // v2: Lifetime payments
+        goldInTransit: 0,                  // v2: Gold grams with manufacturer
+        transactions: [],                  // v2: Transaction history
+        completedOrders: 0,
+        avgDeliveryDays: 0,
+        qualityRating: 0,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        companyId
       };
 
-      const docRef = await addDoc(collection(db, 'manufacturers'), manufacturerData);
+      const docRef = await addDoc(collection(db, `${basePath}/manufacturers`), manufacturerData);
 
+      // ✅ Auto-create accounting payable sub-account
+      const accountsPath = `${basePath}/accounts`;
+      const manufacturerAccountData = {
+        accountCode: manufacturerCode,
+        accountName: formData.manufacturerName,
+        name: formData.manufacturerName,
+        accountType: 'liability',
+        category: 'Current Liabilities',
+        balanceType: 'credit',
+        parentAccount: '2101', // Manufacturer Payables parent
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: `Manufacturer payable account for ${formData.manufacturerName}`,
+        manufacturerId: docRef.id,
+        isSystem: false,
+        isActive: true,
+        level: 2,
+        companyId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: 'system'
+      };
+
+      const accountRef = await addDoc(collection(db, accountsPath), manufacturerAccountData);
+      await updateDoc(accountRef, { accountId: accountRef.id });
+
+      alert('✅ Manufacturer and account created successfully!');
       router.push('/admin/manufacturers');
     } catch (error) {
       console.error('Error creating manufacturer:', error);
@@ -104,12 +149,26 @@ export default function NewManufacturerPage() {
               </label>
               <input
                 type="text"
-                name="name"
+                name="manufacturerName"
                 required
-                value={formData.name}
+                value={formData.manufacturerName}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                 placeholder="Enter manufacturer name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Contact Person
+              </label>
+              <input
+                type="text"
+                name="contactPerson"
+                value={formData.contactPerson}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                placeholder="Enter contact person name"
               />
             </div>
 
@@ -197,17 +256,33 @@ export default function NewManufacturerPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Credit Limit (₹)
+                Making Charge Rate (USD/gram)
               </label>
               <input
                 type="number"
-                name="creditLimit"
-                value={formData.creditLimit}
+                name="makingChargeRateUSD"
+                value={formData.makingChargeRateUSD}
                 onChange={handleInputChange}
                 min="0"
-                step="1000"
+                step="0.01"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                placeholder="Enter credit limit"
+                placeholder="Enter making charge rate per gram"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Credit Limit (USD)
+              </label>
+              <input
+                type="number"
+                name="creditLimitUSD"
+                value={formData.creditLimitUSD}
+                onChange={handleInputChange}
+                min="0"
+                step="100"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                placeholder="Enter credit limit in USD"
               />
             </div>
           </div>
