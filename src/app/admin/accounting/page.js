@@ -1,9 +1,10 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { collection, onSnapshot, query, where, orderBy, doc, writeBatch, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { useAccounting } from '@/app/context/AccountingContext';
 import { AccountingEngine } from '@/utils/accountingEngine';
-import { initializeCompanyAccounts, subscribeToAccounts, getJournalEntriesOnce } from '@/utils/accountingEngineUtils';
+import { initializeDefaultAccounts } from '@/utils/initializeCoreAccounts';
 import { LineChart, BarChart, PieChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
 import { useRouter } from 'next/navigation';
 import { FolderTree, BookOpen, Scale, ArrowRightLeft } from 'lucide-react';
@@ -238,7 +239,6 @@ function AccountingAlerts({ alerts }) {
 // Main Accounting Dashboard Component
 export default function AccountingDashboard() {
   const { financialData, loading, getAccountingAlerts, userRole, companyId } = useAccounting();
-  const router = useRouter();
   const [currentPeriod, setCurrentPeriod] = useState('thisMonth');
   const [alerts, setAlerts] = useState({ pendingTasks: [], recentEntries: [] });
   const [accountsInitialized, setAccountsInitialized] = useState(false);
@@ -441,6 +441,8 @@ export default function AccountingDashboard() {
       maximumFractionDigits: 0
     }).format(amount);
   };
+
+  const router = useRouter();
 
   return (
     <div className="accounting-dashboard p-6 max-w-7xl mx-auto">

@@ -374,7 +374,7 @@ export default function BalanceSheetPage() {
               {/* Equity */}
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-between">
-                  Owner&apos;s Equity
+                  Owner's Equity
                   <span className="text-sm font-normal text-gray-500">
                     {formatPercent(balanceSheet.equity.total, balanceSheet.assets.total)}
                   </span>
@@ -394,7 +394,7 @@ export default function BalanceSheetPage() {
                     </div>
                   ))}
                   <div className="flex justify-between items-center py-2 px-3 bg-blue-50 rounded font-semibold">
-                    <span className="text-sm text-gray-700">Total Owner&apos;s Equity</span>
+                    <span className="text-sm text-gray-700">Total Owner's Equity</span>
                     <span className="text-sm text-blue-700">{formatCurrency(balanceSheet.equity.total)}</span>
                   </div>
                 </div>

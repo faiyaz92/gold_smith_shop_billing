@@ -15,9 +15,7 @@ import {
   Plus,
   Minus,
   Calendar,
-  Eye,
-  DollarSign,
-  FileText
+  Eye
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {

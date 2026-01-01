@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { useAccounting } from '@/app/context/AccountingContext';
-import { subscribeToAccounts, createJournalEntry } from '@/utils/accountingEngineUtils';
 import { ArrowRightLeft, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -18,11 +17,18 @@ export default function QuickTransferPage() {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // Fetch accounts using centralized utility
+  // Fetch accounts
   useEffect(() => {
     if (!companyId) return;
 
-    const unsubscribe = subscribeToAccounts(companyId, (accountsData) => {
+    const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
+    const accountsQuery = query(collection(db, accountsPath), orderBy('accountCode'));
+
+    const unsubscribe = onSnapshot(accountsQuery, (snapshot) => {
+      const accountsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
       setAccounts(accountsData);
     });
 
@@ -101,7 +107,7 @@ export default function QuickTransferPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Execute transfer (creates journal entry with engine validation)
+  // Execute transfer (creates journal entry in background)
   const executeTransfer = async () => {
     if (!validateTransfer()) return;
 
@@ -112,12 +118,15 @@ export default function QuickTransferPage() {
       const toAcc = accounts.find(a => a.id === toAccount);
       const transferAmount = parseFloat(amount);
 
-      // ✅ Use centralized function with engine-level validation
-      await createJournalEntry(companyId, {
-        date: new Date().toISOString().split('T')[0],
+      // Create journal entry (same as manual entry)
+      const journalEntriesPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/journalEntries`;
+      const entryRef = await addDoc(collection(db, journalEntriesPath), {
+        entryDate: new Date().toISOString().split('T')[0],
         description: description || `Transfer from ${fromAcc.accountName} to ${toAcc.accountName}`,
         reference: `TRANSFER-${Date.now()}`,
         createdBy: userRole,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
         entries: [
           {
             accountId: toAccount,
@@ -136,13 +145,108 @@ export default function QuickTransferPage() {
         ],
         totalDebit: transferAmount,
         totalCredit: transferAmount,
-        status: 'posted',
+        isBalanced: true,
         entryType: 'quick-transfer'
       });
 
-      console.log('✅ Transfer completed with engine validation');
+      console.log('✅ Journal entry created:', entryRef.id);
 
-      alert(`✅ Transfer successful!\n\nTransferred ${transferAmount} from ${fromAcc.accountName} to ${toAcc.accountName}\n\nJournal entry created with validation.`);
+      // Update account balances (same logic as manual journal entry)
+      const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
+
+      // ✅ Helper function to update parent account balance
+      const updateParentBalance = async (childAccountData) => {
+        if (!childAccountData.parentAccount) return; // No parent, nothing to update
+
+        // Find parent account
+        const allAccountsSnapshot = await getDocs(query(collection(db, accountsPath)));
+        const allAccounts = allAccountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        const parentAccount = allAccounts.find(acc => 
+          acc.id === childAccountData.parentAccount || 
+          acc.accountCode === childAccountData.parentAccount
+        );
+
+        if (!parentAccount) return; // Parent not found
+
+        // Get all children of this parent
+        const children = allAccounts.filter(acc => 
+          acc.parentAccount === parentAccount.id || 
+          acc.parentAccount === parentAccount.accountCode
+        );
+
+        // Calculate sum of all children balances
+        const totalChildrenBalance = children.reduce((sum, child) => {
+          return sum + (child.currentBalance || 0);
+        }, 0);
+
+        // Update parent account balance
+        const parentRef = doc(db, accountsPath, parentAccount.id);
+        await updateDoc(parentRef, {
+          currentBalance: totalChildrenBalance,
+          updatedAt: serverTimestamp()
+        });
+
+        console.log(`✅ Updated parent ${parentAccount.accountCode}: ${parentAccount.currentBalance || 0} → ${totalChildrenBalance}`);
+      };
+
+      // Update FROM account (credit side - money going out)
+      const fromAccountDoc = await getDoc(doc(db, accountsPath, fromAccount));
+      let fromData = null;
+      if (fromAccountDoc.exists()) {
+        fromData = fromAccountDoc.data();
+        const currentBalance = fromData.currentBalance || 0;
+        const balanceType = fromData.balanceType || 'debit';
+
+        let newBalance;
+        if (balanceType === 'debit') {
+          // Debit account: balance = balance + debit - credit
+          newBalance = currentBalance - transferAmount; // Crediting (money out)
+        } else {
+          // Credit account: balance = balance - debit + credit
+          newBalance = currentBalance + transferAmount; // Crediting (money in for credit account)
+        }
+
+        await updateDoc(doc(db, accountsPath, fromAccount), {
+          currentBalance: newBalance,
+          updatedAt: serverTimestamp()
+        });
+
+        console.log(`✅ Updated FROM account: ${fromData.accountName} - Old: ${currentBalance}, New: ${newBalance}`);
+        
+        // Update parent if exists
+        await updateParentBalance({ ...fromData, id: fromAccount, currentBalance: newBalance });
+      }
+
+      // Update TO account (debit side - money coming in)
+      const toAccountDoc = await getDoc(doc(db, accountsPath, toAccount));
+      let toData = null;
+      if (toAccountDoc.exists()) {
+        toData = toAccountDoc.data();
+        const currentBalance = toData.currentBalance || 0;
+        const balanceType = toData.balanceType || 'debit';
+
+        let newBalance;
+        if (balanceType === 'debit') {
+          // Debit account: balance = balance + debit - credit
+          newBalance = currentBalance + transferAmount; // Debiting (money in)
+        } else {
+          // Credit account: balance = balance - debit + credit
+          newBalance = currentBalance - transferAmount; // Debiting (money out for credit account)
+        }
+
+        await updateDoc(doc(db, accountsPath, toAccount), {
+          currentBalance: newBalance,
+          updatedAt: serverTimestamp()
+        });
+
+        console.log(`✅ Updated TO account: ${toData.accountName} - Old: ${currentBalance}, New: ${newBalance}`);
+        
+        // Update parent if exists
+        await updateParentBalance({ ...toData, id: toAccount, currentBalance: newBalance });
+      }
+
+      alert(`✅ Transfer successful!\n\nTransferred ${transferAmount} from ${fromAcc.accountName} to ${toAcc.accountName}\n\nJournal entry created automatically.`);
       
       // Reset form
       setFromAccount('');
@@ -153,7 +257,7 @@ export default function QuickTransferPage() {
       
     } catch (error) {
       console.error('❌ Transfer failed:', error);
-      alert(`❌ Transfer failed:\n\n${error.message}`);
+      alert('❌ Transfer failed. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -226,22 +330,12 @@ export default function QuickTransferPage() {
               }`}
             >
               <option value="">-- Select Source Account --</option>
-              {accounts
-                .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
-                .map(acc => {
-                  const isSubAccount = acc.level === 2 || acc.parentAccount;
-                  const prefix = isSubAccount ? '\u00A0\u00A0\u00A0\u00A0↳ ' : '';
-                  const balanceText = acc.currentBalance !== undefined ? ` (Balance: ${acc.currentBalance.toFixed(2)})` : '';
-                  return (
-                    <option 
-                      key={acc.id} 
-                      value={acc.id}
-                      className={isSubAccount ? 'text-gray-600' : 'font-semibold'}
-                    >
-                      {prefix}{acc.accountCode} - {acc.accountName}{balanceText}
-                    </option>
-                  );
-                })}
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.accountCode} - {acc.accountName} 
+                  {acc.currentBalance !== undefined && ` (Balance: ${acc.currentBalance})`}
+                </option>
+              ))}
             </select>
             {errors.fromAccount && (
               <p className="text-red-500 text-sm mt-1">{errors.fromAccount}</p>
@@ -271,22 +365,12 @@ export default function QuickTransferPage() {
               }`}
             >
               <option value="">-- Select Destination Account --</option>
-              {accounts
-                .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
-                .map(acc => {
-                  const isSubAccount = acc.level === 2 || acc.parentAccount;
-                  const prefix = isSubAccount ? '\u00A0\u00A0\u00A0\u00A0↳ ' : '';
-                  const balanceText = acc.currentBalance !== undefined ? ` (Balance: ${acc.currentBalance.toFixed(2)})` : '';
-                  return (
-                    <option 
-                      key={acc.id} 
-                      value={acc.id}
-                      className={isSubAccount ? 'text-gray-600' : 'font-semibold'}
-                    >
-                      {prefix}{acc.accountCode} - {acc.accountName}{balanceText}
-                    </option>
-                  );
-                })}
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.accountCode} - {acc.accountName}
+                  {acc.currentBalance !== undefined && ` (Balance: ${acc.currentBalance})`}
+                </option>
+              ))}
             </select>
             {errors.toAccount && (
               <p className="text-red-500 text-sm mt-1">{errors.toAccount}</p>

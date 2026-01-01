@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { useAccounting } from '@/app/context/AccountingContext';
-import { subscribeToAccounts, createAccount, updateAccount } from '@/utils/accountingEngineUtils';
 import { Plus, Edit, Trash2, Save, X, FolderTree, ChevronRight, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -28,8 +28,15 @@ export default function ChartOfAccountsPage() {
   useEffect(() => {
     if (!companyId) return;
 
-    // ✅ Use centralized SDK function
-    const unsubscribe = subscribeToAccounts(companyId, (accountsData) => {
+    const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
+    const accountsQuery = query(collection(db, accountsPath), orderBy('accountCode'));
+
+    const unsubscribe = onSnapshot(accountsQuery, (snapshot) => {
+      const accountsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        accountId: doc.id,
+        ...doc.data()
+      }));
       setAccounts(accountsData);
     });
 
@@ -96,13 +103,34 @@ export default function ChartOfAccountsPage() {
     e.preventDefault();
     
     try {
+      const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
+
       if (editingAccount) {
-        // ✅ Use SDK function for update
-        await updateAccount(companyId, editingAccount.id, formData, userRole);
+        // Update existing account
+        const accountRef = doc(db, accountsPath, editingAccount.id);
+        await updateDoc(accountRef, {
+          ...formData,
+          updatedAt: serverTimestamp(),
+          updatedBy: userRole
+        });
         alert('✅ Account updated successfully!');
       } else {
-        // ✅ Use SDK function for create
-        await createAccount(companyId, formData, userRole);
+        // Create new account
+        const accountData = {
+          ...formData,
+          companyId,
+          currentBalance: 0,
+          currentBalanceGold: 0,
+          level: formData.parentAccount ? 2 : 1,
+          isSystem: false,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          createdBy: userRole
+        };
+
+        const newAccountRef = await addDoc(collection(db, accountsPath), accountData);
+        await updateDoc(newAccountRef, { accountId: newAccountRef.id });
+        
         alert('✅ Account created successfully!');
       }
 
@@ -121,7 +149,7 @@ export default function ChartOfAccountsPage() {
       });
     } catch (error) {
       console.error('Error saving account:', error);
-      alert(`❌ Failed to save account:\n\n${error.message}`);
+      alert('❌ Failed to save account. Please try again.');
     }
   };
 
