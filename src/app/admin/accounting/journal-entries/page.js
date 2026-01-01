@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { useAccounting } from '@/app/context/AccountingContext';
 import { AccountingEngine } from '@/utils/accountingEngine';
+import { subscribeToAccounts, createJournalEntry, subscribeToJournalEntries, deleteJournalEntry } from '@/utils/accountingEngineUtils';
 import AdminLayout from '@/app/admin/AdminLayout';
 import { Plus, Edit, Trash2, Save, X, Search, Filter } from 'lucide-react';
 
@@ -390,26 +390,13 @@ export default function JournalEntriesPage() {
   useEffect(() => {
     if (!companyId) return;
 
-    const entriesPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/journalEntries`;
-    const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
-
-    // Load accounts
-    const accountsQuery = query(collection(db, accountsPath), orderBy('accountCode'));
-    const unsubscribeAccounts = onSnapshot(accountsQuery, (snapshot) => {
-      const accountsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+    // ✅ Load accounts using centralized SDK
+    const unsubscribeAccounts = subscribeToAccounts(companyId, (accountsData) => {
       setAccounts(accountsData);
     });
 
-    // Load journal entries
-    const entriesQuery = query(collection(db, entriesPath), orderBy('date', 'desc'));
-    const unsubscribeEntries = onSnapshot(entriesQuery, (snapshot) => {
-      const entriesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+    // ✅ Load journal entries using centralized SDK
+    const unsubscribeEntries = subscribeToJournalEntries(companyId, (entriesData) => {
       setEntries(entriesData);
       setLoading(false);
     });
@@ -424,140 +411,39 @@ export default function JournalEntriesPage() {
     if (!companyId) return;
 
     try {
-      const entriesPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/journalEntries`;
-      const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
-
-      const entryToSave = {
-        ...entryData,
-        date: new Date(entryData.date),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      // ✅ Use centralized function with engine-level validation
+      await createJournalEntry(companyId, {
+        date: entryData.date,
+        description: entryData.description,
+        reference: entryData.reference,
+        entries: entryData.lines,
+        totalDebit: entryData.totalDebit,
+        totalCredit: entryData.totalCredit,
         createdBy: userRole,
         status: 'posted',
-        _version: '2.0',
-        _migrationStatus: 'active',
-        _v3Ready: true,
-        _v4Ready: true
-      };
-
-      if (editingEntry) {
-        // Update existing entry
-        await updateDoc(doc(db, entriesPath, editingEntry.id), {
-          ...entryToSave,
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        // Create new entry
-        await addDoc(collection(db, entriesPath), entryToSave);
-      }
-
-      // ✅ Helper function to update parent account balance
-      const updateParentBalance = async (childAccountData) => {
-        if (!childAccountData.parentAccount) return; // No parent, nothing to update
-
-        // Find parent account
-        const parentAccountsSnapshot = await getDocs(query(collection(db, accountsPath)));
-        const allAccounts = parentAccountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        const parentAccount = allAccounts.find(acc => 
-          acc.id === childAccountData.parentAccount || 
-          acc.accountCode === childAccountData.parentAccount
-        );
-
-        if (!parentAccount) return; // Parent not found
-
-        // Get all children of this parent
-        const children = allAccounts.filter(acc => 
-          acc.parentAccount === parentAccount.id || 
-          acc.parentAccount === parentAccount.accountCode
-        );
-
-        // Calculate sum of all children balances
-        const totalChildrenBalance = children.reduce((sum, child) => {
-          return sum + (child.currentBalance || 0);
-        }, 0);
-
-        // Update parent account balance
-        const parentRef = doc(db, accountsPath, parentAccount.id);
-        await updateDoc(parentRef, {
-          currentBalance: totalChildrenBalance,
-          updatedAt: serverTimestamp()
-        });
-
-        console.log(`✅ Updated parent ${parentAccount.accountCode}: ${parentAccount.currentBalance || 0} → ${totalChildrenBalance}`);
-      };
-
-      // ✅ UPDATE ACCOUNT BALANCES
-      const updatedAccounts = []; // Track which accounts were updated
-      
-      for (const line of entryData.lines) {
-        if (!line.accountId) continue;
-
-        const accountRef = doc(db, accountsPath, line.accountId);
-        const accountSnap = await getDoc(accountRef);
-        
-        if (accountSnap.exists()) {
-          const accountData = accountSnap.data();
-          const currentBalance = accountData.currentBalance || 0;
-          
-          // Debit increases asset/expense, decreases liability/equity/income
-          // Credit decreases asset/expense, increases liability/equity/income
-          let newBalance = currentBalance;
-          
-          if (accountData.balanceType === 'debit') {
-            // Asset or Expense account
-            newBalance = currentBalance + (parseFloat(line.debit) || 0) - (parseFloat(line.credit) || 0);
-          } else {
-            // Liability, Equity, or Income account
-            newBalance = currentBalance - (parseFloat(line.debit) || 0) + (parseFloat(line.credit) || 0);
-          }
-
-          await updateDoc(accountRef, {
-            currentBalance: newBalance,
-            updatedAt: serverTimestamp()
-          });
-
-          console.log(`✅ Updated ${accountData.accountCode}: ${currentBalance} → ${newBalance}`);
-          
-          // Track updated account with new balance
-          updatedAccounts.push({ ...accountData, currentBalance: newBalance, id: line.accountId });
-        }
-      }
-
-      // ✅ UPDATE PARENT ACCOUNT BALANCES
-      const parentAccountsToUpdate = new Set();
-      for (const updatedAccount of updatedAccounts) {
-        if (updatedAccount.parentAccount) {
-          parentAccountsToUpdate.add(updatedAccount.parentAccount);
-        }
-      }
-
-      // Update each parent account
-      for (const parentId of parentAccountsToUpdate) {
-        const dummyChild = updatedAccounts.find(acc => acc.parentAccount === parentId);
-        if (dummyChild) {
-          await updateParentBalance(dummyChild);
-        }
-      }
+        entryType: 'manual'
+      });
 
       setShowForm(false);
       setEditingEntry(null);
-      alert('✅ Journal entry saved and account balances updated!');
+      alert('✅ Journal entry saved successfully with engine-level validation!');
+
     } catch (error) {
-      console.error('Error saving jewelry accounting entry:', error);
-      alert('Failed to save jewelry accounting entry. Please try again.');
+      console.error('Error saving journal entry:', error);
+      alert(`Failed to save journal entry:\n\n${error.message}`);
     }
   };
 
   const deleteEntry = async (entryId) => {
-    if (!confirm('Are you sure you want to delete this jewelry accounting entry?')) return;
+    if (!confirm('Are you sure you want to delete this journal entry?')) return;
 
     try {
-      const entriesPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/journalEntries`;
-      await deleteDoc(doc(db, entriesPath, entryId));
+      // ✅ Use SDK function for delete
+      await deleteJournalEntry(companyId, entryId);
+      alert('✅ Journal entry deleted successfully!');
     } catch (error) {
-      console.error('Error deleting jewelry accounting entry:', error);
-      alert('Failed to delete jewelry accounting entry. Please try again.');
+      console.error('Error deleting journal entry:', error);
+      alert(`Failed to delete journal entry:\n\n${error.message}`);
     }
   };
 

@@ -5,9 +5,10 @@
 // Auto-creates customer account with 1301-CUST-XXX code
 
 import { useState } from 'react';
-import { collection, addDoc, serverTimestamp, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useRouter } from 'next/navigation';
+import { createAccount } from '@/utils/accountingEngineUtils';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
@@ -140,8 +141,7 @@ export default function NewCustomerPage() {
 
       const docRef = await addDoc(collection(db, `${basePath}/customers`), customerData);
 
-      // ✅ Auto-create accounting receivable sub-account
-      const accountsPath = `${basePath}/accounts`;
+      // ✅ Auto-create accounting receivable sub-account using SDK
       const customerAccountData = {
         accountCode: customerCode,
         accountName: formData.customerName,
@@ -150,21 +150,11 @@ export default function NewCustomerPage() {
         category: 'Current Assets',
         balanceType: 'debit',
         parentAccount: '1301', // Customer Receivables parent
-        currentBalance: 0,
-        currentBalanceGold: 0,
         description: `Customer receivable account for ${formData.customerName}`,
-        customerId: docRef.id,
-        isSystem: false,
-        isActive: true,
-        level: 2,
-        companyId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: 'system'
+        customerId: docRef.id
       };
 
-      const accountRef = await addDoc(collection(db, accountsPath), customerAccountData);
-      await updateDoc(accountRef, { accountId: accountRef.id });
+      await createAccount(companyId, customerAccountData, 'system');
 
       alert('✅ Customer and account created successfully!');
       router.push('/admin/customers');

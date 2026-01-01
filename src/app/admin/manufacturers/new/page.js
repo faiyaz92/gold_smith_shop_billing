@@ -5,9 +5,10 @@
 // Manufacturers paid in USD for making charges only
 
 import { useState } from 'react';
-import { collection, addDoc, serverTimestamp, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useRouter } from 'next/navigation';
+import { createAccount } from '@/utils/accountingEngineUtils';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
@@ -91,8 +92,7 @@ export default function NewManufacturerPage() {
 
       const docRef = await addDoc(collection(db, `${basePath}/manufacturers`), manufacturerData);
 
-      // ✅ Auto-create accounting payable sub-account
-      const accountsPath = `${basePath}/accounts`;
+      // ✅ Auto-create accounting payable sub-account using SDK
       const manufacturerAccountData = {
         accountCode: manufacturerCode,
         accountName: formData.manufacturerName,
@@ -101,21 +101,11 @@ export default function NewManufacturerPage() {
         category: 'Current Liabilities',
         balanceType: 'credit',
         parentAccount: '2101', // Manufacturer Payables parent
-        currentBalance: 0,
-        currentBalanceGold: 0,
         description: `Manufacturer payable account for ${formData.manufacturerName}`,
-        manufacturerId: docRef.id,
-        isSystem: false,
-        isActive: true,
-        level: 2,
-        companyId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: 'system'
+        manufacturerId: docRef.id
       };
 
-      const accountRef = await addDoc(collection(db, accountsPath), manufacturerAccountData);
-      await updateDoc(accountRef, { accountId: accountRef.id });
+      await createAccount(companyId, manufacturerAccountData, 'system');
 
       alert('✅ Manufacturer and account created successfully!');
       router.push('/admin/manufacturers');

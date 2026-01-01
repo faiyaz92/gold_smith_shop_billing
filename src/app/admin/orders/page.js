@@ -48,6 +48,7 @@ import {
 import { AccountingEngine } from '@/utils/accountingEngine';
 import { AutomatedTransactionEngine } from '@/app/utils/automatedTransactionEngine';
 import { InventoryService } from '@/utils/inventoryService';
+import { createJournalEntry, getAccountsOnce, deleteJournalEntriesByReference, isParentAccount } from '@/utils/accountingEngineUtils';
 import orderReceiptGenerator from '@/utils/orderReceiptGenerator';
 import challanGenerator from '@/utils/challanGenerator';
 import invoiceGenerator from '@/utils/invoiceGenerator';
@@ -68,70 +69,57 @@ const statusColors = {
 
 // Gold Smith Order Statuses (from BRD)
 // ✅ TASK 6.4: Order Status Workflow Configuration
+// NOTE: Simple status list - no restrictions, user can change to any status
 const ORDER_STATUS_FLOW = {
   'New': {
-    label: 'New Order',
+    label: 'New',
     color: 'bg-gray-100 text-gray-800',
-    nextStatuses: ['Confirmed', 'Cancelled'],
-    allowedActions: [],
-    description: 'Order created, pending confirmation',
-    accountingImpact: 'None - order entry only'
+    description: 'Order created'
   },
   'Confirmed': {
     label: 'Confirmed',
     color: 'bg-blue-100 text-blue-800',
-    nextStatuses: ['In Production', 'Cancelled'],
-    allowedActions: ['issueChallan'],
-    description: 'Order confirmed, ready to issue challan',
-    accountingImpact: 'Gold withdrawal challan triggers: Debit 1102 (Gold in Transit), Credit 1101 (Gold Inventory)'
+    description: 'Order confirmed'
+  },
+  'Challan Issued': {
+    label: 'Challan Issued',
+    color: 'bg-yellow-100 text-yellow-800',
+    description: 'Gold challan issued to manufacturer'
   },
   'In Production': {
     label: 'In Production',
-    color: 'bg-yellow-100 text-yellow-800',
-    nextStatuses: ['Ready for Pickup', 'Cancelled'],
-    allowedActions: [],
-    description: 'Manufacturer working on the order',
-    accountingImpact: 'None - work in progress'
+    color: 'bg-orange-100 text-orange-800',
+    description: 'Manufacturer working on the order'
   },
   'Ready for Pickup': {
     label: 'Ready for Pickup',
     color: 'bg-purple-100 text-purple-800',
-    nextStatuses: ['Picked Up', 'Delivered', 'Cancelled'],
-    allowedActions: ['generateInvoice'],
-    description: 'Product received, ready to bill customer',
-    accountingImpact: 'Invoice triggers: Debit 1301-CUST-XXX, Credit 4101 (Revenue)'
+    description: 'Product ready for customer pickup'
   },
   'Picked Up': {
     label: 'Picked Up',
     color: 'bg-indigo-100 text-indigo-800',
-    nextStatuses: ['Completed'],
-    allowedActions: ['recordPayment'],
-    description: 'Customer picked up the product',
-    accountingImpact: 'None - delivery confirmation'
+    description: 'Customer picked up the product'
   },
   'Delivered': {
     label: 'Delivered',
     color: 'bg-teal-100 text-teal-800',
-    nextStatuses: ['Completed'],
-    allowedActions: ['recordPayment'],
-    description: 'Product delivered to customer',
-    accountingImpact: 'None - delivery confirmation'
+    description: 'Product delivered to customer'
   },
   'Completed': {
     label: 'Completed',
     color: 'bg-green-100 text-green-800',
-    nextStatuses: [],
-    allowedActions: [],
-    description: 'Order fully completed and paid',
-    accountingImpact: 'Payment triggers: Debit 1101/1201, Credit 1301-CUST-XXX'
+    description: 'Order fully completed'
   },
   'Cancelled': {
     label: 'Cancelled',
     color: 'bg-red-100 text-red-800',
-    nextStatuses: [],
-    allowedActions: [],
-    description: 'Order cancelled',
-    accountingImpact: 'Reverse all previous entries if applicable'
+    description: 'Order cancelled'
+  },
+  'Returned': {
+    label: 'Returned',
+    color: 'bg-pink-100 text-pink-800',
+    description: 'Product returned'
   }
 };
 
@@ -157,8 +145,6 @@ export default function GoldSmithOrders() {
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
   const [selectedOrders, setSelectedOrders] = useState([]);
-  const [showBulkUpdateDialog, setShowBulkUpdateDialog] = useState(false);
-  const [bulkUpdateStatus, setBulkUpdateStatus] = useState('');
   const [showNewOrderDialog, setShowNewOrderDialog] = useState(false);
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [createdOrderData, setCreatedOrderData] = useState(null);
@@ -172,10 +158,14 @@ export default function GoldSmithOrders() {
   const [paymentSuccessData, setPaymentSuccessData] = useState(null);
   const [showPaymentHistoryDialog, setShowPaymentHistoryDialog] = useState(false);
   const [paymentHistoryData, setPaymentHistoryData] = useState(null);
-  // ✅ TASK 6.4: Status Change Dialog State
-  const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false);
-  const [statusChangeData, setStatusChangeData] = useState(null);
-  const [statusChangeNotes, setStatusChangeNotes] = useState('');
+  // ✅ NEW: Challan Issue Popup State (for Challan Issued status)
+  const [showChallanIssuePopup, setShowChallanIssuePopup] = useState(false);
+  const [challanIssueData, setChallanIssueData] = useState({
+    order: null,
+    manufacturerId: '',
+    goldBankId: '',
+    targetStatus: ''
+  });
   // ✅ TASK 7.2 & 7.3: Additional Challan & Return Dialog State
   const [showAdditionalChallanDialog, setShowAdditionalChallanDialog] = useState(false);
   const [additionalChallanData, setAdditionalChallanData] = useState({
@@ -198,6 +188,7 @@ export default function GoldSmithOrders() {
   const [manufacturers, setManufacturers] = useState([]);
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
+  const [goldBanks, setGoldBanks] = useState([]); // \u2705 NEW: Gold bank (sharaf) accounts
   
   // Purchase Entry State
   const [showPurchaseEntryDialog, setShowPurchaseEntryDialog] = useState(false);
@@ -235,6 +226,8 @@ export default function GoldSmithOrders() {
     goldPricePerOunce: '',
     goldPricePerGram: '',
     manufacturerId: '',
+    goldBankId: '', // \u2705 NEW: Gold bank (sharaf) sub-account selection
+    generateChallan: false, // \u2705 NEW: Generate challan checkbox
     expectedDeliveryDate: '',
     notes: ''
   });
@@ -311,6 +304,20 @@ export default function GoldSmithOrders() {
         setCategories(categoriesData);
       });
       
+      // \u2705 Fetch gold bank accounts (sub-accounts of 1101)
+      const accountsPath = `${basePath}/accounts`;
+      const goldBanksQuery = query(
+        collection(db, accountsPath),
+        where('parentAccount', '==', '1101')
+      );
+      const goldBanksUnsubscribe = onSnapshot(goldBanksQuery, (snapshot) => {
+        const goldBanksData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })).filter(account => account.parentAccount !== null); // Filter out parent accounts (only include child accounts)
+        setGoldBanks(goldBanksData);
+      });
+      
       // Fetch current gold price (BRD v2 - Gold Price from goldPriceHistory)
       const goldPriceQuery = query(
         collection(db, goldPriceHistoryPath),
@@ -332,6 +339,7 @@ export default function GoldSmithOrders() {
         customersUnsubscribe();
         manufacturersUnsubscribe();
         categoriesUnsubscribe();
+        goldBanksUnsubscribe();
       };
 
     } catch (error) {
@@ -516,118 +524,216 @@ export default function GoldSmithOrders() {
     }
   };
 
-  // Update order status with history tracking
-  // ✅ TASK 6.4: Order Status Workflow Handler
-  const handleStatusChange = (order, newStatus) => {
-    // Validate status transition
-    const currentStatus = order.status;
-    const currentStatusConfig = ORDER_STATUS_FLOW[currentStatus];
-    
-    if (!currentStatusConfig.nextStatuses.includes(newStatus)) {
-      alert(`Invalid status transition: Cannot change from "${currentStatus}" to "${newStatus}". Valid next statuses are: ${currentStatusConfig.nextStatuses.join(', ')}`);
+  // ✅ NEW: Handle status change from dropdown
+  // ✅ Status change with validation and challan handling
+  const handleStatusChangeFromDropdown = async (order, newStatus) => {
+    if (newStatus === order.status) return;
+
+    // 🚫 BLOCK: Cannot go back from Challan Issued to New or Confirmed
+    if (order.status === 'Challan Issued' && (newStatus === 'New' || newStatus === 'Confirmed')) {
+      alert(`❌ Cannot change status back from "Challan Issued" to "${newStatus}".\n\nThis would require reversing accounting entries:\n• Gold in Transit account would be credited\n• Gold Bank account would be debited\n\nPlease contact administrator for manual reversal.`);
       return;
     }
 
-    // Open confirmation dialog
-    setStatusChangeData({
-      order,
-      currentStatus,
-      newStatus,
-      statusConfig: ORDER_STATUS_FLOW[newStatus]
-    });
-    setStatusChangeNotes('');
-    setShowStatusChangeDialog(true);
-  };
+    // 🚫 BLOCK: From New or Confirmed, cannot jump to statuses after Challan Issued
+    // Users must go through Challan Issued process first
+    const statusesAfterChallan = ['In Production', 'Ready for Pickup', 'Picked Up', 'Delivered', 'Completed'];
+    if ((order.status === 'New' || order.status === 'Confirmed') && statusesAfterChallan.includes(newStatus)) {
+      alert(`❌ Cannot change status from "${order.status}" to "${newStatus}".\n\nYou must first issue a challan by changing to "Challan Issued" status.\n\nThis ensures proper gold movement tracking and accounting.`);
+      return;
+    }
 
-  // ✅ TASK 6.4: Confirm Status Change
-  const confirmStatusChange = async () => {
-    if (!statusChangeData) return;
-
-    try {
-      const { order, newStatus } = statusChangeData;
-      const orderRef = doc(db, ordersPath, order.id);
-      const orderSnap = await getDoc(orderRef);
-      
-      if (!orderSnap.exists()) {
-        alert('Order not found');
-        return;
-      }
-
-      const orderData = orderSnap.data();
-      const oldStatus = orderData.status;
-
-      const updateData = {
-        status: newStatus,
-        updatedAt: serverTimestamp(),
-        lastStatusUpdate: serverTimestamp()
-      };
-
-      // Add status history entry
-      const statusHistory = orderData.statusHistory || [];
-      statusHistory.push({
-        from: oldStatus,
-        to: newStatus,
-        changedAt: new Date(),
-        changedBy: 'Admin', // TODO: Get current user info
-        notes: statusChangeNotes || ''
+    // ✅ SPECIAL: Changing to Challan Issued requires challan creation
+    if (newStatus === 'Challan Issued') {
+      setChallanIssueData({
+        order: order,
+        manufacturerId: order.manufacturerId || '',
+        goldBankId: order.goldBankId || '',
+        targetStatus: 'Challan Issued'
       });
-      updateData.statusHistory = statusHistory;
+      setShowChallanIssuePopup(true);
+      return;
+    }
 
-      // Special handling for status changes
-      if (newStatus === 'Picked Up') {
-        // When picked up, show purchase entry dialog
-        // Don't automatically process - wait for user to enter purchase details
-        const orderDoc = await getDoc(orderRef);
-        const orderData = { id: order.id, ...orderDoc.data() };
-        
-        // Show purchase entry dialog
-        setPurchaseEntryOrder(orderData);
-        setPurchaseEntryData({
-          weightReceived: orderData.weight || '',
-          manufacturingCost: '',
-          gstAmount: '',
-          paymentType: 'cash',
-          creditDays: 0,
-          notes: ''
-        });
-        setShowPurchaseEntryDialog(true);
-        
-        updateData.purchaseEntryRequired = true;
-        updateData.purchaseEntryCompleted = false;
-      } else if (newStatus === 'Delivered') {
-        // When delivered, show delivery & billing dialog
-        const orderDoc = await getDoc(orderRef);
-        const orderData = { id: order.id, ...orderDoc.data() };
-        
-        setDeliveryOrder(orderData);
-        setDeliveryData({
-          deliveryDate: new Date().toISOString().split('T')[0],
-          paymentMethod: 'cash',
-          paidAmount: orderData.total || 0,
-          notes: ''
-        });
-        setShowDeliveryDialog(true);
-        
-        updateData.deliveryRequired = true;
-        updateData.deliveryCompleted = false;
-      }
+    // ✅ NORMAL: Direct status change for other statuses
+    try {
+      const orderRef = doc(db, ordersPath, order.id);
+      await updateDoc(orderRef, {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      });
 
-      await updateDoc(orderRef, updateData);
-
-      console.log(`Order ${order.id} status updated from ${oldStatus} to ${newStatus}`);
-      
-      // Close dialog and show success message
-      setShowStatusChangeDialog(false);
-      setStatusChangeData(null);
-      setStatusChangeNotes('');
-      
-      alert(`Status successfully changed to "${newStatus}"`);
-      
+      console.log(`Order ${order.id} status changed from ${order.status} to ${newStatus}`);
     } catch (error) {
       console.error('Error updating order status:', error);
       alert('Error updating order status. Please try again.');
     }
   };
+
+  // ✅ Handle challan issue for Challan Issued status
+  const handleConfirmChallanIssue = async () => {
+    try {
+      const { order, manufacturerId, goldBankId, targetStatus } = challanIssueData;
+
+      if (!order) {
+        alert('Order data is missing. Please try again.');
+        return;
+      }
+
+      if (!manufacturerId) {
+        alert('Please select a manufacturer');
+        return;
+      }
+      if (!goldBankId) {
+        alert('Please select a gold bank (Sharaf)');
+        return;
+      }
+
+      // Generate challan number
+      const challanNumber = `CH-${Date.now().toString().slice(-6)}`;
+
+      // ✅ Get accounts for proper journal entry creation
+      const allAccounts = await getAccountsOnce(companyId);
+      
+      // ✅ Find or create manufacturer sub-account under Gold in Transit (1102)
+      let manufacturerSubAccount = allAccounts.find(acc => 
+        acc.parentAccount === '1102' && acc.manufacturerId === manufacturerId
+      );
+      
+      if (!manufacturerSubAccount) {
+        // Create sub-account for this manufacturer under 1102
+        const manufacturerData = manufacturers.find(m => m.id === manufacturerId);
+        const subAccountCode = `1102-MFG-${manufacturerId}`;
+        const subAccountName = `Gold Custody for ${manufacturerData?.manufacturerName || manufacturerData?.name}`;
+        
+        const newAccount = {
+          accountCode: subAccountCode,
+          name: subAccountName,
+          type: 'asset',
+          parentAccount: '1102',  // Parent: Gold in Transit
+          manufacturerId: manufacturerId,
+          balanceGold: 0,
+          balanceUSD: 0,
+          isActive: true,
+          createdAt: serverTimestamp()
+        };
+        
+        const accountRef = await addDoc(collection(db, `${basePath}/accounts`), newAccount);
+        manufacturerSubAccount = { id: accountRef.id, ...newAccount };
+        console.log('Created manufacturer sub-account for challan:', subAccountCode);
+      }
+      
+      // ✅ Find the account for the selected gold bank
+      const goldBankAccount = allAccounts.find(acc => acc.id === goldBankId);
+      
+      if (!goldBankAccount) {
+        throw new Error('Selected gold bank account not found. Please ensure the gold bank is properly configured.');
+      }
+
+      // Create challan document
+      const challanData = {
+        challanNumber,
+        orderId: order.id,
+        manufacturerId,
+        goldBankId,
+        manufacturerAccountId: manufacturerSubAccount.id,
+        manufacturerAccountCode: manufacturerSubAccount.accountCode || manufacturerSubAccount.code,
+        goldBankAccountId: goldBankAccount.id,
+        goldBankAccountCode: goldBankAccount.accountCode || goldBankAccount.code,
+        pureGoldAmount: order.productPureGold,
+        status: 'issued',
+        issuedAt: serverTimestamp(),
+        accountingRecorded: true,
+        companyId: companyId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      const challanRef = await addDoc(collection(db, `${basePath}/challans`), challanData);
+
+      // Create accounting entries as per BRD
+      // Debit: Manufacturer Sub-Account (1102-MFG-XXX), Credit: Gold Bank Sub-Account (1101-BANK-XXX)
+      const journalEntryData = {
+        date: new Date().toISOString().split('T')[0],
+        description: `Gold Challan ${challanNumber} issued to ${manufacturers.find(m => m.id === manufacturerId)?.manufacturerName || 'Manufacturer'}`,
+        referenceType: 'challan',
+        referenceId: challanRef.id,
+        entries: [
+          {
+            accountId: manufacturerSubAccount.id,
+            accountCode: manufacturerSubAccount.accountCode || manufacturerSubAccount.code,
+            accountName: manufacturerSubAccount.name,
+            debit: order.productPureGold,
+            credit: 0
+          },
+          {
+            accountId: goldBankAccount.id,
+            accountCode: goldBankAccount.accountCode || goldBankAccount.code,
+            accountName: goldBankAccount.name,
+            debit: 0,
+            credit: order.productPureGold
+          }
+        ],
+        totalDebit: order.productPureGold,
+        totalCredit: order.productPureGold,
+        isBalanced: true
+      };
+
+      await createJournalEntry(companyId, journalEntryData);
+
+      // Generate and download the challan PDF
+      const manufacturerData = manufacturers.find(m => m.id === manufacturerId);
+      const customerData = { customerName: order.customerName };
+
+      const challanPdfData = {
+        challanNumber,
+        issuedDate: new Date(),
+        orderId: order.id,
+        orderNumber: order.orderNumber || order.serialNumber,
+        manufacturerName: manufacturerData?.manufacturerName || manufacturerData?.name || 'Unknown',
+        manufacturerCode: manufacturerData?.manufacturerCode || manufacturerId.slice(-4),
+        manufacturerPhone: manufacturerData?.phone || '',
+        customerName: order.customerName,
+        productName: order.productName,
+        weightGrams: order.weight,
+        karat: order.karat,
+        pureGoldAmount: order.productPureGold,
+        purpose: `Production of ${order.weight}g ${order.karat} ${order.productName} for Order ${order.id.slice(-8)}`,
+        notes: ''
+      };
+
+      await challanGenerator.downloadChallan(challanPdfData);
+
+      // Update order with challan info and status
+      const orderRef = doc(db, ordersPath, order.id);
+      await updateDoc(orderRef, {
+        challanNumber: challanNumber,
+        challanId: challanRef.id,
+        status: targetStatus,
+        challanIssuedAt: serverTimestamp(),
+        manufacturerId: manufacturerId,
+        goldBankId: goldBankId,
+        updatedAt: serverTimestamp()
+      });
+
+      alert(`✅ Challan ${challanNumber} issued successfully!\nOrder status changed to ${targetStatus}.\n\nAccounting entries created:\n• Debit: ${manufacturerSubAccount.name} (+${order.productPureGold.toFixed(3)}g)\n• Credit: ${goldBankAccount.name} (-${order.productPureGold.toFixed(3)}g)\n\nPDF challan downloaded for manufacturer.`);
+
+      // Close popup
+      setShowChallanIssuePopup(false);
+      setChallanIssueData({
+        order: null,
+        manufacturerId: '',
+        goldBankId: '',
+        targetStatus: ''
+      });
+
+    } catch (error) {
+      console.error('Error issuing challan:', error);
+      alert('Error issuing challan: ' + error.message);
+    }
+  };
+
+  // Old status change functions removed - now using simpler dropdown-based handleStatusChangeFromDropdown
 
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
@@ -703,6 +809,157 @@ export default function GoldSmithOrders() {
     } catch (error) {
       console.error('Error updating order status:', error);
       alert('Error updating order status. Please try again.');
+    }
+  };
+
+  // ✅ NEW: Helper function to generate challan for order (used in auto-generation)
+  const generateChallanForOrder = async (order) => {
+    try {
+      if (!order.manufacturerId) {
+        throw new Error('Manufacturer is required for challan generation');
+      }
+      if (!order.goldBankId) {
+        throw new Error('Gold bank is required for challan generation');
+      }
+
+      // Generate challan number
+      const challansPath = `${basePath}/challans`;
+      const challansSnapshot = await getDocs(
+        query(collection(db, challansPath), orderBy('createdAt', 'desc'), limit(1))
+      );
+      
+      let challanNumber = 'CH-001-' + new Date().getFullYear();
+      if (!challansSnapshot.empty) {
+        const lastChallan = challansSnapshot.docs[0].data();
+        const lastNumber = parseInt(lastChallan.challanNumber.split('-')[1]) || 0;
+        challanNumber = `CH-${String(lastNumber + 1).padStart(3, '0')}-${new Date().getFullYear()}`;
+      }
+
+      // Fetch manufacturer data
+      const manufacturerRef = doc(db, `${basePath}/manufacturers`, order.manufacturerId);
+      const manufacturerSnap = await getDoc(manufacturerRef);
+      if (!manufacturerSnap.exists()) {
+        throw new Error('Manufacturer not found');
+      }
+      const manufacturerData = { id: manufacturerSnap.id, ...manufacturerSnap.data() };
+
+      const pureGoldAmount = order.productPureGold;
+
+      // Create challan document
+      const challanData = {
+        challanNumber,
+        challanType: 'gold_withdrawal',
+        orderId: order.id,
+        customerId: order.customerId,
+        customerName: order.customerName || 'Unknown',
+        manufacturerId: order.manufacturerId,
+        manufacturerName: manufacturerData.manufacturerName || manufacturerData.name || 'Unknown',
+        pureGoldAmount,
+        purpose: `Production of ${order.totalWeight}g ${order.karat} ${order.productName} for Order ${order.id.slice(-8)}`,
+        status: 'issued',
+        issuedDate: serverTimestamp(),
+        accountingRecorded: false,
+        sharafReleaseConfirmation: false,
+        goldBankId: order.goldBankId,
+        goldBankAccountCode: order.goldBankAccountCode,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        companyId: companyId || 'default-company'
+      };
+
+      // Save challan to Firestore
+      const challanRef = await addDoc(collection(db, challansPath), challanData);
+      console.log('✅ Challan created:', challanRef.id);
+
+      // Update order with challan number and status
+      const orderRef = doc(db, ordersPath, order.id);
+      await updateDoc(orderRef, {
+        challanNumber,
+        challanId: challanRef.id,
+        status: 'Confirmed',
+        challanIssuedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // ✅ Create accounting entry using SDK with manufacturer-specific accounts
+      try {
+        const allAccounts = await getAccountsOnce(companyId || 'default-company');
+
+        // ✅ Get or create manufacturer-specific gold account
+        // Use existing Gold in Transit account (1102) - no need to create manufacturer-specific accounts
+        const goldInTransitAccount = allAccounts.find(acc => acc.accountCode === '1102');
+        
+        if (!goldInTransitAccount) {
+          throw new Error('Gold in Transit account (1102) not found. Please ensure accounts are properly initialized.');
+        }
+        
+        const manufacturerGoldAccount = goldInTransitAccount;
+
+        const goldBankSubAccount = allAccounts.find(acc => acc.id === order.goldBankId);
+
+        if (!manufacturerGoldAccount) {
+          throw new Error('Manufacturer gold account not found');
+        }
+
+        if (!goldBankSubAccount) {
+          throw new Error('Selected gold bank account not found');
+        }
+
+        const journalEntryData = {
+          date: new Date().toISOString().split('T')[0],
+          description: `Gold withdrawal challan ${challanNumber} issued for Order ${order.id.slice(-8)}`,
+          referenceType: 'challan',
+          referenceId: challanRef.id,
+          entries: [
+            {
+              accountId: manufacturerGoldAccount.id,
+              accountCode: manufacturerGoldAccount.accountCode,
+              accountName: manufacturerGoldAccount.accountName,
+              debit: pureGoldAmount,
+              credit: 0
+            },
+            {
+              accountId: goldBankSubAccount.id,
+              accountCode: goldBankSubAccount.accountCode,
+              accountName: goldBankSubAccount.accountName,
+              debit: 0,
+              credit: pureGoldAmount
+            }
+          ],
+          totalDebit: pureGoldAmount,
+          totalCredit: pureGoldAmount,
+          isBalanced: true
+        };
+
+        await createJournalEntry(companyId || 'default-company', journalEntryData);
+
+        await updateDoc(doc(db, challansPath, challanRef.id), {
+          accountingRecorded: true,
+          updatedAt: serverTimestamp()
+        });
+
+        console.log('✅ Challan accounting entry created');
+      } catch (accountingError) {
+        console.error('❌ Error creating accounting entry:', accountingError);
+        throw new Error(`Accounting entry failed: ${accountingError.message}`);
+      }
+
+      // Update manufacturer's goldInTransit
+      try {
+        const currentGoldInTransit = manufacturerData.goldInTransit || 0;
+        await updateDoc(manufacturerRef, {
+          goldInTransit: currentGoldInTransit + pureGoldAmount,
+          updatedAt: serverTimestamp()
+        });
+        console.log('✅ Manufacturer goldInTransit updated');
+      } catch (mfgError) {
+        console.error('❌ Error updating manufacturer goldInTransit:', mfgError);
+      }
+
+      return { challanNumber, challanId: challanRef.id };
+    } catch (error) {
+      console.error('❌ Error generating challan:', error);
+      throw error;
     }
   };
 
@@ -785,42 +1042,91 @@ export default function GoldSmithOrders() {
         updatedAt: serverTimestamp()
       });
 
-      // Create accounting entry: Debit Gold in Transit (1102), Credit Gold Bank Sharaf (1101)
+      // \u2705 Create accounting entry using SDK: Debit Gold in Transit Sub-Account (1102-XXX), Credit Gold Bank Sub-Account
       try {
-        const accountingEngine = new AccountingEngine(companyId || 'default-company');
-        await accountingEngine.createEntry({
-          date: new Date(),
+        // Fetch all accounts to get gold bank sub-accounts and check/create manufacturer sub-account
+        const allAccounts = await getAccountsOnce(companyId || 'default-company');
+        
+        // Find or create manufacturer's sub-account under Gold in Transit (1102)
+        let manufacturerSubAccount = allAccounts.find(acc => 
+          acc.parentAccount === '1102' && acc.manufacturerId === order.manufacturerId
+        );
+        
+        if (!manufacturerSubAccount) {
+          // Create sub-account for this manufacturer under 1102
+          const subAccountCode = `1102-MFG-${order.manufacturerId}`;
+          const subAccountName = `Gold Custody for ${manufacturerData.manufacturerName || manufacturerData.name}`;
+          
+          const newAccount = {
+            accountCode: subAccountCode,
+            name: subAccountName,
+            type: 'asset',
+            parentAccount: '1102',  // Parent: Gold in Transit
+            manufacturerId: order.manufacturerId,
+            balanceGold: 0,
+            balanceUSD: 0,
+            isActive: true,
+            createdAt: serverTimestamp()
+          };
+          
+          const accountRef = await addDoc(collection(db, `${basePath}/accounts`), newAccount);
+          manufacturerSubAccount = { id: accountRef.id, ...newAccount };
+          console.log('Created manufacturer sub-account:', subAccountCode);
+        }
+        
+        // Find gold bank sub-account (should be stored in order or challan)
+        // For now, use first gold bank sub-account under 1101
+        const goldBankSubAccount = allAccounts.find(acc => 
+          acc.parentAccount === '1101' && acc.accountCode.startsWith('1101-')
+        );
+        
+        if (!goldBankSubAccount) {
+          throw new Error('No gold bank sub-account found. Please create a gold bank first.');
+        }
+        
+        // Create journal entry using SDK
+        const journalEntryData = {
+          date: new Date().toISOString().split('T')[0],
           description: `Gold withdrawal challan ${challanNumber} issued for Order ${order.id.slice(-8)}`,
-          transactionType: 'gold_challan_issued',
-          referenceId: challanRef.id,
           referenceType: 'challan',
+          referenceId: challanRef.id,
           entries: [
             {
-              accountCode: '1102',
-              accountName: 'Gold in Transit',
+              accountId: manufacturerSubAccount.id,
+              accountCode: manufacturerSubAccount.accountCode,
+              accountName: manufacturerSubAccount.name,
               debit: pureGoldAmount,
-              credit: 0,
-              balanceType: 'gold'
+              credit: 0
             },
             {
-              accountCode: '1101',
-              accountName: 'Gold Bank (Sharaf)',
+              accountId: goldBankSubAccount.id,
+              accountCode: goldBankSubAccount.accountCode,
+              accountName: goldBankSubAccount.accountName,
               debit: 0,
-              credit: pureGoldAmount,
-              balanceType: 'gold'
+              credit: pureGoldAmount
             }
-          ]
-        });
+          ],
+          totalDebit: pureGoldAmount,
+          totalCredit: pureGoldAmount,
+          isBalanced: true
+        };
+        
+        await createJournalEntry(companyId || 'default-company', journalEntryData);
 
         // Update challan accounting status
         await updateDoc(doc(db, challansPath, challanRef.id), {
           accountingRecorded: true,
+          goldBankAccountId: goldBankSubAccount.id,
+          goldBankAccountCode: goldBankSubAccount.accountCode,
+          manufacturerAccountId: manufacturerSubAccount.id,
+          manufacturerAccountCode: manufacturerSubAccount.accountCode,
           updatedAt: serverTimestamp()
         });
 
-        console.log('Accounting entry created for challan');
+        console.log('\u2705 Challan accounting entry created using SDK:', manufacturerSubAccount.accountCode, '->', goldBankSubAccount.accountCode);
       } catch (accountingError) {
-        console.error('Error creating accounting entry:', accountingError);
+        console.error('\u274c Error creating accounting entry:', accountingError);
+        alert(`Warning: Challan created but accounting entry failed:\n${accountingError.message}`);
         // Continue - challan is still created
       }
 
@@ -938,33 +1244,73 @@ export default function GoldSmithOrders() {
 
       // Create accounting entry based on challan type
       try {
-        const accountingEngine = new AccountingEngine(companyId || 'default-company');
+        const allAccounts = await getAccountsOnce(companyId || 'default-company');
+        
+        // Find or create manufacturer's sub-account under Gold in Transit (1102)
+        let manufacturerSubAccount = allAccounts.find(acc => 
+          acc.parentAccount === '1102' && acc.manufacturerId === order.manufacturerId
+        );
+        
+        if (!manufacturerSubAccount) {
+          // Create sub-account for this manufacturer under 1102
+          const subAccountCode = `1102-MFG-${order.manufacturerId}`;
+          const subAccountName = `Gold Custody for ${manufacturerData.name || manufacturerData.manufacturerName}`;
+          
+          const newAccount = {
+            accountCode: subAccountCode,
+            name: subAccountName,
+            type: 'asset',
+            parentAccount: '1102',  // Parent: Gold in Transit
+            manufacturerId: order.manufacturerId,
+            balanceGold: 0,
+            balanceUSD: 0,
+            isActive: true,
+            createdAt: serverTimestamp()
+          };
+          
+          const accountRef = await addDoc(collection(db, `${basePath}/accounts`), newAccount);
+          manufacturerSubAccount = { id: accountRef.id, ...newAccount };
+          console.log('Created manufacturer sub-account for additional challan:', subAccountCode);
+        }
+        
+        // Find gold bank sub-account
+        const goldBankSubAccount = allAccounts.find(acc => 
+          acc.parentAccount === '1101' && acc.accountCode.startsWith('1101-')
+        );
+        
+        if (!goldBankSubAccount) {
+          throw new Error('No gold bank sub-account found. Please create a gold bank first.');
+        }
         
         if (challanType === 'additional_gold') {
-          // Additional Gold: Debit 1102 (Gold in Transit), Credit 1101 (Gold Bank Sharaf)
-          await accountingEngine.createEntry({
-            date: new Date(),
+          // Additional Gold: Debit Manufacturer Sub-Account, Credit Gold Bank Sub-Account
+          const journalEntryData = {
+            date: new Date().toISOString().split('T')[0],
             description: `Additional gold challan ${challanNumber} for Order ${order.id.slice(-8)} - ${order.manufacturerName}`,
-            transactionType: 'additional_gold_challan',
-            referenceId: challanRef.id,
             referenceType: 'challan',
+            referenceId: challanRef.id,
             entries: [
               {
-                accountCode: '1102',
-                accountName: 'Gold in Transit',
+                accountId: manufacturerSubAccount.id,
+                accountCode: manufacturerSubAccount.accountCode,
+                accountName: manufacturerSubAccount.name,
                 debit: pureGoldAmount,
-                credit: 0,
-                balanceType: 'gold'
+                credit: 0
               },
               {
-                accountCode: '1101',
-                accountName: 'Gold Bank - Sharaf',
+                accountId: goldBankSubAccount.id,
+                accountCode: goldBankSubAccount.accountCode,
+                accountName: goldBankSubAccount.accountName,
                 debit: 0,
-                credit: pureGoldAmount,
-                balanceType: 'gold'
+                credit: pureGoldAmount
               }
-            ]
-          });
+            ],
+            totalDebit: pureGoldAmount,
+            totalCredit: pureGoldAmount,
+            isBalanced: true
+          };
+          
+          await createJournalEntry(companyId || 'default-company', journalEntryData);
 
           // Update manufacturer's goldInTransit (increase)
           const currentGoldInTransit = manufacturerData.goldInTransit || 0;
@@ -974,30 +1320,34 @@ export default function GoldSmithOrders() {
           });
 
         } else if (challanType === 'gold_return') {
-          // Gold Return: Debit 1101 (Gold Bank Sharaf), Credit 1102 (Gold in Transit)
-          await accountingEngine.createEntry({
-            date: new Date(),
+          // Gold Return: Debit Gold Bank Sub-Account, Credit Manufacturer Sub-Account
+          const journalEntryData = {
+            date: new Date().toISOString().split('T')[0],
             description: `Gold return receipt ${challanNumber} for Order ${order.id.slice(-8)} - ${order.manufacturerName}`,
-            transactionType: 'gold_return_receipt',
-            referenceId: challanRef.id,
             referenceType: 'challan',
+            referenceId: challanRef.id,
             entries: [
               {
-                accountCode: '1101',
-                accountName: 'Gold Bank - Sharaf',
+                accountId: goldBankSubAccount.id,
+                accountCode: goldBankSubAccount.accountCode,
+                accountName: goldBankSubAccount.accountName,
                 debit: pureGoldAmount,
-                credit: 0,
-                balanceType: 'gold'
+                credit: 0
               },
               {
-                accountCode: '1102',
-                accountName: 'Gold in Transit',
+                accountId: manufacturerSubAccount.id,
+                accountCode: manufacturerSubAccount.accountCode,
+                accountName: manufacturerSubAccount.name,
                 debit: 0,
-                credit: pureGoldAmount,
-                balanceType: 'gold'
+                credit: pureGoldAmount
               }
-            ]
-          });
+            ],
+            totalDebit: pureGoldAmount,
+            totalCredit: pureGoldAmount,
+            isBalanced: true
+          };
+          
+          await createJournalEntry(companyId || 'default-company', journalEntryData);
 
           // Update manufacturer's goldInTransit (decrease)
           const currentGoldInTransit = manufacturerData.goldInTransit || 0;
@@ -1007,13 +1357,17 @@ export default function GoldSmithOrders() {
           });
         }
 
-        // Mark accounting as recorded
+        // Update challan accounting status
         await updateDoc(doc(db, challansPath, challanRef.id), {
           accountingRecorded: true,
-          accountingEntryId: challanRef.id
+          goldBankAccountId: goldBankSubAccount.id,
+          goldBankAccountCode: goldBankSubAccount.accountCode,
+          manufacturerAccountId: manufacturerSubAccount.id,
+          manufacturerAccountCode: manufacturerSubAccount.accountCode,
+          updatedAt: serverTimestamp()
         });
 
-        console.log('Accounting entry created for challan');
+        console.log('\u2705 Additional challan accounting entry created:', challanType, manufacturerSubAccount.accountCode);
       } catch (accountingError) {
         console.error('Error creating accounting entry:', accountingError);
         // Continue - challan is still created
@@ -1506,48 +1860,23 @@ export default function GoldSmithOrders() {
     }
   };
 
-  // Bulk update order status
-  const handleBulkUpdateStatus = async () => {
-    if (!bulkUpdateStatus || selectedOrders.length === 0) {
-      alert('Please select orders and a status to update');
-      return;
-    }
+  // Handle order selection for bulk operations - REMOVED
+  // const handleOrderSelect = (orderId, checked) => {
+  //   if (checked) {
+  //     setSelectedOrders(prev => [...prev, orderId]);
+  //   } else {
+  //     setSelectedOrders(prev => prev.filter(id => id !== orderId));
+  //   }
+  // };
 
-    try {
-      const updatePromises = selectedOrders.map(orderId =>
-        updateOrderStatus(orderId, bulkUpdateStatus)
-      );
-
-      await Promise.all(updatePromises);
-
-      setSelectedOrders([]);
-      setBulkUpdateStatus('');
-      setShowBulkUpdateDialog(false);
-
-      alert(`Successfully updated ${selectedOrders.length} orders`);
-    } catch (error) {
-      console.error('Error bulk updating orders:', error);
-      alert('Error updating orders. Please try again.');
-    }
-  };
-
-  // Handle order selection for bulk operations
-  const handleOrderSelect = (orderId, checked) => {
-    if (checked) {
-      setSelectedOrders(prev => [...prev, orderId]);
-    } else {
-      setSelectedOrders(prev => prev.filter(id => id !== orderId));
-    }
-  };
-
-  // Handle select all orders
-  const handleSelectAll = (checked) => {
-    if (checked) {
-      setSelectedOrders(filteredOrders.map(order => order.id));
-    } else {
-      setSelectedOrders([]);
-    }
-  };
+  // Handle select all orders - REMOVED
+  // const handleSelectAll = (checked) => {
+  //   if (checked) {
+  //     setSelectedOrders(filteredOrders.map(order => order.id));
+  //   } else {
+  //     setSelectedOrders([]);
+  //   }
+  // };
   
   // Product name auto-suggestion handler (BRD v2 Section 3.5 - Local Cache Only)
   const handleProductNameInput = (input) => {
@@ -1611,6 +1940,18 @@ export default function GoldSmithOrders() {
       if (!newOrder.goldPricePerGram && !currentGoldPrice) {
         alert('Please enter gold price or wait for it to load automatically.');
         return;
+      }
+      
+      // ✅ NEW: Validate challan generation requirements
+      if (newOrder.generateChallan) {
+        if (!newOrder.manufacturerId) {
+          alert('Please select a manufacturer to generate challan');
+          return;
+        }
+        if (!newOrder.goldBankId) {
+          alert('Please select a gold bank (Sharaf) to generate challan');
+          return;
+        }
       }
 
       // Karat purity coefficients (BRD v2 Section 10.2)
@@ -1687,8 +2028,13 @@ export default function GoldSmithOrders() {
         additionalGoldIssued: 0,
         goldReturnedByManufacturer: 0,
         
+        // ✅ Store gold bank selection for later challan generation
+        goldBankId: newOrder.goldBankId || '',
+        goldBankAccountCode: newOrder.goldBankId ? goldBanks.find(gb => gb.id === newOrder.goldBankId)?.accountCode : '',
+        
         // Status Tracking (BRD v2 Section 4.1)
-        status: 'New Order',
+        // ✅ Set status based on generateChallan checkbox
+        status: newOrder.generateChallan ? 'Confirmed' : 'New Order',
         paymentStatus: 'Not Billed',
         
         // Accounting Flags
@@ -1711,6 +2057,24 @@ export default function GoldSmithOrders() {
       // Create the order document
       const orderRef = await addDoc(collection(db, ordersPath), orderData);
       const orderId = orderRef.id;
+
+      // ✅ NEW: Auto-generate challan if checkbox was checked
+      if (newOrder.generateChallan && newOrder.manufacturerId && newOrder.goldBankId) {
+        try {
+          await generateChallanForOrder({
+            id: orderId,
+            ...orderData,
+            productPureGold, // Pass calculated pure gold amount
+            manufacturerId: newOrder.manufacturerId,
+            goldBankId: newOrder.goldBankId
+          });
+          
+          console.log('✅ Challan auto-generated for order:', orderId);
+        } catch (challanError) {
+          console.error('❌ Error auto-generating challan:', challanError);
+          alert(`Order created but challan generation failed:\n${challanError.message}\nYou can generate challan manually later.`);
+        }
+      }
 
       // Update product name cache if new product
       if (newOrder.productName && !productNameCache.includes(newOrder.productName)) {
@@ -1742,12 +2106,18 @@ export default function GoldSmithOrders() {
         goldPricePerOunce: '',
         goldPricePerGram: '',
         manufacturerId: '',
+        goldBankId: '',
+        generateChallan: false,
         expectedDeliveryDate: '',
         notes: ''
       });
       setProductNameSuggestions([]);
 
-      alert(`Order created successfully!\nOrder Number: ${orderNumber}\nTotal Pure Gold Owed: ${totalPureGoldOwed.toFixed(3)}g`);
+      const successMessage = newOrder.generateChallan 
+        ? `Order created and challan generated!\nOrder Number: ${orderNumber}\nStatus: Confirmed\nTotal Pure Gold Owed: ${totalPureGoldOwed.toFixed(3)}g`
+        : `Order created successfully!\nOrder Number: ${orderNumber}\nStatus: New Order\nTotal Pure Gold Owed: ${totalPureGoldOwed.toFixed(3)}g`;
+      
+      alert(successMessage);
 
     } catch (error) {
       console.error('Error creating order:', error);
@@ -1759,30 +2129,56 @@ export default function GoldSmithOrders() {
   const handlePurchaseEntrySubmit = async () => {
     try {
       if (!purchaseEntryOrder) {
-        alert('No order selected for purchase entry');
+        alert('No order selected for finished product receipt');
         return;
       }
 
       // Validation
       if (!purchaseEntryData.weightReceived || parseFloat(purchaseEntryData.weightReceived) <= 0) {
-        alert('Please enter the weight received');
+        alert('Please enter the finished product weight received');
         return;
       }
-      if (!purchaseEntryData.manufacturingCost || parseFloat(purchaseEntryData.manufacturingCost) <= 0) {
-        alert('Please enter the manufacturing cost');
+      if (!purchaseEntryData.karat) {
+        alert('Please select the karat/purity of the finished product');
+        return;
+      }
+      if (!purchaseEntryData.manufacturingCostPerGram || parseFloat(purchaseEntryData.manufacturingCostPerGram) <= 0) {
+        alert('Please enter the making charges per gram');
         return;
       }
 
-      const weightReceived = parseFloat(purchaseEntryData.weightReceived);
-      const manufacturingCost = parseFloat(purchaseEntryData.manufacturingCost);
-      const gstAmount = parseFloat(purchaseEntryData.gstAmount) || 0;
-      const totalPurchaseCost = manufacturingCost + gstAmount;
+      const finishedWeight = parseFloat(purchaseEntryData.weightReceived);
+      const karat = purchaseEntryData.karat;
+      const makingChargesPerGram = parseFloat(purchaseEntryData.manufacturingCostPerGram);
 
-      // Calculate commission (Profit = Customer Price - Manufacturing Cost)
-      const commissionAmount = purchaseEntryOrder.total - totalPurchaseCost;
+      // Calculate pure gold factor
+      const pureGoldFactor = karat === '24k' ? 1.0 :
+                           karat === '22k' ? 0.9167 :
+                           karat === '21k' ? 0.875 :
+                           karat === '18k' ? 0.75 :
+                           karat === '14k' ? 0.5833 : 1.0;
 
-      // Create purchase entry document
-      const purchaseEntry = {
+      // Calculate pure gold received
+      const pureGoldReceived = finishedWeight * pureGoldFactor;
+
+      // Calculate total making charges
+      const totalMakingCharges = finishedWeight * makingChargesPerGram;
+
+      // Calculate commission (customer price - making charges)
+      const commissionAmount = (purchaseEntryOrder.total || 0) - totalMakingCharges;
+
+      console.log('Finished Product Receipt Calculations:', {
+        finishedWeight,
+        karat,
+        pureGoldFactor,
+        pureGoldReceived,
+        makingChargesPerGram,
+        totalMakingCharges,
+        commissionAmount
+      });
+
+      // Create finished product receipt document
+      const finishedProductReceipt = {
         orderId: purchaseEntryOrder.id,
         orderNumber: purchaseEntryOrder.orderNumber || purchaseEntryOrder.id,
         customerId: purchaseEntryOrder.customerId,
@@ -1791,92 +2187,183 @@ export default function GoldSmithOrders() {
         manufacturerName: getManufacturerName(purchaseEntryOrder.manufacturerId),
         categoryId: purchaseEntryOrder.categoryId,
         productName: purchaseEntryOrder.productName,
-        karat: purchaseEntryOrder.karat,
-        weightOrdered: purchaseEntryOrder.weight,
-        weightReceived,
-        customerPrice: purchaseEntryOrder.total,
-        manufacturingCost,
-        gstAmount,
-        totalPurchaseCost,
-        commissionAmount,
-        paymentType: purchaseEntryData.paymentType,
-        creditDays: purchaseEntryData.paymentType === 'credit' ? parseInt(purchaseEntryData.creditDays) || 0 : 0,
-        dueDate: purchaseEntryData.paymentType === 'credit' 
-          ? new Date(Date.now() + (parseInt(purchaseEntryData.creditDays) || 0) * 24 * 60 * 60 * 1000)
-          : null,
+        karat: karat,
+        finishedWeight: finishedWeight,
+        pureGoldFactor: pureGoldFactor,
+        pureGoldReceived: pureGoldReceived,
+        makingChargesPerGram: makingChargesPerGram,
+        totalMakingCharges: totalMakingCharges,
+        commissionAmount: commissionAmount,
+        paymentStatus: purchaseEntryData.paymentType,
         notes: purchaseEntryData.notes,
         createdAt: serverTimestamp(),
-        createdBy: 'admin', // Replace with actual user
-        type: 'order_pickup'
+        createdBy: 'admin',
+        type: 'finished_product_receipt'
       };
 
-      // Save purchase entry
-      await addDoc(collection(db, `companies/${companyId}/purchaseEntries`), purchaseEntry);
+      // Save finished product receipt
+      await addDoc(collection(db, `companies/${companyId}/finishedProductReceipts`), finishedProductReceipt);
 
       // Update order document
       const orderRef = doc(db, ordersPath, purchaseEntryOrder.id);
       await updateDoc(orderRef, {
-        purchaseEntryCompleted: true,
-        purchaseEntryDate: serverTimestamp(),
-        weightReceived,
-        manufacturingCost,
-        commissionAmount,
-        paymentTypeToManufacturer: purchaseEntryData.paymentType,
+        finishedProductReceived: true,
+        finishedProductReceiptDate: serverTimestamp(),
+        finishedWeight: finishedWeight,
+        karatReceived: karat,
+        pureGoldReceived: pureGoldReceived,
+        totalMakingCharges: totalMakingCharges,
+        commissionAmount: commissionAmount,
+        paymentStatusToManufacturer: purchaseEntryData.paymentType,
+        status: 'Picked Up',
         inventoryUpdated: true,
         commissionCalculated: true
       });
 
-      // Add inventory for the purchased metal
-      const inventoryService = new InventoryService(companyId);
-      await inventoryService.addInventoryFromOrderPickup(
-        purchaseEntryOrder.id,
-        {
-          ...purchaseEntryOrder,
-          weightReceived,
-          manufacturingCost
+      // Update manufacturer gold in transit (reduce by pure gold received)
+      if (purchaseEntryOrder.manufacturerId) {
+        const manufacturerRef = doc(db, manufacturersPath, purchaseEntryOrder.manufacturerId);
+        const manufacturerSnap = await getDoc(manufacturerRef);
+        if (manufacturerSnap.exists()) {
+          const currentGoldInTransit = manufacturerSnap.data().goldInTransit || 0;
+          const newGoldInTransit = Math.max(0, currentGoldInTransit - pureGoldReceived);
+          await updateDoc(manufacturerRef, {
+            goldInTransit: newGoldInTransit,
+            lastGoldReturn: serverTimestamp()
+          });
         }
-      );
+      }
 
-      // Create accounting entries
+      // Create accounting entries using the new pure gold system
       const accountingEngine = new AccountingEngine(companyId);
-      
-      // Debit: Purchases Account (Asset)
-      // Credit: Cash/Manufacturer (if credit, creates payable)
-      await accountingEngine.recordPurchaseEntry({
-        orderId: purchaseEntryOrder.id,
-        manufacturerId: purchaseEntryOrder.manufacturerId,
-        amount: totalPurchaseCost,
-        paymentType: purchaseEntryData.paymentType,
-        description: `Purchase entry for order ${purchaseEntryOrder.id} - ${purchaseEntryOrder.productName}`,
-        date: new Date()
-      });
+
+      // Journal Entry for finished product receipt (per BRD Section 3.3)
+      // Debit: Gold in Transit (1102) - reduce by pure gold amount
+      // Debit: Making Charges Expense (5101) - record manufacturing cost in USD
+      // Credit: Finished Goods Inventory (1103) - increase by pure gold amount
+      // Credit: Manufacturer Payables (2101) - record payable if not paid immediately
+
+      const journalEntryData = {
+        description: `Finished product receipt for order ${purchaseEntryOrder.id} - ${purchaseEntryOrder.productName}`,
+        date: new Date(),
+        referenceType: 'finished_product_receipt',
+        referenceId: purchaseEntryOrder.id,
+        entries: [
+          // Debit: Reduce Gold in Transit
+          {
+            accountCode: 'MAIN-1102', // Gold in Transit to Manufacturers
+            accountName: 'Gold in Transit to Manufacturers',
+            debit: pureGoldReceived, // Pure gold amount
+            credit: 0,
+            description: `Reduce gold in transit by ${pureGoldReceived.toFixed(3)}g pure gold`
+          },
+          // Debit: Making Charges Expense
+          {
+            accountCode: 'MAIN-5101', // Making Charges Expense
+            accountName: 'Making Charges Expense',
+            debit: 0,
+            credit: totalMakingCharges, // USD amount
+            description: `Making charges expense: $${totalMakingCharges.toFixed(2)}`
+          },
+          // Credit: Finished Goods Inventory
+          {
+            accountCode: 'MAIN-1103', // Finished Goods Inventory
+            accountName: 'Finished Goods Inventory',
+            debit: 0,
+            credit: pureGoldReceived, // Pure gold amount
+            description: `Add finished goods inventory: ${pureGoldReceived.toFixed(3)}g pure gold`
+          },
+          // Credit: Manufacturer Payables (only if not paid immediately)
+          ...(purchaseEntryData.paymentType === 'credit' ? [{
+            accountCode: 'MAIN-2101', // Manufacturer Payables - Making Charges
+            accountName: 'Manufacturer Payables - Making Charges',
+            debit: totalMakingCharges, // USD amount
+            credit: 0,
+            description: `Manufacturer payable: $${totalMakingCharges.toFixed(2)}`
+          }] : [])
+        ]
+      };
+
+      // Create the journal entry
+      await createJournalEntry(companyId, journalEntryData);
+
+      // If paid immediately, also record the cash payment
+      if (purchaseEntryData.paymentType === 'paid') {
+        const paymentEntryData = {
+          description: `Payment to manufacturer for order ${purchaseEntryOrder.id}`,
+          date: new Date(),
+          referenceType: 'manufacturer_payment',
+          referenceId: purchaseEntryOrder.id,
+          entries: [
+            // Debit: Manufacturer Payables
+            {
+              accountCode: 'MAIN-2101',
+              accountName: 'Manufacturer Payables - Making Charges',
+              debit: totalMakingCharges,
+              credit: 0,
+              description: `Pay manufacturer: $${totalMakingCharges.toFixed(2)}`
+            },
+            // Credit: Cash/Bank
+            {
+              accountCode: 'MAIN-1201', // Cash/Bank
+              accountName: 'Cash/Bank',
+              debit: 0,
+              credit: totalMakingCharges,
+              description: `Cash payment: $${totalMakingCharges.toFixed(2)}`
+            }
+          ]
+        };
+        await createJournalEntry(companyId, paymentEntryData);
+      }
 
       // Record commission income
-      // Debit: Purchases/Cost of Goods Account
-      // Credit: Commission Income
-      await accountingEngine.recordCommissionIncome({
-        orderId: purchaseEntryOrder.id,
-        amount: commissionAmount,
-        description: `Commission on order ${purchaseEntryOrder.id}`,
-        date: new Date()
-      });
+      if (commissionAmount > 0) {
+        const commissionEntryData = {
+          description: `Commission income from order ${purchaseEntryOrder.id}`,
+          date: new Date(),
+          referenceType: 'commission_income',
+          referenceId: purchaseEntryOrder.id,
+          entries: [
+            // Debit: Commission Receivable (or Cash if received)
+            {
+              accountCode: 'MAIN-1301', // Customer Receivables (since commission is part of customer payment)
+              accountName: 'Customer Receivables',
+              debit: commissionAmount,
+              credit: 0,
+              description: `Commission receivable: $${commissionAmount.toFixed(2)}`
+            },
+            // Credit: Commission Income
+            {
+              accountCode: 'MAIN-4101', // Commission Income
+              accountName: 'Commission Income',
+              debit: 0,
+              credit: commissionAmount,
+              description: `Commission income: $${commissionAmount.toFixed(2)}`
+            }
+          ]
+        };
+        await createJournalEntry(companyId, commissionEntryData);
+      }
 
       // Close dialog and reset
       setShowPurchaseEntryDialog(false);
       setPurchaseEntryOrder(null);
       setPurchaseEntryData({
         weightReceived: '',
-        manufacturingCost: '',
-        gstAmount: '',
-        paymentType: 'cash',
-        creditDays: 0,
+        karat: '24k',
+        manufacturingCostPerGram: '',
+        paymentType: 'paid',
         notes: ''
       });
 
-      alert(`Purchase entry completed successfully!\nCommission Earned: ₹${commissionAmount.toFixed(2)}`);
+      // Refresh orders list
+      fetchOrders();
+
+      alert('Finished product received successfully! Accounting entries created.');
+
     } catch (error) {
-      console.error('Error submitting purchase entry:', error);
-      alert('Error submitting purchase entry. Please try again.');
+      console.error('Finished product receipt error:', error);
+      alert('Error processing finished product receipt: ' + error.message);
     }
   };
 
@@ -2048,7 +2535,9 @@ export default function GoldSmithOrders() {
               >
                 <option value="">All Statuses</option>
                 {ORDER_STATUSES.map(status => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
                 ))}
               </select>
             </div>
@@ -2084,14 +2573,6 @@ export default function GoldSmithOrders() {
               >
                 {sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
-              {selectedOrders.length > 0 && (
-                <button
-                  onClick={() => setShowBulkUpdateDialog(true)}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
-                >
-                  Bulk Update ({selectedOrders.length})
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -2102,14 +2583,6 @@ export default function GoldSmithOrders() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <input
-                      type="checkbox"
-                      checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Order ID
                   </th>
@@ -2136,14 +2609,6 @@ export default function GoldSmithOrders() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedOrders.includes(order.id)}
-                        onChange={(e) => handleOrderSelect(order.id, e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {order.id.slice(-8)}
                     </td>
@@ -2159,30 +2624,19 @@ export default function GoldSmithOrders() {
                         <div className="text-gray-500">{order.productName}</div>
                       </div>
                     </td>
-                    {/* ✅ TASK 6.4: Status Workflow Column */}
+                    {/* ✅ Status Dropdown Column - Simple, unrestricted */}
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="flex flex-col gap-2">
-                        {/* Current Status Badge */}
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full text-center ${ORDER_STATUS_FLOW[order.status]?.color || 'bg-gray-100 text-gray-800'}`}>
-                          {ORDER_STATUS_FLOW[order.status]?.label || order.status}
-                        </span>
-                        
-                        {/* Next Status Actions */}
-                        {ORDER_STATUS_FLOW[order.status]?.nextStatuses.length > 0 && (
-                          <div className="flex flex-col gap-1">
-                            {ORDER_STATUS_FLOW[order.status].nextStatuses.map(nextStatus => (
-                              <button
-                                key={nextStatus}
-                                onClick={() => handleStatusChange(order, nextStatus)}
-                                className="px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded border border-blue-300 transition-colors"
-                                title={`Change to ${ORDER_STATUS_FLOW[nextStatus]?.label}`}
-                              >
-                                → {ORDER_STATUS_FLOW[nextStatus]?.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleStatusChangeFromDropdown(order, e.target.value)}
+                        className={`px-3 py-1 text-xs font-medium rounded-lg border-2 focus:ring-2 focus:ring-blue-500 ${ORDER_STATUS_FLOW[order.status]?.color || 'bg-gray-100 text-gray-800 border-gray-300'}`}
+                      >
+                        {ORDER_STATUSES.map(status => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -2200,28 +2654,19 @@ export default function GoldSmithOrders() {
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+                          onClick={() => router.push(`/admin/orders/${order.id}`)}
                           className="text-blue-600 hover:text-blue-900"
-                          title="View Details"
+                          title="View Order Details"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button 
+                        <button
+                          onClick={() => router.push(`/admin/orders/${order.id}/edit`)}
                           className="text-green-600 hover:text-green-900"
                           title="Edit Order"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
-                        {/* ✅ TASK 7.1: Issue Challan Button */}
-                        {order.status === 'Confirmed' && order.manufacturerId && !order.challanNumber && (
-                          <button
-                            onClick={() => handleIssueChallan(order)}
-                            className="text-yellow-600 hover:text-yellow-900"
-                            title="Issue Gold Withdrawal Challan"
-                          >
-                            <Truck className="w-4 h-4" />
-                          </button>
-                        )}
                         {order.challanNumber && (
                           <span className="text-xs text-yellow-700 font-semibold" title={`Challan: ${order.challanNumber}`}>
                             📄 {order.challanNumber}
@@ -2539,17 +2984,20 @@ export default function GoldSmithOrders() {
                 </div>
 
                 {/* Making Charge Input */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Making Charge Rate (USD per gram) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newOrder.makingChargeRateUSD}
-                    onChange={(e) => setNewOrder({...newOrder, makingChargeRateUSD: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-                    placeholder="1.20"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Commission per gram of finished product</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Making Charge Rate (USD per gram) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newOrder.makingChargeRateUSD}
+                      onChange={(e) => setNewOrder({...newOrder, makingChargeRateUSD: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
+                      placeholder="1.20"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Commission per gram of finished product</p>
+                  </div>
+                  <div></div>
                 </div>
 
                 {/* Pure Gold Calculation Display */}
@@ -2668,7 +3116,7 @@ export default function GoldSmithOrders() {
                               </div>
                             </div>
                             <p className="text-xs text-blue-600 mt-2 italic">
-                              Challan will be issued automatically when order status changes to "Challan Issued"
+                              Challan will be issued automatically when order status changes to &quot;Challan Issued&quot;
                             </p>
                           </div>
                         </div>
@@ -2702,6 +3150,52 @@ export default function GoldSmithOrders() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Gold Bank (Sharaf) <span className="text-gray-500 text-xs">(For Challan)</span>
+                    </label>
+                    <select
+                      value={newOrder.goldBankId}
+                      onChange={(e) => setNewOrder({...newOrder, goldBankId: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select Gold Bank (Optional)</option>
+                      {goldBanks.map(goldBank => (
+                        <option key={goldBank.id} value={goldBank.id}>
+                          {goldBank.accountName} ({goldBank.accountCode})
+                          {goldBank.currentBalanceGold > 0 ? ` - ${goldBank.currentBalanceGold.toFixed(3)}g` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Select gold bank for challan generation</p>
+                  </div>
+                </div>
+
+                {/* Generate Challan Checkbox */}
+                {newOrder.manufacturerId && newOrder.goldBankId && (
+                  <div className="bg-blue-50 border border-blue-300 rounded-lg p-4">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newOrder.generateChallan}
+                        onChange={(e) => setNewOrder({...newOrder, generateChallan: e.target.checked})}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="font-semibold text-gray-800">Generate Challan & Confirm Order</span>
+                        <p className="text-xs text-gray-600 mt-1">
+                          ✅ Checked: Order will be <strong>Confirmed</strong> immediately and challan will be generated with accounting entries
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          ❌ Unchecked: Order will be saved as <strong>New Order</strong> (no challan, no accounting)
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {/* Expected Delivery Date */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Expected Delivery Date
                     </label>
                     <input
@@ -2712,6 +3206,7 @@ export default function GoldSmithOrders() {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                  <div></div>
                 </div>
 
                 {/* Notes */}
@@ -2745,6 +3240,8 @@ export default function GoldSmithOrders() {
                         goldPricePerOunce: '',
                         goldPricePerGram: '',
                         manufacturerId: '',
+                        goldBankId: '',
+                        generateChallan: false,
                         expectedDeliveryDate: '',
                         notes: ''
                       });
@@ -2878,69 +3375,11 @@ export default function GoldSmithOrders() {
           </div>
         )}
 
-        {/* Bulk Update Dialog */}
-        {showBulkUpdateDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-orange-600">Bulk Status Update</h3>
-                <button
-                  onClick={() => setShowBulkUpdateDialog(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-4 mb-6">
-                <div>
-                  <p className="text-sm text-gray-600 mb-2">
-                    Update {selectedOrders.length} selected order{selectedOrders.length !== 1 ? 's' : ''} to:
-                  </p>
-                  <select
-                    value={bulkUpdateStatus}
-                    onChange={(e) => setBulkUpdateStatus(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  >
-                    <option value="">Select Status</option>
-                    {ORDER_STATUSES.map(status => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="bg-orange-50 p-3 rounded-lg">
-                  <p className="text-sm text-orange-800">
-                    <strong>Warning:</strong> This action will update all selected orders to the chosen status.
-                    Some status changes may trigger additional actions like commission calculations or inventory updates.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowBulkUpdateDialog(false)}
-                  className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBulkUpdateStatus}
-                  disabled={!bulkUpdateStatus}
-                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  Update Orders
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Purchase Entry Dialog */}
         {showPurchaseEntryDialog && purchaseEntryOrder && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-              <h2 className="text-2xl font-bold mb-4 text-purple-800">Purchase Entry - Order Pickup</h2>
+            <div className="bg-white p-6 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <h2 className="text-2xl font-bold mb-4 text-purple-800">Receive Finished Product from Manufacturer</h2>
               
               {/* Order Summary */}
               <div className="bg-purple-50 p-4 rounded-lg mb-6 border border-purple-200">
@@ -2948,7 +3387,7 @@ export default function GoldSmithOrders() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-gray-600">Order ID:</span>
-                    <span className="ml-2 font-semibold">{purchaseEntryOrder.id}</span>
+                    <span className="ml-2 font-semibold">{purchaseEntryOrder.id.slice(-8)}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Customer:</span>
@@ -2967,23 +3406,27 @@ export default function GoldSmithOrders() {
                     <span className="ml-2 font-semibold">{purchaseEntryOrder.weight}g</span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Customer Price:</span>
-                    <span className="ml-2 font-semibold text-green-600">₹{purchaseEntryOrder.total?.toFixed(2)}</span>
+                    <span className="text-gray-600">Pure Gold Ordered:</span>
+                    <span className="ml-2 font-semibold text-yellow-600">{formatGold(purchaseEntryOrder.pureGoldRequired)}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Manufacturer:</span>
                     <span className="ml-2 font-semibold">{getManufacturerName(purchaseEntryOrder.manufacturerId)}</span>
                   </div>
+                  <div>
+                    <span className="text-gray-600">Gold in Transit:</span>
+                    <span className="ml-2 font-semibold text-orange-600">{formatGold(purchaseEntryOrder.goldInTransit || purchaseEntryOrder.pureGoldRequired)}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Purchase Entry Form */}
+              {/* Finished Product Entry Form */}
               <div className="space-y-4 mb-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Weight Received */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Weight Received (grams) *
+                      Finished Product Weight (grams) *
                     </label>
                     <input
                       type="number"
@@ -2991,86 +3434,70 @@ export default function GoldSmithOrders() {
                       value={purchaseEntryData.weightReceived}
                       onChange={(e) => setPurchaseEntryData({...purchaseEntryData, weightReceived: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Enter weight received"
+                      placeholder="Enter finished product weight"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Actual weight received (may differ slightly due to wastage)
+                      Weight of finished jewelry received from manufacturer
                     </p>
                   </div>
 
-                  {/* Manufacturing Cost */}
+                  {/* Karat/Purity */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Manufacturing Cost (₹) *
+                      Karat/Purity *
+                    </label>
+                    <select
+                      value={purchaseEntryData.karat || purchaseEntryOrder.karat}
+                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, karat: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="24k">24K (100% Pure Gold)</option>
+                      <option value="22k">22K (91.67% Pure Gold)</option>
+                      <option value="21k">21K (87.5% Pure Gold)</option>
+                      <option value="18k">18K (75% Pure Gold)</option>
+                      <option value="14k">14K (58.33% Pure Gold)</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Purity of the finished jewelry
+                    </p>
+                  </div>
+
+                  {/* Manufacturing Cost per Gram */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Making Charges per Gram (USD) *
                     </label>
                     <input
                       type="number"
                       step="0.01"
-                      value={purchaseEntryData.manufacturingCost}
-                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, manufacturingCost: e.target.value})}
+                      value={purchaseEntryData.manufacturingCostPerGram}
+                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, manufacturingCostPerGram: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Enter manufacturing cost"
+                      placeholder="Enter making charges per gram"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Amount charged by manufacturer (excluding GST)
-                    </p>
-                  </div>
-
-                  {/* GST Amount */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      GST Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={purchaseEntryData.gstAmount}
-                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, gstAmount: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Enter GST amount"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      GST charged by manufacturer (optional)
+                      Cost charged by manufacturer per gram of finished jewelry
                     </p>
                   </div>
 
                   {/* Payment Type */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Payment Type *
+                      Payment Status *
                     </label>
                     <select
                       value={purchaseEntryData.paymentType}
                       onChange={(e) => setPurchaseEntryData({...purchaseEntryData, paymentType: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     >
-                      <option value="cash">Cash Payment</option>
-                      <option value="credit">Credit (Pay Later)</option>
+                      <option value="paid">Paid to Manufacturer</option>
+                      <option value="credit">Pay Later (Create Payable)</option>
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      How did you pay the manufacturer?
+                      Have you paid the manufacturer yet?
                     </p>
                   </div>
                 </div>
-
-                {/* Credit Days (shown only if payment type is credit) */}
-                {purchaseEntryData.paymentType === 'credit' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Credit Days
-                    </label>
-                    <input
-                      type="number"
-                      value={purchaseEntryData.creditDays}
-                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, creditDays: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Number of days to pay"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Payment due in how many days?
-                    </p>
-                  </div>
-                )}
 
                 {/* Notes */}
                 <div>
@@ -3082,41 +3509,89 @@ export default function GoldSmithOrders() {
                     onChange={(e) => setPurchaseEntryData({...purchaseEntryData, notes: e.target.value})}
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Any additional notes about the purchase..."
+                    placeholder="Any notes about the finished product..."
                   />
                 </div>
               </div>
 
-              {/* Commission Calculation Preview */}
-              {purchaseEntryData.manufacturingCost && (
+              {/* Pure Gold & Cost Calculation Preview */}
+              {purchaseEntryData.weightReceived && purchaseEntryData.karat && purchaseEntryData.manufacturingCostPerGram && (
                 <div className="bg-green-50 p-4 rounded-lg mb-6 border border-green-200">
-                  <h3 className="font-semibold text-green-900 mb-3">Commission Calculation</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-700">Customer Price:</span>
-                      <span className="font-semibold">₹{purchaseEntryOrder.total?.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-700">Manufacturing Cost:</span>
-                      <span className="font-semibold">₹{parseFloat(purchaseEntryData.manufacturingCost).toFixed(2)}</span>
-                    </div>
-                    {purchaseEntryData.gstAmount && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">GST Amount:</span>
-                        <span className="font-semibold">₹{parseFloat(purchaseEntryData.gstAmount).toFixed(2)}</span>
+                  <h3 className="font-semibold text-green-900 mb-3">Pure Gold & Cost Calculation</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Pure Gold Calculations */}
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-green-800">Pure Gold Calculations</h4>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-700">Finished Product Weight:</span>
+                          <span className="font-semibold">{parseFloat(purchaseEntryData.weightReceived).toFixed(3)}g</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-700">Karat/Purity:</span>
+                          <span className="font-semibold">{purchaseEntryData.karat}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-700">Pure Gold Factor:</span>
+                          <span className="font-semibold">
+                            {(() => {
+                              const karat = purchaseEntryData.karat;
+                              const factor = karat === '24k' ? 1.0 :
+                                           karat === '22k' ? 0.9167 :
+                                           karat === '21k' ? 0.875 :
+                                           karat === '18k' ? 0.75 :
+                                           karat === '14k' ? 0.5833 : 1.0;
+                              return factor.toFixed(4);
+                            })()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t border-green-300">
+                          <span className="text-gray-700 font-semibold">Pure Gold Received:</span>
+                          <span className="font-bold text-yellow-600">
+                            {(() => {
+                              const weight = parseFloat(purchaseEntryData.weightReceived);
+                              const karat = purchaseEntryData.karat;
+                              const factor = karat === '24k' ? 1.0 :
+                                           karat === '22k' ? 0.9167 :
+                                           karat === '21k' ? 0.875 :
+                                           karat === '18k' ? 0.75 :
+                                           karat === '14k' ? 0.5833 : 1.0;
+                              return formatGold(weight * factor);
+                            })()}
+                          </span>
+                        </div>
                       </div>
-                    )}
-                    <div className="flex justify-between pt-2 border-t border-green-300">
-                      <span className="text-gray-700 font-semibold">Total Purchase Cost:</span>
-                      <span className="font-semibold">
-                        ₹{(parseFloat(purchaseEntryData.manufacturingCost) + (parseFloat(purchaseEntryData.gstAmount) || 0)).toFixed(2)}
-                      </span>
                     </div>
-                    <div className="flex justify-between pt-2 border-t-2 border-green-500">
-                      <span className="text-green-900 font-bold text-lg">Commission Earned:</span>
-                      <span className="text-green-600 font-bold text-lg">
-                        ₹{(purchaseEntryOrder.total - (parseFloat(purchaseEntryData.manufacturingCost) + (parseFloat(purchaseEntryData.gstAmount) || 0))).toFixed(2)}
-                      </span>
+
+                    {/* Cost Calculations */}
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-green-800">Manufacturing Cost</h4>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-700">Making Charges per Gram:</span>
+                          <span className="font-semibold">${parseFloat(purchaseEntryData.manufacturingCostPerGram).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-700">Finished Product Weight:</span>
+                          <span className="font-semibold">{parseFloat(purchaseEntryData.weightReceived).toFixed(3)}g</span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t border-green-300">
+                          <span className="text-gray-700 font-semibold">Total Making Charges:</span>
+                          <span className="font-bold text-blue-600">
+                            ${(parseFloat(purchaseEntryData.weightReceived) * parseFloat(purchaseEntryData.manufacturingCostPerGram)).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t-2 border-green-500">
+                          <span className="text-green-900 font-bold">Commission Earned:</span>
+                          <span className="text-green-600 font-bold">
+                            ${(() => {
+                              const customerPrice = purchaseEntryOrder.total || 0;
+                              const makingCharges = parseFloat(purchaseEntryData.weightReceived) * parseFloat(purchaseEntryData.manufacturingCostPerGram);
+                              return (customerPrice - makingCharges).toFixed(2);
+                            })()}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3137,12 +3612,12 @@ export default function GoldSmithOrders() {
                   onClick={handlePurchaseEntrySubmit}
                   className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold"
                 >
-                  Complete Purchase Entry
+                  Receive Finished Product
                 </button>
               </div>
 
               <p className="text-xs text-gray-500 mt-4 text-center">
-                This will record the purchase, calculate commission, update inventory, and create accounting entries.
+                This will update inventory, record making charges, create manufacturer payable, and update accounting entries.
               </p>
             </div>
           </div>
@@ -3371,14 +3846,30 @@ export default function GoldSmithOrders() {
 
         {/* ✅ TASK 7.1: Challan Success Dialog */}
         {showChallanDialog && challanOrderData && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg w-full max-w-2xl">
-              <h2 className="text-2xl font-bold mb-4 text-yellow-800">
-                ✓ Gold Withdrawal Challan Issued
-              </h2>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto my-8">
+              <div className="sticky top-0 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-t-lg z-10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold">
+                      ✓ Gold Withdrawal Challan Issued
+                    </h2>
+                    <p className="text-yellow-100 text-sm mt-1">Challan generated successfully</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowChallanDialog(false);
+                      setChallanOrderData(null);
+                    }}
+                    className="text-white hover:text-yellow-100 text-2xl"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
 
-              {/* Challan Details */}
-              <div className="bg-yellow-50 p-4 rounded-lg mb-6 border border-yellow-200">
+              <div className="p-6 space-y-6">{/* Challan Details */}
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
                 <h3 className="font-semibold text-yellow-900 mb-3">Challan Details</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -3414,7 +3905,7 @@ export default function GoldSmithOrders() {
               </div>
 
               {/* Accounting Entry Summary */}
-              <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-200">
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <h3 className="font-semibold text-blue-900 mb-3">Accounting Entry Created</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -3427,20 +3918,20 @@ export default function GoldSmithOrders() {
                   </div>
                   <div className="pt-2 border-t border-blue-200">
                     <span className="text-xs text-gray-600">
-                      ℹ️ Gold has been transferred from Sharaf bank to manufacturer's custody
+                      ℹ️ Gold has been transferred from Sharaf bank to manufacturer&apos;s custody
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Next Steps */}
-              <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <h3 className="font-semibold text-gray-800 mb-2">Next Steps:</h3>
                 <ul className="text-sm text-gray-700 space-y-1">
                   <li>• Manufacturer will present challan to Gold Bank (Sharaf)</li>
                   <li>• Sharaf will verify and release {challanOrderData.pureGoldAmount?.toFixed(3)}g pure gold</li>
                   <li>• Manufacturer will produce the ordered jewelry</li>
-                  <li>• Order status updated to "Challan Issued"</li>
+                  <li>• Order status updated to &quot;Confirmed&quot;</li>
                 </ul>
               </div>
 
@@ -3451,7 +3942,7 @@ export default function GoldSmithOrders() {
                     setShowChallanDialog(false);
                     setChallanOrderData(null);
                   }}
-                  className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
                 >
                   Close
                 </button>
@@ -3471,16 +3962,17 @@ export default function GoldSmithOrders() {
                       challanOrderData.customerData
                     );
                   }}
-                  className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-semibold flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-semibold flex items-center justify-center gap-2"
                 >
                   <Printer className="w-4 h-4" />
                   Download Challan PDF
                 </button>
               </div>
 
-              <p className="text-xs text-gray-500 mt-4 text-center">
+              <p className="text-xs text-gray-500 text-center">
                 Challan document contains authorization for gold withdrawal from Sharaf
               </p>
+              </div>
             </div>
           </div>
         )}
@@ -3584,7 +4076,7 @@ export default function GoldSmithOrders() {
                   <li>• Customer owes {invoiceOrderData.totalPureGold?.toFixed(3)}g pure gold</li>
                   <li>• Payment can be made in physical gold or cash (converted at current price)</li>
                   <li>• Due in 15 days from invoice date</li>
-                  <li>• Order status updated to "Customer Billed"</li>
+                  <li>• Order status updated to &quot;Customer Billed&quot;</li>
                 </ul>
               </div>
 
@@ -4003,7 +4495,7 @@ export default function GoldSmithOrders() {
                     )}
                     <li>Physical gold deposited to Sharaf Gold Bank</li>
                     {paymentSuccessData.isFullPayment && (
-                      <li>Order status updated to "Payment Received"</li>
+                      <li>Order status updated to &quot;Payment Received&quot;</li>
                     )}
                   </ul>
                 </div>
@@ -4212,368 +4704,156 @@ export default function GoldSmithOrders() {
           </div>
         )}
 
-        {/* ✅ TASK 6.4: Status Change Confirmation Dialog */}
-        {showStatusChangeDialog && statusChangeData && (
+        {/* ✅ Challan Issue Popup for Challan Issued Status */}
+        {showChallanIssuePopup && challanIssueData.order && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
-              {/* Header */}
-              <div className="bg-blue-600 text-white p-6 rounded-t-lg">
-                <div className="flex items-center gap-3">
-                  <div className="bg-white bg-opacity-20 p-3 rounded-full">
-                    <FileText className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold">Confirm Status Change</h3>
-                    <p className="text-blue-100 text-sm">
-                      Order #{statusChangeData.order.id.slice(-8)} - {statusChangeData.order.customerName}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6">
-                {/* Status Transition */}
-                <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-3">Status Transition</h4>
-                  
-                  <div className="flex items-center justify-center gap-4">
-                    <div className="text-center">
-                      <span className={`inline-block px-3 py-2 text-sm font-medium rounded-lg ${ORDER_STATUS_FLOW[statusChangeData.currentStatus]?.color || 'bg-gray-100 text-gray-800'}`}>
-                        {ORDER_STATUS_FLOW[statusChangeData.currentStatus]?.label}
-                      </span>
-                      <p className="text-xs text-gray-600 mt-2">Current Status</p>
-                    </div>
-                    
-                    <div className="text-3xl text-blue-600">→</div>
-                    
-                    <div className="text-center">
-                      <span className={`inline-block px-3 py-2 text-sm font-medium rounded-lg ${statusChangeData.statusConfig?.color || 'bg-gray-100 text-gray-800'}`}>
-                        {statusChangeData.statusConfig?.label}
-                      </span>
-                      <p className="text-xs text-gray-600 mt-2">New Status</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Status Information */}
-                <div className="mb-6 space-y-4">
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <h5 className="font-semibold text-blue-900 mb-2">Description</h5>
-                    <p className="text-sm text-blue-800">
-                      {statusChangeData.statusConfig?.description}
-                    </p>
-                  </div>
-
-                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                    <h5 className="font-semibold text-yellow-900 mb-2">Accounting Impact</h5>
-                    <p className="text-sm text-yellow-800">
-                      {statusChangeData.statusConfig?.accountingImpact}
-                    </p>
-                  </div>
-
-                  {statusChangeData.statusConfig?.allowedActions?.length > 0 && (
-                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                      <h5 className="font-semibold text-green-900 mb-2">Available Actions After Status Change</h5>
-                      <ul className="text-sm text-green-800 list-disc list-inside">
-                        {statusChangeData.statusConfig.allowedActions.map(action => (
-                          <li key={action}>
-                            {action === 'issueChallan' && 'Issue Gold Withdrawal Challan'}
-                            {action === 'generateInvoice' && 'Generate Customer Invoice'}
-                            {action === 'recordPayment' && 'Record Customer Payment'}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-
-                {/* Notes Field */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Notes (Optional)
-                  </label>
-                  <textarea
-                    value={statusChangeNotes}
-                    onChange={(e) => setStatusChangeNotes(e.target.value)}
-                    placeholder="Add any notes about this status change..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={3}
-                  />
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => {
-                      setShowStatusChangeDialog(false);
-                      setStatusChangeData(null);
-                      setStatusChangeNotes('');
-                    }}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmStatusChange}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Confirm Status Change
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Payment History Dialog - TASK 10.3 */}
-        {showPaymentHistoryDialog && paymentHistoryData && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              {/* Header */}
-              <div className="bg-purple-600 text-white p-6 rounded-t-lg">
+            <div className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-t-lg z-10">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-white bg-opacity-20 p-3 rounded-full">
-                      <FileText className="w-8 h-8" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold">Payment History</h3>
-                      <p className="text-purple-100 text-sm">
-                        Invoice #{paymentHistoryData.invoice.invoiceNumber} - {paymentHistoryData.customer?.customerName || paymentHistoryData.customer?.name}
-                      </p>
-                    </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Issue Gold Withdrawal Challan</h2>
+                    <p className="text-yellow-100 text-sm mt-1">Required for Challan Issued status</p>
                   </div>
                   <button
                     onClick={() => {
-                      setShowPaymentHistoryDialog(false);
-                      setPaymentHistoryData(null);
+                      setShowChallanIssuePopup(false);
+                      setChallanIssueData({
+                        order: null,
+                        manufacturerId: '',
+                        goldBankId: '',
+                        targetStatus: ''
+                      });
                     }}
-                    className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2"
+                    className="text-white hover:text-yellow-100 text-2xl"
                   >
                     ✕
                   </button>
                 </div>
               </div>
 
-              <div className="p-6">
-                {/* Invoice Summary */}
-                <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-3">Invoice Summary</h4>
-                  
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-600">Total Amount</p>
-                      <p className="font-bold text-lg text-gray-900">
-                        {paymentHistoryData.invoice.totalPureGold?.toFixed(3) || '0.000'}g
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        ${((paymentHistoryData.invoice.totalPureGold || 0) * 145.43).toFixed(2)} USD ref
-                      </p>
+              <div className="p-6 space-y-6">
+                {/* Order Info */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-blue-900 mb-2">Order Details</h3>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">Order ID:</span>
+                      <span className="font-semibold">{challanIssueData.order.id.slice(-8)}</span>
                     </div>
-                    <div>
-                      <p className="text-gray-600">Total Paid</p>
-                      <p className="font-bold text-lg text-green-600">
-                        {paymentHistoryData.invoice.paidPureGold?.toFixed(3) || '0.000'}g
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        ${((paymentHistoryData.invoice.paidPureGold || 0) * 145.43).toFixed(2)} USD ref
-                      </p>
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">Customer:</span>
+                      <span className="font-semibold">{challanIssueData.order.customerName}</span>
                     </div>
-                    <div>
-                      <p className="text-gray-600">Remaining</p>
-                      <p className={`font-bold text-lg ${(paymentHistoryData.invoice.remainingPureGold || 0) <= 0 ? 'text-green-600' : 'text-orange-600'}`}>
-                        {paymentHistoryData.invoice.remainingPureGold?.toFixed(3) || '0.000'}g
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        ${((paymentHistoryData.invoice.remainingPureGold || 0) * 145.43).toFixed(2)} USD ref
-                      </p>
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">Product:</span>
+                      <span className="font-semibold">{challanIssueData.order.productName}</span>
                     </div>
-                  </div>
-
-                  {/* Payment Status Badge */}
-                  <div className="mt-3 pt-3 border-t border-gray-300">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">Payment Status:</span>
-                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
-                        paymentHistoryData.invoice.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
-                        paymentHistoryData.invoice.paymentStatus === 'partially_paid' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {paymentHistoryData.invoice.paymentStatus === 'paid' ? '✅ Fully Paid' :
-                         paymentHistoryData.invoice.paymentStatus === 'partially_paid' ? '⚠️ Partially Paid' :
-                         '❌ Not Paid'}
+                    <div className="flex justify-between pt-2 border-t border-blue-300">
+                      <span className="text-gray-700 font-semibold">Pure Gold to Issue:</span>
+                      <span className="font-bold text-blue-600 text-lg">
+                        {challanIssueData.order.productPureGold?.toFixed(3)}g
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Payment Timeline */}
-                <div className="mb-6">
-                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <span>Payment Timeline</span>
-                    <span className="text-sm font-normal text-gray-500">
-                      ({paymentHistoryData.payments.length} payment{paymentHistoryData.payments.length !== 1 ? 's' : ''})
-                    </span>
-                  </h4>
-
-                  {paymentHistoryData.payments.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <DollarSign className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                      <p>No payments recorded yet</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {paymentHistoryData.payments.map((payment, index) => {
-                        const paymentDate = payment.paymentDate?.toDate ? 
-                          payment.paymentDate.toDate() : 
-                          new Date();
-                        
-                        return (
-                          <div key={payment.id} className="relative">
-                            {/* Timeline connector */}
-                            {index < paymentHistoryData.payments.length - 1 && (
-                              <div className="absolute left-6 top-12 bottom-0 w-0.5 bg-gray-300"></div>
-                            )}
-                            
-                            <div className="flex gap-4">
-                              {/* Timeline dot */}
-                              <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
-                                payment.status === 'completed' ? 'bg-green-100' : 'bg-gray-100'
-                              }`}>
-                                <DollarSign className={`w-6 h-6 ${
-                                  payment.status === 'completed' ? 'text-green-600' : 'text-gray-400'
-                                }`} />
-                              </div>
-
-                              {/* Payment card */}
-                              <div className="flex-1 bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                                <div className="flex justify-between items-start mb-2">
-                                  <div>
-                                    <p className="font-semibold text-gray-900">{payment.paymentNumber}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {paymentDate.toLocaleDateString()} at {paymentDate.toLocaleTimeString()}
-                                    </p>
-                                  </div>
-                                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                    payment.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                    payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-red-100 text-red-800'
-                                  }`}>
-                                    {payment.status}
-                                  </span>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                  <div>
-                                    <p className="text-gray-600">Amount Paid</p>
-                                    <p className="font-bold text-green-700">
-                                      {payment.pureGoldPaid?.toFixed(3) || '0.000'}g
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      ${((payment.pureGoldPaid || 0) * (payment.goldPriceAtPayment || 145.43)).toFixed(2)} @ ${(payment.goldPriceAtPayment || 145.43).toFixed(2)}/g
-                                    </p>
-                                  </div>
-                                  
-                                  <div>
-                                    <p className="text-gray-600">Payment Method</p>
-                                    <p className="font-semibold text-gray-900">
-                                      {payment.paymentMode === 'pure_gold' && '💰 Pure Gold'}
-                                      {payment.paymentMode === 'usd_cash' && '💵 USD Cash'}
-                                      {payment.paymentMode === 'mixed' && '🔀 Mixed Payment'}
-                                      {!payment.paymentMode && '💰 Gold'}
-                                    </p>
-                                    {payment.paymentMode === 'usd_cash' && (
-                                      <p className="text-xs text-gray-500">
-                                        ${payment.usdPortion?.toFixed(2) || '0.00'} converted
-                                      </p>
-                                    )}
-                                    {payment.paymentMode === 'mixed' && (
-                                      <p className="text-xs text-gray-500">
-                                        {payment.goldPortion?.toFixed(3)}g + ${payment.usdPortion?.toFixed(2)}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Balance after payment */}
-                                <div className="mt-3 pt-3 border-t border-gray-200">
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600">Balance After Payment:</span>
-                                    <span className={`font-semibold ${payment.newBalance <= 0 ? 'text-green-600' : 'text-orange-600'}`}>
-                                      {payment.newBalance?.toFixed(3) || '0.000'}g
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Notes */}
-                                {payment.notes && payment.notes.trim() && (
-                                  <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                                    <span className="font-semibold">Notes:</span> {payment.notes}
-                                  </div>
-                                )}
-
-                                {/* Sharaf deposit info */}
-                                {payment.depositedToSharaf && (
-                                  <div className="mt-2 text-xs bg-blue-50 text-blue-800 p-2 rounded flex items-center gap-1">
-                                    <span>🏦</span>
-                                    <span>Deposited to Sharaf Gold Bank</span>
-                                    {payment.sharafReceiptNumber && (
-                                      <span className="font-semibold ml-1">- Receipt #{payment.sharafReceiptNumber}</span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                {/* Manufacturer Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Manufacturer <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={challanIssueData.manufacturerId}
+                    onChange={(e) => setChallanIssueData({...challanIssueData, manufacturerId: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select Manufacturer</option>
+                    {manufacturers
+                      .filter(m => m.isActive !== false)
+                      .map(manufacturer => (
+                        <option key={manufacturer.id} value={manufacturer.id}>
+                          {manufacturer.manufacturerName || manufacturer.name}
+                          {manufacturer.goldInTransit > 0 ? ` (Gold In Transit: ${manufacturer.goldInTransit.toFixed(3)}g)` : ''}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Who will receive the gold for production?</p>
                 </div>
 
+                {/* Gold Bank Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Gold Bank (Sharaf) <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={challanIssueData.goldBankId}
+                    onChange={(e) => setChallanIssueData({...challanIssueData, goldBankId: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select Gold Bank</option>
+                    {goldBanks.map(goldBank => (
+                      <option key={goldBank.id} value={goldBank.id}>
+                        {goldBank.accountName} ({goldBank.accountCode})
+                        {goldBank.currentBalanceGold > 0 ? ` - ${goldBank.currentBalanceGold.toFixed(3)}g` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Which Sharaf location will release the gold?</p>
+                </div>
+
+                {/* Accounting Preview */}
+                {challanIssueData.manufacturerId && challanIssueData.goldBankId && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-green-900 mb-2">Accounting Entry Preview</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-green-700">✓ Debit: Gold in Transit - {manufacturers.find(m => m.id === challanIssueData.manufacturerId)?.manufacturerName || 'Manufacturer'}</span>
+                        <span className="font-semibold">+{challanIssueData.order.productPureGold?.toFixed(3)}g</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-red-700">✓ Credit: {goldBanks.find(gb => gb.id === challanIssueData.goldBankId)?.accountName || 'Gold Bank'}</span>
+                        <span className="font-semibold">-{challanIssueData.order.productPureGold?.toFixed(3)}g</span>
+                      </div>
+                      <p className="text-xs text-gray-600 pt-2 border-t border-green-200">
+                        Status will change to: <strong className="text-green-700">Challan Issued</strong>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-4 border-t">
                   <button
                     onClick={() => {
-                      setShowPaymentHistoryDialog(false);
-                      setPaymentHistoryData(null);
+                      setShowChallanIssuePopup(false);
+                      setChallanIssueData({
+                        order: null,
+                        manufacturerId: '',
+                        goldBankId: '',
+                        targetStatus: ''
+                      });
                     }}
-                    className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="flex-1 px-4 py-3 text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
                   >
-                    Close
+                    Cancel (Status Won&apos;t Change)
                   </button>
-                  {paymentHistoryData.invoice.remainingPureGold > 0 && (
-                    <button
-                      onClick={async () => {
-                        // Close history dialog and open payment dialog
-                        setShowPaymentHistoryDialog(false);
-                        
-                        // Prepare payment invoice data
-                        setPaymentInvoiceData({
-                          ...paymentHistoryData.order,
-                          invoiceId: paymentHistoryData.invoice.id,
-                          invoiceNumber: paymentHistoryData.invoice.invoiceNumber,
-                          totalPureGold: paymentHistoryData.invoice.totalPureGold,
-                          paidPureGold: paymentHistoryData.invoice.paidPureGold || 0,
-                          remainingPureGold: paymentHistoryData.invoice.remainingPureGold,
-                          customerData: paymentHistoryData.customer
-                        });
-                        setShowPaymentDialog(true);
-                      }}
-                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center justify-center gap-2"
-                    >
-                      <DollarSign className="w-4 h-4" />
-                      Record New Payment
-                    </button>
-                  )}
+                  <button
+                    onClick={handleConfirmChallanIssue}
+                    disabled={!challanIssueData.order || !challanIssueData.manufacturerId || !challanIssueData.goldBankId}
+                    className="flex-1 px-4 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-semibold disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <Truck className="w-4 h-4" />
+                    Issue Challan & Change Status
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         )}
+
       </div>
     </AdminLayout>
   );
 }
+
 
