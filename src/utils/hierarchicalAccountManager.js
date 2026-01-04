@@ -1,5 +1,5 @@
 // src/utils/hierarchicalAccountManager.js
-import { collection, doc, setDoc, getDoc, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, query, where, orderBy, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db } from '../app/firebase';
 
 // Utility function to get firestore paths (non-hook version)
@@ -19,51 +19,131 @@ export class HierarchicalAccountManager {
   }
 
   /**
-   * Create a main/parent account (top-level account)
-   * @param {object} accountData - Account data
-   * @returns {object} - Created account
+   * CORE ACCOUNT CREATION METHOD - THE ONLY METHOD THAT CREATES ACCOUNTS
+   * This is the SINGLE source of truth for account creation in GoldSmith
+   * All other account creation methods MUST call this method
+   *
+   * @param {object} coreFields - Core account fields (required)
+   * @param {object} additionalFields - Account-type specific fields (optional)
+   * @returns {object} - Created account document
    */
-  async createMainAccount(accountData) {
+  async createAccount(coreFields, additionalFields = {}) {
     try {
-      const { accountCode, accountName, accountType, category, balance = 0 } = accountData;
+      const {
+        accountCode,
+        accountName,
+        accountType,
+        category,
+        balanceType,
+        currentBalance = 0,
+        currentBalanceGold = 0,
+        description = '',
+        isSystem = false,
+        isActive = true,
+        parentAccount = null,
+        level = 1,
+        createdBy = 'system'
+      } = coreFields;
 
-      // Validate required fields
+      // Validate required core fields
       if (!accountCode || !accountName || !accountType) {
         throw new Error('Account code, name, and type are required');
       }
 
-      // Check if account code already exists
+      // Check for duplicate account codes
       const existingAccount = await this.getAccountByCode(accountCode);
       if (existingAccount) {
         throw new Error(`Account code ${accountCode} already exists`);
       }
 
-      const mainAccount = {
+      // Get default values if not provided
+      const finalCategory = category || this.getDefaultCategory(accountType);
+      const finalBalanceType = balanceType || this.getDefaultBalanceType(accountType);
+
+      // Create the complete account document
+      const accountDocument = {
+        // CORE FIELDS - These are ALWAYS present in every account
         accountCode,
         accountName,
-        accountType, // 'asset', 'liability', 'equity', 'income', 'expense'
-        category: category || this.getDefaultCategory(accountType),
-        parentAccountId: null, // Main accounts have no parent
-        parentAccountName: null,
-        hierarchyLevel: 1, // Main level
-        isActive: true,
-        balance: balance,
-        normalBalance: this.getNormalBalance(accountType),
-        traditionalClass: this.getDefaultTraditionalClass(accountType),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        // Migration-ready fields
-        _version: "2.0",
-        _migrationStatus: "active",
-        _v3Ready: true,
-        _v4Ready: false
+        accountType,
+        category: finalCategory,
+        balanceType: finalBalanceType,
+        currentBalance: parseFloat(currentBalance) || 0,
+        currentBalanceGold: parseFloat(currentBalanceGold) || 0,
+        description,
+        isSystem,
+        isActive,
+        parentAccount,
+        level,
+        companyId: this.companyId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy,
+
+        // ADDITIONAL FIELDS - Account type specific fields
+        ...additionalFields
       };
 
-      // Save to Firebase
-      const accountRef = doc(db, this.paths.accountsPath(), accountCode);
-      await setDoc(accountRef, mainAccount);
+      // Create document in Firestore
+      const docRef = doc(db, this.paths.accountsPath(), accountCode);
+      await setDoc(docRef, accountDocument);
 
-      return mainAccount;
+      console.log(`✅ Account created via core method: ${accountCode} - ${accountName}`);
+      return {
+        ...accountDocument,
+        id: docRef.id
+      };
+
+    } catch (error) {
+      console.error('❌ Core account creation error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get default balance type for account type
+   * @param {string} accountType - Account type
+   * @returns {string} - Default balance type
+   */
+  getDefaultBalanceType(accountType) {
+    const balanceTypes = {
+      'asset': 'debit',
+      'expense': 'debit',
+      'liability': 'credit',
+      'equity': 'credit',
+      'income': 'credit'
+    };
+    return balanceTypes[accountType] || 'debit';
+  }
+
+  /**
+   * Create a main/parent account (top-level account)
+   * Now uses centralized createAccount method for consistency
+   * @param {object} accountData - Account data
+   * @returns {object} - Created account
+   */
+  /**
+   * Create a main account (top-level account)
+   * Calls the CORE createAccount method
+   * @param {object} accountData - Account data
+   * @returns {object} - Created account
+   */
+  async createMainAccount(accountData) {
+    try {
+      const { accountCode, accountName, accountType, category, balance = 0, createdBy = 'system' } = accountData;
+
+      // Call CORE createAccount method with standardized fields
+      return await this.createAccount({
+        accountCode,
+        accountName,
+        accountType,
+        category,
+        currentBalance: balance,
+        level: 1, // Main level
+        isSystem: false,
+        createdBy
+      });
+
     } catch (error) {
       console.error('Create main account error:', error);
       throw error;
@@ -72,13 +152,14 @@ export class HierarchicalAccountManager {
 
   /**
    * Create a child account (under a main account)
+   * Calls the CORE createAccount method
    * @param {string} parentAccountId - Parent account code
    * @param {object} accountData - Account data
    * @returns {object} - Created account
    */
   async createChildAccount(parentAccountId, accountData) {
     try {
-      const { accountName, balance = 0 } = accountData;
+      const { accountName, balance = 0, createdBy = 'system' } = accountData;
 
       // Validate parent exists
       const parentAccount = await this.getAccountByCode(parentAccountId);
@@ -89,31 +170,29 @@ export class HierarchicalAccountManager {
       // Generate child account code
       const childAccountCode = await this.generateChildAccountCode(parentAccountId);
 
-      const childAccount = {
+      // Call CORE createAccount method with additional child-specific fields
+      return await this.createAccount({
         accountCode: childAccountCode,
         accountName,
         accountType: parentAccount.accountType, // Inherit from parent
-        parentAccountId,
+        category: parentAccount.category, // Inherit from parent
+        currentBalance: balance,
+        parentAccount: parentAccountId,
+        level: 2, // Child level
+        isSystem: false,
+        createdBy
+      }, {
+        // Additional fields specific to child accounts
         parentAccountName: parentAccount.accountName,
-        hierarchyLevel: 2, // Child level
-        isActive: true,
-        balance: balance,
-        normalBalance: parentAccount.normalBalance,
-        traditionalClass: parentAccount.traditionalClass,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
+        normalBalance: parentAccount.normalBalance || this.getNormalBalance(parentAccount.accountType),
+        traditionalClass: parentAccount.traditionalClass || this.getDefaultTraditionalClass(parentAccount.accountType),
         // Migration-ready fields
         _version: "2.0",
         _migrationStatus: "active",
         _v3Ready: true,
         _v4Ready: false
-      };
+      });
 
-      // Save to Firebase
-      const accountRef = doc(db, this.paths.accountsPath(), childAccountCode);
-      await setDoc(accountRef, childAccount);
-
-      return childAccount;
     } catch (error) {
       console.error('Create child account error:', error);
       throw error;
@@ -481,7 +560,7 @@ export class HierarchicalAccountManager {
 
   /**
    * Create branch-level accounts when a new branch is added
-   * Based on TechnicalDoc_v2.md Section 6.4 - Creates 4 core accounts per branch
+   * Now uses centralized createAccount method for consistency
    * @param {object} branchData - Branch data (branchId, branchName)
    * @returns {object} - Creation results
    */
@@ -503,10 +582,10 @@ export class HierarchicalAccountManager {
           accountCode: `${branchAccountCode}-CASH`,
           accountName: `${branchName} - Cash`,
           accountType: 'asset',
-          category: 'Current Asset',
-          parentAccountId: 'MAIN-1001',
+          category: 'current_assets', // Standardized category format
+          parentAccount: 'MAIN-1001', // Standardized field name
           branchId: branchId,
-          balance: 0
+          currentBalance: 0 // Standardized field name
         },
 
         // 2. Branch Bank Account (Child of MAIN-1002)
@@ -514,10 +593,10 @@ export class HierarchicalAccountManager {
           accountCode: `${branchAccountCode}-BANK`,
           accountName: `${branchName} - Bank`,
           accountType: 'asset',
-          category: 'Current Asset',
-          parentAccountId: 'MAIN-1002',
+          category: 'current_assets', // Standardized category format
+          parentAccount: 'MAIN-1002', // Standardized field name
           branchId: branchId,
-          balance: 0
+          currentBalance: 0 // Standardized field name
         },
 
         // 3. Branch Receivables (Child of MAIN-1003)
@@ -525,10 +604,10 @@ export class HierarchicalAccountManager {
           accountCode: `${branchAccountCode}-REC`,
           accountName: `${branchName} - Receivables`,
           accountType: 'asset',
-          category: 'Current Asset',
-          parentAccountId: 'MAIN-1003',
+          category: 'current_assets', // Standardized category format
+          parentAccount: 'MAIN-1003', // Standardized field name
           branchId: branchId,
-          balance: 0
+          currentBalance: 0 // Standardized field name
         },
 
         // 4. Branch Revenue Account (Child of MAIN-4001)
@@ -536,10 +615,10 @@ export class HierarchicalAccountManager {
           accountCode: `${branchAccountCode}-REV`,
           accountName: `${branchName} - Revenue`,
           accountType: 'income',
-          category: 'Revenue',
-          parentAccountId: 'MAIN-4001',
+          category: 'revenue', // Standardized category format
+          parentAccount: 'MAIN-4001', // Standardized field name
           branchId: branchId,
-          balance: 0
+          currentBalance: 0 // Standardized field name
         }
       ];
 
@@ -549,7 +628,7 @@ export class HierarchicalAccountManager {
         errors: []
       };
 
-      // Create each branch account
+      // Create each branch account using centralized method
       for (const accountData of branchAccounts) {
         try {
           // Check if account already exists
@@ -559,21 +638,32 @@ export class HierarchicalAccountManager {
             continue;
           }
 
-          // Create the account using createChildAccount method
-          const createdAccount = await this.createChildAccount(
-            accountData.parentAccountId,
-            {
-              accountName: accountData.accountName,
-              balance: accountData.balance
-            }
-          );
+          // Get parent account for additional data
+          const parentAccount = await this.getAccountByCode(accountData.parentAccount);
 
-          // Update with additional branch-specific data
-          const accountRef = doc(db, this.paths.accountsPath(), createdAccount.accountCode);
-          await setDoc(accountRef, {
+          // Call CORE createAccount method with branch-specific additional fields
+          const createdAccount = await this.createAccount({
+            accountCode: accountData.accountCode,
+            accountName: accountData.accountName,
+            accountType: accountData.accountType,
+            category: accountData.category,
+            currentBalance: accountData.currentBalance,
+            parentAccount: accountData.parentAccount,
+            level: 2, // Child level
+            isSystem: false,
+            createdBy: 'system'
+          }, {
+            // Branch-specific additional fields
             branchId: accountData.branchId,
-            category: accountData.category
-          }, { merge: true });
+            parentAccountName: parentAccount?.accountName || 'Unknown Parent',
+            normalBalance: parentAccount?.normalBalance || this.getNormalBalance(accountData.accountType),
+            traditionalClass: parentAccount?.traditionalClass || this.getDefaultTraditionalClass(accountData.accountType),
+            // Migration-ready fields
+            _version: "2.0",
+            _migrationStatus: "active",
+            _v3Ready: true,
+            _v4Ready: false
+          });
 
           results.created.push(`${accountData.accountCode}: ${accountData.accountName}`);
 
@@ -600,8 +690,7 @@ export class HierarchicalAccountManager {
 
   /**
    * Create customer-level accounts for receivable tracking
-   * Based on BRD_v2.md Section 4.3.2 and TechnicalDoc_v2.md Section 6.4
-   * Creates customer accounts as children of MAIN-1003 (Accounts Receivable)
+   * Now uses centralized createAccount method for consistency
    * @param {object} customerData - Customer data (customerId, customerName)
    * @returns {object} - Creation results
    */
@@ -615,59 +704,290 @@ export class HierarchicalAccountManager {
       }
 
       // Generate customer account code (CUST-XXXX format)
-      // Extract numeric part from customerId (e.g., 'CUST-0001' -> '0001')
-      const customerNumber = customerId.includes('-') 
-        ? customerId.split('-')[1] 
+      const customerNumber = customerId.includes('-')
+        ? customerId.split('-')[1]
         : customerId.padStart(4, '0');
       const customerAccountCode = `CUST-${customerNumber}`;
 
-      // Customer account data
-      const accountData = {
-        accountCode: customerAccountCode,
-        accountName: `${customerName} - Receivable`,
-        accountType: 'asset',
-        category: 'Current Asset',
-        parentAccountId: 'MAIN-1003', // Accounts Receivable
-        customerId: customerId,
-        balance: 0
-      };
-
       // Check if account already exists
-      const existingAccount = await this.getAccountByCode(accountData.accountCode);
+      const existingAccount = await this.getAccountByCode(customerAccountCode);
       if (existingAccount) {
         return {
           success: true,
           created: false,
           account: existingAccount,
-          message: `Customer account ${accountData.accountCode} already exists`
+          message: `Customer account ${customerAccountCode} already exists`
         };
       }
 
-      // Create the account using createChildAccount method
-      const createdAccount = await this.createChildAccount(
-        accountData.parentAccountId,
-        {
-          accountName: accountData.accountName,
-          balance: accountData.balance
-        }
-      );
+      // Get parent account (MAIN-1003 - Customer Receivables)
+      const parentAccount = await this.getAccountByCode('MAIN-1003') || await this.getAccountByCode('1301');
+      if (!parentAccount) {
+        throw new Error('Parent account (Customer Receivables) not found');
+      }
 
-      // Update with customer-specific data
-      const accountRef = doc(db, this.paths.accountsPath(), createdAccount.accountCode);
-      await setDoc(accountRef, {
-        customerId: accountData.customerId,
-        category: accountData.category
-      }, { merge: true });
+      // Call CORE createAccount method with customer-specific additional fields
+      const createdAccount = await this.createAccount({
+        accountCode: customerAccountCode,
+        accountName: `${customerName} - Receivable`,
+        accountType: 'asset',
+        category: 'current_assets',
+        currentBalance: 0,
+        parentAccount: parentAccount.accountCode || '1301',
+        level: 2, // Child level
+        isSystem: false,
+        createdBy: 'system'
+      }, {
+        // Customer-specific additional fields
+        customerId,
+        parentAccountName: parentAccount.accountName || 'Customer Receivables',
+        normalBalance: 'debit',
+        traditionalClass: 'Asset',
+        // Migration-ready fields
+        _version: "2.0",
+        _migrationStatus: "active",
+        _v3Ready: true,
+        _v4Ready: false
+      });
 
       return {
         success: true,
         created: true,
         account: createdAccount,
-        message: `Customer account ${accountData.accountCode} created successfully`
+        message: `Customer account ${customerAccountCode} created successfully`
       };
 
     } catch (error) {
       console.error('Create customer account error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create gold bank-level accounts for gold custody tracking
+   * Calls the CORE createAccount method
+   * @param {object} goldBankData - Gold bank data (goldBankId, bankName, location)
+   * @returns {object} - Creation results
+   */
+  async createGoldBankAccount(goldBankData) {
+    try {
+      const { goldBankId, bankName, location } = goldBankData;
+
+      // Validate gold bank data
+      if (!goldBankId || !bankName) {
+        throw new Error('Gold bank ID and name are required');
+      }
+
+      // Generate gold bank account code (1101-BANK-XXX format)
+      const bankNumber = goldBankId.includes('-')
+        ? goldBankId.split('-').pop()
+        : goldBankId.slice(-3).padStart(3, '0');
+      const goldBankAccountCode = `1101-BANK-${bankNumber}`;
+
+      // Check if account already exists
+      const existingAccount = await this.getAccountByCode(goldBankAccountCode);
+      if (existingAccount) {
+        return {
+          success: true,
+          created: false,
+          account: existingAccount,
+          message: `Gold bank account ${goldBankAccountCode} already exists`
+        };
+      }
+
+      // Get parent account (1101 - Gold Bank)
+      const parentAccount = await this.getAccountByCode('1101');
+      if (!parentAccount) {
+        throw new Error('Parent account (Gold Bank) not found');
+      }
+
+      // Call CORE createAccount method with gold bank-specific additional fields
+      const createdAccount = await this.createAccount({
+        accountCode: goldBankAccountCode,
+        accountName: `${bankName} - Gold Custody`,
+        accountType: 'asset',
+        category: 'current_assets',
+        currentBalance: 0,
+        parentAccount: '1101',
+        level: 2, // Child level
+        isSystem: false,
+        createdBy: 'system'
+      }, {
+        // Gold bank-specific additional fields
+        goldBankId,
+        bankName,
+        location,
+        parentAccountName: parentAccount.accountName || 'Gold Bank (Sharaf)',
+        normalBalance: 'debit',
+        traditionalClass: 'Asset',
+        // Migration-ready fields
+        _version: "2.0",
+        _migrationStatus: "active",
+        _v3Ready: true,
+        _v4Ready: false
+      });
+
+      return {
+        success: true,
+        created: true,
+        account: createdAccount,
+        message: `Gold bank account ${goldBankAccountCode} created successfully`
+      };
+
+    } catch (error) {
+      console.error('Create gold bank account error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create manufacturer-level accounts for manufacturing payables tracking
+   * Calls the CORE createAccount method
+   * @param {object} manufacturerData - Manufacturer data (manufacturerId, manufacturerName)
+   * @returns {object} - Creation results
+   */
+  async createManufacturerAccount(manufacturerData) {
+    try {
+      const { manufacturerId, manufacturerName } = manufacturerData;
+
+      // Validate manufacturer data
+      if (!manufacturerId || !manufacturerName) {
+        throw new Error('Manufacturer ID and name are required');
+      }
+
+      // Generate manufacturer account code (2101-MFG-XXX format)
+      const manufacturerNumber = manufacturerId.includes('-')
+        ? manufacturerId.split('-').pop()
+        : manufacturerId.slice(-3).padStart(3, '0');
+      const manufacturerAccountCode = `2101-MFG-${manufacturerNumber}`;
+
+      // Check if account already exists
+      const existingAccount = await this.getAccountByCode(manufacturerAccountCode);
+      if (existingAccount) {
+        return {
+          success: true,
+          created: false,
+          account: existingAccount,
+          message: `Manufacturer account ${manufacturerAccountCode} already exists`
+        };
+      }
+
+      // Get parent account (2101 - Accounts Payable)
+      const parentAccount = await this.getAccountByCode('2101');
+      if (!parentAccount) {
+        throw new Error('Parent account (Accounts Payable) not found');
+      }
+
+      // Call CORE createAccount method with manufacturer-specific additional fields
+      const createdAccount = await this.createAccount({
+        accountCode: manufacturerAccountCode,
+        accountName: `${manufacturerName} - Payables`,
+        accountType: 'liability',
+        category: 'current_liabilities',
+        currentBalance: 0,
+        parentAccount: '2101',
+        level: 2, // Child level
+        isSystem: false,
+        createdBy: 'system'
+      }, {
+        // Manufacturer-specific additional fields
+        manufacturerId,
+        manufacturerName,
+        balanceType: 'credit',
+        normalBalance: 'credit',
+        traditionalClass: 'Liability',
+        // Migration-ready fields
+        _version: "2.0",
+        _migrationStatus: "active",
+        _v3Ready: true,
+        _v4Ready: false
+      });
+
+      return {
+        success: true,
+        created: true,
+        account: createdAccount,
+        message: `Manufacturer account ${manufacturerAccountCode} created successfully`
+      };
+
+    } catch (error) {
+      console.error('Create manufacturer account error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create manufacturer gold transit-level accounts for gold custody tracking per manufacturer
+   * Calls the CORE createAccount method
+   * @param {object} manufacturerData - Manufacturer data (manufacturerId, manufacturerName)
+   * @returns {object} - Creation results
+   */
+  async createManufacturerGoldTransitAccount(manufacturerData) {
+    try {
+      const { manufacturerId, manufacturerName } = manufacturerData;
+
+      // Validate manufacturer data
+      if (!manufacturerId || !manufacturerName) {
+        throw new Error('Manufacturer ID and name are required');
+      }
+
+      // Generate manufacturer gold transit account code (1102-MFG-XXX format)
+      const manufacturerNumber = manufacturerId.includes('-')
+        ? manufacturerId.split('-').pop()
+        : manufacturerId.slice(-3).padStart(3, '0');
+      const goldTransitAccountCode = `1102-MFG-${manufacturerNumber}`;
+
+      // Check if account already exists
+      const existingAccount = await this.getAccountByCode(goldTransitAccountCode);
+      if (existingAccount) {
+        return {
+          success: true,
+          created: false,
+          account: existingAccount,
+          message: `Manufacturer gold transit account ${goldTransitAccountCode} already exists`
+        };
+      }
+
+      // Get parent account (1102 - Gold in Transit)
+      const parentAccount = await this.getAccountByCode('1102');
+      if (!parentAccount) {
+        throw new Error('Parent account (Gold in Transit) not found');
+      }
+
+      // Call CORE createAccount method with manufacturer gold transit-specific additional fields
+      const createdAccount = await this.createAccount({
+        accountCode: goldTransitAccountCode,
+        accountName: `${manufacturerName} - Gold in Transit`,
+        accountType: 'asset',
+        category: 'current_assets',
+        currentBalance: 0,
+        parentAccount: '1102',
+        level: 2, // Child level
+        isSystem: false,
+        createdBy: 'system'
+      }, {
+        // Manufacturer gold transit-specific additional fields
+        manufacturerId,
+        manufacturerName,
+        parentAccountName: parentAccount.accountName || 'Gold in Transit',
+        normalBalance: 'debit',
+        traditionalClass: 'Asset',
+        // Migration-ready fields
+        _version: "2.0",
+        _migrationStatus: "active",
+        _v3Ready: true,
+        _v4Ready: false
+      });
+
+      return {
+        success: true,
+        created: true,
+        account: createdAccount,
+        message: `Manufacturer gold transit account ${goldTransitAccountCode} created successfully`
+      };
+
+    } catch (error) {
+      console.error('Create manufacturer gold transit account error:', error);
       throw error;
     }
   }
@@ -733,6 +1053,21 @@ export class HierarchicalAccountManager {
     } catch (error) {
       console.error('Get child accounts error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get all accounts in the system
+   * @returns {Array} - Array of all account objects
+   */
+  async getAllAccounts() {
+    try {
+      const accountsRef = collection(db, this.paths.accountsPath());
+      const querySnapshot = await getDocs(accountsRef);
+      return querySnapshot.docs.map(doc => doc.data());
+    } catch (error) {
+      console.error('Get all accounts error:', error);
+      return [];
     }
   }
 

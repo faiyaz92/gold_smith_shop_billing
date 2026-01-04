@@ -679,14 +679,14 @@ class AccountingEngine {
    * FIELD NAMES from DatabaseInfo_GoldSmith_v2.md Section 9.1
    */
   async recordManufacturerPayment(paymentData) {
-    const { paymentId, amountUSD, manufacturerName, createdBy } = paymentData;
+    const { paymentId, amountUSD, manufacturerName, manufacturerAccountCode, createdBy } = paymentData;
     
     return await this.recordTransaction({
       description: `Payment to ${manufacturerName} for making charges`,
       lines: [
         {
-          accountCode: '2101',
-          accountName: 'Manufacturer Payables - Making Charges',
+          accountCode: manufacturerAccountCode || '2101', // Manufacturer-specific payable account
+          accountName: `${manufacturerName} - Payables`,
           debitGold: 0,
           creditGold: 0,
           debitUSD: amountUSD,
@@ -2221,6 +2221,337 @@ async function getOrCreateManufacturerAccount(manufacturerId, manufacturerName) 
   return accountCode;
 }
 ```
+
+### 7.2 Dynamic Gold Bank Accounting for Challan Issuance
+
+**Updated Implementation:** The challan system now supports dynamic gold bank selection with proper accounting entries.
+
+**Key Features:**
+- **Dynamic Gold Bank Selection**: Uses selected gold bank from order (supports multiple Sharaf branches)
+- **Manufacturer-Specific Transit Accounts**: Tracks gold transit per manufacturer
+- **Real-Time Balance Updates**: Updates both gold bank and manufacturer transit balances
+
+**Implementation in Order Page (`src/app/admin/orders/page.js`):**
+
+```javascript
+// Fetch gold bank data dynamically based on order.goldBankId
+let goldBankData = null;
+let goldBankAccountCode = '1101'; // Default fallback
+if (order.goldBankId) {
+  const goldBankRef = doc(db, `${basePath}/goldbanks`, order.goldBankId);
+  const goldBankSnap = await getDoc(goldBankRef);
+  if (goldBankSnap.exists()) {
+    goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
+    goldBankAccountCode = goldBankData.accountCode || '1101'; // e.g., '1101-BANK-001'
+  }
+}
+
+// Create accounting entry with dynamic account codes
+await accountingEngine.createEntry({
+  date: new Date(),
+  description: `Gold withdrawal challan ${challanNumber} for Order ${order.id.slice(-8)}`,
+  transactionType: 'gold_challan_issued',
+  referenceId: challanRef.id,
+  referenceType: 'challan',
+  entries: [
+    {
+      accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold Transit
+      accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
+      debit: pureGoldAmount,
+      credit: 0,
+      balanceType: 'gold'
+    },
+    {
+      accountCode: goldBankAccountCode, // Selected Gold Bank (e.g., '1101-BANK-001')
+      accountName: goldBankData ? `${goldBankData.bankName} - Gold Custody` : 'Gold Bank (Sharaf)',
+      debit: 0,
+      credit: pureGoldAmount,
+      balanceType: 'gold'
+    }
+  ]
+});
+```
+
+**Account Code Examples:**
+- **Gold Bank Accounts**: `1101-BANK-001`, `1101-BANK-002` (different Sharaf branches)
+- **Manufacturer Transit**: `1102-MFG-001`, `1102-MFG-002` (per manufacturer)
+- **Fallback**: `1101` (default Sharaf), `1102` (global transit)
+
+**Business Impact:**
+- Selected Gold Bank balance: -10.500g (gold leaves bank custody)
+- Manufacturer Gold Transit balance: +10.500g (gold enters manufacturer transit)
+- Manufacturer `goldInTransit` field: +10.500g (tracking field updated)
+
+### 7.2 Additional Gold Challan (Final Weight Adjustments)
+
+**File:** `src/app/admin/orders/page.js` - `createAdditionalGoldChallan` function  
+**Trigger:** Plus button (+) in order management interface  
+**Purpose:** Issue additional gold challans when manufacturers require extra gold beyond the original order amount for final weight adjustments and manufacturing precision.
+
+**Business Logic:**
+- Manufacturers may need additional gold during production for final weight calibration
+- System allows issuing supplementary challans without creating new orders
+- Tracks additional gold separately from original order amount
+- Updates manufacturer's gold in transit balance
+- Maintains accounting consistency with dynamic gold bank selection
+
+**Implementation Details:**
+
+```javascript
+const createAdditionalGoldChallan = async (order, manufacturerData, additionalGoldAmount) => {
+  // 1. Generate sequential challan number (CH-XXX-YYYY)
+  // 2. Create challan record with type: 'additional_gold'
+  // 3. Update order's additionalChallans array and additionalGoldIssued total
+  // 4. Increment manufacturer's goldInTransit field
+  // 5. Record accounting entry with dynamic account codes
+  
+  // Accounting Entry Structure:
+  await accountingEngine.createEntry({
+    description: `Additional gold challan ${challanNumber} for Order ${order.id.slice(-8)}`,
+    transactionType: 'additional_challan',
+    entries: [
+      {
+        accountCode: manufacturerData.goldTransitAccountCode || '1102', // Debit
+        accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
+        debit: additionalGoldAmount,
+        credit: 0,
+        balanceType: 'gold'
+      },
+      {
+        accountCode: selectedGoldBankAccountCode, // Credit (dynamic)
+        accountName: `${selectedGoldBankName} - Gold Custody`,
+        debit: 0,
+        credit: additionalGoldAmount,
+        balanceType: 'gold'
+      }
+    ]
+  });
+};
+```
+
+**Database Updates:**
+- **Challans Collection:** New document with `challanType: 'additional_gold'`
+- **Orders Collection:** Adds challan ID to `additionalChallans[]`, increments `additionalGoldIssued`
+- **Manufacturers Collection:** Increments `goldInTransit` field
+- **Transactions Collection:** Accounting entry with proper debits/credits
+
+**Accounting Impact:**
+- **Debit:** Manufacturer-specific Gold in Transit account (+balance)
+- **Credit:** Selected Gold Bank account (-balance)
+- Maintains balance sheet accuracy for additional gold withdrawals
+- Tracks gold movement separately from original order challans
+
+**User Interface Integration:**
+- Accessible via plus (+) button next to manufacturer in order details
+- Requires additional gold amount input
+- Confirms accounting entry creation
+- Updates order status and tracking fields
+
+### 7.3 Remaining Gold Payment Challan (Extra Gold Usage Billing)
+
+**File:** `src/app/admin/orders/page.js` - `createRemainingGoldPaymentChallan` function  
+**Trigger:** When manufacturers use extra gold from their stock beyond allocated amounts  
+**Purpose:** Bill manufacturers for additional gold consumed during production that exceeds the original challan allocation.
+
+**Business Logic:**
+- Manufacturers may consume more gold than originally allocated for production
+- System tracks extra gold usage and creates payment challans
+- Manufacturers must pay for the additional gold used from their inventory
+- Maintains accurate gold inventory tracking and manufacturer billing
+- Records as separate transaction from original order challans
+
+**Implementation Details:**
+
+```javascript
+const createRemainingGoldPaymentChallan = async (order, manufacturerData, paymentGoldAmount, selectedGoldBankId) => {
+  // 1. Generate sequential challan number (CH-XXX-YYYY)
+  // 2. Create challan record with type: 'remaining_gold_payment'
+  // 3. Update order's remainingGoldPayments array and remainingGoldPaid total
+  // 4. Increment manufacturer's goldInTransit field (they owe more gold)
+  // 5. Record accounting entry debiting manufacturer's transit account
+  
+  // Accounting Entry Structure:
+  await accountingEngine.createEntry({
+    description: `Remaining gold payment challan ${challanNumber} for Order ${order.id.slice(-8)}`,
+    transactionType: 'remaining_gold_payment',
+    entries: [
+      {
+        accountCode: manufacturerData.goldTransitAccountCode || '1102', // Debit
+        accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
+        debit: paymentGoldAmount,
+        credit: 0,
+        balanceType: 'gold'
+      },
+      {
+        accountCode: '1101', // Credit (Gold Bank)
+        accountName: 'Gold Bank (Sharaf)',
+        debit: 0,
+        credit: paymentGoldAmount,
+        balanceType: 'gold'
+      }
+    ]
+  });
+};
+```
+
+**Database Updates:**
+- **Challans Collection:** New document with `challanType: 'remaining_gold_payment'`
+- **Orders Collection:** Adds challan ID to `remainingGoldPayments[]`, increments `remainingGoldPaid`
+- **Manufacturers Collection:** Increments `goldInTransit` field (increases debt)
+- **Transactions Collection:** Accounting entry recording additional gold liability
+
+**Accounting Impact:**
+- **Debit:** Manufacturer's Gold in Transit account (+balance, increases liability)
+- **Credit:** Gold Bank account (-balance, gold effectively paid)
+- Tracks manufacturer debt for extra gold consumption
+- Maintains accurate gold inventory and payment tracking
+
+**Business Impact:**
+- Manufacturer's gold liability increases by payment amount
+- Gold bank balance decreases (gold effectively transferred)
+- Order tracks remaining payments separately from original amounts
+- Enables proper billing for extra gold usage during manufacturing
+
+### 7.4 Gold Return Processing (Manufacturer Returns)
+
+**File:** `src/app/admin/orders/page.js` - `processGoldReturnFromManufacturer` function  
+**Trigger:** When manufacturers return unused gold after production completion  
+**Purpose:** Process gold returns from manufacturers, updating inventory and accounting records.
+
+**Business Logic:**
+- Manufacturers may return unused gold after completing production
+- System records gold return transactions
+- Reduces manufacturer's gold in transit balance
+- Updates accounting with proper debit/credit entries
+- Maintains accurate gold inventory tracking
+
+**Implementation Details:**
+
+```javascript
+const processGoldReturnFromManufacturer = async (order, manufacturerData, returnGoldAmount) => {
+  // 1. Create gold return record in goldReturns collection
+  // 2. Decrease manufacturer's goldInTransit field
+  // 3. Record accounting entry: Debit Gold Bank, Credit Gold in Transit
+  
+  // Accounting Entry Structure:
+  await accountingEngine.createEntry({
+    description: `Gold return from manufacturer for Order ${order.id.slice(-8)}`,
+    transactionType: 'gold_return',
+    entries: [
+      {
+        accountCode: '1101', // Debit (Gold Bank receives gold back)
+        accountName: 'Gold Bank (Sharaf)',
+        debit: returnGoldAmount,
+        credit: 0,
+        balanceType: 'gold'
+      },
+      {
+        accountCode: manufacturerData.goldTransitAccountCode || '1102', // Credit
+        accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
+        debit: 0,
+        credit: returnGoldAmount,
+        balanceType: 'gold'
+      }
+    ]
+  });
+};
+```
+
+**Database Updates:**
+- **GoldReturns Collection:** New return record with return details
+- **Manufacturers Collection:** Decrements `goldInTransit` field
+- **Transactions Collection:** Accounting entry for gold return
+
+**Accounting Impact:**
+- **Debit:** Gold Bank account (+balance, gold returns to custody)
+- **Credit:** Manufacturer's Gold in Transit account (-balance, reduces liability)
+- Reverses gold withdrawal transaction
+- Maintains accurate gold inventory balances
+
+**Business Impact:**
+- Manufacturer's gold liability decreases by return amount
+- Gold bank balance increases (gold returns to custody)
+- Order production cycle completes with accurate gold tracking
+- Enables proper inventory management for returned materials
+
+### 7.5 Pickup Accounting (Order Completion & Commission Payment)
+
+**File:** `src/app/admin/orders/page.js` - `handleConfirmPickup` and `processManufacturerPayment` functions  
+**Trigger:** Status change to "Picked Up" in order management  
+**Purpose:** Complete order processing with manufacturer commission payment and finished goods inventory accounting.
+
+**Commission Payment Accounting (Two Scenarios):**
+
+**Cash Payment (Immediate):**
+- **Debit:** `5101` (Making Charges Expense)
+- **Credit:** `1201` (Cash) or `1202` (Bank Account)
+
+**Credit Payment (Pay Later):**
+- **Debit:** `5101` (Making Charges Expense)  
+- **Credit:** `2101-MFG-XXX` (Manufacturer-Specific Payables Account)
+
+**Finished Goods Receipt Accounting:**
+- **Debit:** `1103` (Finished Goods Inventory)
+- **Credit:** `1102-MFG-XXX` (Manufacturer's Gold in Transit Account)
+
+**Implementation Details:**
+
+```javascript
+// Commission Payment (Credit Scenario)
+if (paymentMethod === 'credit') {
+  await accountingEngine.createEntry({
+    description: `Manufacturer making charges credit for Order ${order.id}`,
+    entries: [
+      {
+        accountCode: '5101', // Making Charges Expense
+        accountName: 'Making Charges',
+        debit: commissionAmount,
+        credit: 0
+      },
+      {
+        accountCode: manufacturerData.accountCode || '2101', // Manufacturer-Specific Account
+        accountName: `${manufacturerData.manufacturerName} - Payables`,
+        debit: 0,
+        credit: commissionAmount
+      }
+    ]
+  });
+}
+
+// Finished Goods Receipt
+await accountingEngine.createEntry({
+  description: `Finished goods receipt from manufacturer for Order ${order.id}`,
+  entries: [
+    {
+      accountCode: '1103', // Finished Goods Inventory
+      accountName: 'Finished Goods Inventory',
+      debit: finalPureGold,
+      credit: 0,
+      balanceType: 'gold'
+    },
+    {
+      accountCode: manufacturerData.goldTransitAccountCode || '1102', // Gold in Transit
+      accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
+      debit: 0,
+      credit: finalPureGold,
+      balanceType: 'gold'
+    }
+  ]
+});
+```
+
+**Database Updates:**
+- **Orders Collection:** Status changed to "Picked Up", final weights and commission recorded
+- **Manufacturers Collection:** `goldInTransit` reduced by final pure gold used
+- **Payments Collection:** Commission payment record created
+- **Receipts Collection:** Payment receipt generated
+- **Transactions Collection:** Accounting entries for commission and finished goods
+
+**Business Impact:**
+- **Cash Payment:** Immediate expense recognition, cash/bank balance reduced
+- **Credit Payment:** Expense recognized now, liability created for future payment
+- **Finished Goods:** Inventory increased by final product weight
+- **Gold Transit:** Manufacturer's gold custody reduced by amount used in production
 
 ---
 

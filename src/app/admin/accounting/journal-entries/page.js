@@ -434,6 +434,7 @@ export default function JournalEntriesPage() {
         updatedAt: serverTimestamp(),
         createdBy: userRole,
         status: 'posted',
+        entryType: 'manual-journal-entry',
         _version: '2.0',
         _migrationStatus: 'active',
         _v3Ready: true,
@@ -451,94 +452,15 @@ export default function JournalEntriesPage() {
         await addDoc(collection(db, entriesPath), entryToSave);
       }
 
-      // ✅ Helper function to update parent account balance
-      const updateParentBalance = async (childAccountData) => {
-        if (!childAccountData.parentAccount) return; // No parent, nothing to update
-
-        // Find parent account
-        const parentAccountsSnapshot = await getDocs(query(collection(db, accountsPath)));
-        const allAccounts = parentAccountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        const parentAccount = allAccounts.find(acc => 
-          acc.id === childAccountData.parentAccount || 
-          acc.accountCode === childAccountData.parentAccount
-        );
-
-        if (!parentAccount) return; // Parent not found
-
-        // Get all children of this parent
-        const children = allAccounts.filter(acc => 
-          acc.parentAccount === parentAccount.id || 
-          acc.parentAccount === parentAccount.accountCode
-        );
-
-        // Calculate sum of all children balances
-        const totalChildrenBalance = children.reduce((sum, child) => {
-          return sum + (child.currentBalance || 0);
-        }, 0);
-
-        // Update parent account balance
-        const parentRef = doc(db, accountsPath, parentAccount.id);
-        await updateDoc(parentRef, {
-          currentBalance: totalChildrenBalance,
-          updatedAt: serverTimestamp()
-        });
-
-        console.log(`✅ Updated parent ${parentAccount.accountCode}: ${parentAccount.currentBalance || 0} → ${totalChildrenBalance}`);
-      };
-
-      // ✅ UPDATE ACCOUNT BALANCES
-      const updatedAccounts = []; // Track which accounts were updated
-      
-      for (const line of entryData.lines) {
-        if (!line.accountId) continue;
-
-        const accountRef = doc(db, accountsPath, line.accountId);
-        const accountSnap = await getDoc(accountRef);
-        
-        if (accountSnap.exists()) {
-          const accountData = accountSnap.data();
-          const currentBalance = accountData.currentBalance || 0;
-          
-          // Debit increases asset/expense, decreases liability/equity/income
-          // Credit decreases asset/expense, increases liability/equity/income
-          let newBalance = currentBalance;
-          
-          if (accountData.balanceType === 'debit') {
-            // Asset or Expense account
-            newBalance = currentBalance + (parseFloat(line.debit) || 0) - (parseFloat(line.credit) || 0);
-          } else {
-            // Liability, Equity, or Income account
-            newBalance = currentBalance - (parseFloat(line.debit) || 0) + (parseFloat(line.credit) || 0);
-          }
-
-          await updateDoc(accountRef, {
-            currentBalance: newBalance,
-            updatedAt: serverTimestamp()
-          });
-
-          console.log(`✅ Updated ${accountData.accountCode}: ${currentBalance} → ${newBalance}`);
-          
-          // Track updated account with new balance
-          updatedAccounts.push({ ...accountData, currentBalance: newBalance, id: line.accountId });
-        }
-      }
-
-      // ✅ UPDATE PARENT ACCOUNT BALANCES
-      const parentAccountsToUpdate = new Set();
-      for (const updatedAccount of updatedAccounts) {
-        if (updatedAccount.parentAccount) {
-          parentAccountsToUpdate.add(updatedAccount.parentAccount);
-        }
-      }
-
-      // Update each parent account
-      for (const parentId of parentAccountsToUpdate) {
-        const dummyChild = updatedAccounts.find(acc => acc.parentAccount === parentId);
-        if (dummyChild) {
-          await updateParentBalance(dummyChild);
-        }
-      }
+      // ✅ Use AccountingEngine to handle all accounting logic
+      const accountingEngine = new AccountingEngine(companyId);
+      await accountingEngine.createJournalEntry({
+        entryDate: entryData.date,
+        description: entryData.description,
+        reference: entryData.reference,
+        entries: entryData.lines,
+        createdBy: userRole
+      });
 
       setShowForm(false);
       setEditingEntry(null);

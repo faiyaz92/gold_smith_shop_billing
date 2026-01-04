@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { collection, addDoc, serverTimestamp, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useRouter } from 'next/navigation';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
@@ -91,31 +92,34 @@ export default function NewManufacturerPage() {
 
       const docRef = await addDoc(collection(db, `${basePath}/manufacturers`), manufacturerData);
 
-      // ✅ Auto-create accounting payable sub-account
-      const accountsPath = `${basePath}/accounts`;
-      const manufacturerAccountData = {
-        accountCode: manufacturerCode,
-        accountName: formData.manufacturerName,
-        name: formData.manufacturerName,
-        accountType: 'liability',
-        category: 'Current Liabilities',
-        balanceType: 'credit',
-        parentAccount: '2101', // Manufacturer Payables parent
-        currentBalance: 0,
-        currentBalanceGold: 0,
-        description: `Manufacturer payable account for ${formData.manufacturerName}`,
+      // ✅ Use centralized account creation method for payables
+      const accountManager = new HierarchicalAccountManager();
+      const accountResult = await accountManager.createManufacturerAccount({
         manufacturerId: docRef.id,
-        isSystem: false,
-        isActive: true,
-        level: 2,
-        companyId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: 'system'
-      };
+        manufacturerName: formData.manufacturerName
+      });
 
-      const accountRef = await addDoc(collection(db, accountsPath), manufacturerAccountData);
-      await updateDoc(accountRef, { accountId: accountRef.id });
+      if (!accountResult.success) {
+        throw new Error(`Failed to create payables account: ${accountResult.message}`);
+      }
+
+      // ✅ Create gold transit account for this manufacturer
+      const goldTransitAccountResult = await accountManager.createManufacturerGoldTransitAccount({
+        manufacturerId: docRef.id,
+        manufacturerName: formData.manufacturerName
+      });
+
+      if (!goldTransitAccountResult.success) {
+        throw new Error(`Failed to create gold transit account: ${goldTransitAccountResult.message}`);
+      }
+
+      // Update manufacturer document with both account codes
+      await updateDoc(docRef, {
+        accountCode: accountResult.account.accountCode,
+        accountId: accountResult.account.accountId,
+        goldTransitAccountCode: goldTransitAccountResult.account.accountCode,
+        goldTransitAccountId: goldTransitAccountResult.account.accountId
+      });
 
       alert('✅ Manufacturer and account created successfully!');
       router.push('/admin/manufacturers');

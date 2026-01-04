@@ -253,7 +253,7 @@ export default function GoldPriceWidget() {
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <div>
           <strong>Auto-Update:</strong> System fetches price from goldprice.org (primary) or kitco.com (fallback) every 1 hour. 
-          Alerts if price changes &gt;2%. Use "API Refresh" for manual update.
+          Alerts if price changes &gt;2%. Use &quot;API Refresh&quot; for manual update.
         </div>
       </div>
 

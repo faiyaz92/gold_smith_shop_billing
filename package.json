@@ -15,7 +15,7 @@
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.534.0",
-    "next": "15.4.5",
+    "next": "15.5.9",
     "next-intl": "^4.3.9",
     "react": "19.1.0",
     "react-datepicker": "^8.7.0",
@@ -28,11 +28,12 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@babel/parser": "^7.28.5",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/react": "19.1.12",
     "eslint": "^9",
-    "eslint-config-next": "15.4.5",
+    "eslint-config-next": "15.5.9",
     "tailwindcss": "^4"
   }
 }

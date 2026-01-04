@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { useAccounting } from '@/app/context/AccountingContext';
+import { AccountingEngine } from '@/utils/accountingEngine';
 import { ArrowRightLeft, ArrowLeft, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -107,7 +108,7 @@ export default function QuickTransferPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Execute transfer (creates journal entry in background)
+// Execute transfer using AccountingEngine SDK
   const executeTransfer = async () => {
     if (!validateTransfer()) return;
 
@@ -118,133 +119,15 @@ export default function QuickTransferPage() {
       const toAcc = accounts.find(a => a.id === toAccount);
       const transferAmount = parseFloat(amount);
 
-      // Create journal entry (same as manual entry)
-      const journalEntriesPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/journalEntries`;
-      const entryRef = await addDoc(collection(db, journalEntriesPath), {
-        entryDate: new Date().toISOString().split('T')[0],
+      // ✅ Use AccountingEngine to handle all accounting logic
+      const accountingEngine = new AccountingEngine(companyId);
+      await accountingEngine.createAccountTransfer({
+        fromAccountId: fromAccount,
+        toAccountId: toAccount,
+        amount: transferAmount,
         description: description || `Transfer from ${fromAcc.accountName} to ${toAcc.accountName}`,
-        reference: `TRANSFER-${Date.now()}`,
-        createdBy: userRole,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        entries: [
-          {
-            accountId: toAccount,
-            accountCode: toAcc.accountCode,
-            accountName: toAcc.accountName,
-            debit: transferAmount,
-            credit: 0
-          },
-          {
-            accountId: fromAccount,
-            accountCode: fromAcc.accountCode,
-            accountName: fromAcc.accountName,
-            debit: 0,
-            credit: transferAmount
-          }
-        ],
-        totalDebit: transferAmount,
-        totalCredit: transferAmount,
-        isBalanced: true,
-        entryType: 'quick-transfer'
+        createdBy: userRole
       });
-
-      console.log('✅ Journal entry created:', entryRef.id);
-
-      // Update account balances (same logic as manual journal entry)
-      const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
-
-      // ✅ Helper function to update parent account balance
-      const updateParentBalance = async (childAccountData) => {
-        if (!childAccountData.parentAccount) return; // No parent, nothing to update
-
-        // Find parent account
-        const allAccountsSnapshot = await getDocs(query(collection(db, accountsPath)));
-        const allAccounts = allAccountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        const parentAccount = allAccounts.find(acc => 
-          acc.id === childAccountData.parentAccount || 
-          acc.accountCode === childAccountData.parentAccount
-        );
-
-        if (!parentAccount) return; // Parent not found
-
-        // Get all children of this parent
-        const children = allAccounts.filter(acc => 
-          acc.parentAccount === parentAccount.id || 
-          acc.parentAccount === parentAccount.accountCode
-        );
-
-        // Calculate sum of all children balances
-        const totalChildrenBalance = children.reduce((sum, child) => {
-          return sum + (child.currentBalance || 0);
-        }, 0);
-
-        // Update parent account balance
-        const parentRef = doc(db, accountsPath, parentAccount.id);
-        await updateDoc(parentRef, {
-          currentBalance: totalChildrenBalance,
-          updatedAt: serverTimestamp()
-        });
-
-        console.log(`✅ Updated parent ${parentAccount.accountCode}: ${parentAccount.currentBalance || 0} → ${totalChildrenBalance}`);
-      };
-
-      // Update FROM account (credit side - money going out)
-      const fromAccountDoc = await getDoc(doc(db, accountsPath, fromAccount));
-      let fromData = null;
-      if (fromAccountDoc.exists()) {
-        fromData = fromAccountDoc.data();
-        const currentBalance = fromData.currentBalance || 0;
-        const balanceType = fromData.balanceType || 'debit';
-
-        let newBalance;
-        if (balanceType === 'debit') {
-          // Debit account: balance = balance + debit - credit
-          newBalance = currentBalance - transferAmount; // Crediting (money out)
-        } else {
-          // Credit account: balance = balance - debit + credit
-          newBalance = currentBalance + transferAmount; // Crediting (money in for credit account)
-        }
-
-        await updateDoc(doc(db, accountsPath, fromAccount), {
-          currentBalance: newBalance,
-          updatedAt: serverTimestamp()
-        });
-
-        console.log(`✅ Updated FROM account: ${fromData.accountName} - Old: ${currentBalance}, New: ${newBalance}`);
-        
-        // Update parent if exists
-        await updateParentBalance({ ...fromData, id: fromAccount, currentBalance: newBalance });
-      }
-
-      // Update TO account (debit side - money coming in)
-      const toAccountDoc = await getDoc(doc(db, accountsPath, toAccount));
-      let toData = null;
-      if (toAccountDoc.exists()) {
-        toData = toAccountDoc.data();
-        const currentBalance = toData.currentBalance || 0;
-        const balanceType = toData.balanceType || 'debit';
-
-        let newBalance;
-        if (balanceType === 'debit') {
-          // Debit account: balance = balance + debit - credit
-          newBalance = currentBalance + transferAmount; // Debiting (money in)
-        } else {
-          // Credit account: balance = balance - debit + credit
-          newBalance = currentBalance - transferAmount; // Debiting (money out for credit account)
-        }
-
-        await updateDoc(doc(db, accountsPath, toAccount), {
-          currentBalance: newBalance,
-          updatedAt: serverTimestamp()
-        });
-
-        console.log(`✅ Updated TO account: ${toData.accountName} - Old: ${currentBalance}, New: ${newBalance}`);
-        
-        // Update parent if exists
-        await updateParentBalance({ ...toData, id: toAccount, currentBalance: newBalance });
-      }
 
       alert(`✅ Transfer successful!\n\nTransferred ${transferAmount} from ${fromAcc.accountName} to ${toAcc.accountName}\n\nJournal entry created automatically.`);
       

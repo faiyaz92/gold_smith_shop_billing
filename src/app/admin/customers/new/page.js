@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { collection, addDoc, serverTimestamp, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useRouter } from 'next/navigation';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
@@ -140,31 +141,18 @@ export default function NewCustomerPage() {
 
       const docRef = await addDoc(collection(db, `${basePath}/customers`), customerData);
 
-      // ✅ Auto-create accounting receivable sub-account
-      const accountsPath = `${basePath}/accounts`;
-      const customerAccountData = {
-        accountCode: customerCode,
-        accountName: formData.customerName,
-        name: formData.customerName,
-        accountType: 'asset',
-        category: 'Current Assets',
-        balanceType: 'debit',
-        parentAccount: '1301', // Customer Receivables parent
-        currentBalance: 0,
-        currentBalanceGold: 0,
-        description: `Customer receivable account for ${formData.customerName}`,
-        customerId: docRef.id,
-        isSystem: false,
-        isActive: true,
-        level: 2,
-        companyId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: 'system'
-      };
+      // ✅ Auto-create accounting receivable sub-account using CENTRALIZED method
+      const accountManager = new HierarchicalAccountManager(companyId);
+      const accountResult = await accountManager.createCustomerAccount({
+        customerId: docRef.id, // Use the actual customer document ID
+        customerName: formData.customerName
+      });
 
-      const accountRef = await addDoc(collection(db, accountsPath), customerAccountData);
-      await updateDoc(accountRef, { accountId: accountRef.id });
+      if (!accountResult.success) {
+        console.error('Failed to create customer account:', accountResult.message);
+        // Don't fail the entire operation, just log the error
+        // Customer is created, account creation failed
+      }
 
       alert('✅ Customer and account created successfully!');
       router.push('/admin/customers');

@@ -43,6 +43,7 @@ import { db } from '@/app/firebase';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import AdminLayout from '../AdminLayout';
+import { DevModeToggle } from '@/components/DevModeToggle.js';
 
 // Gold Smith Dashboard - Key Metrics for Jewelry Wholesaler
 export default function GoldSmithDashboard() {
@@ -297,8 +298,13 @@ export default function GoldSmithDashboard() {
     <AdminLayout>
       <div className="p-6">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Gold Smith Dashboard</h1>
-          <p className="text-gray-600 mt-2">Jewelry wholesaler management overview</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Gold Smith Dashboard</h1>
+              <p className="text-gray-600 mt-2">Jewelry wholesaler management overview</p>
+            </div>
+            <DevModeToggle />
+          </div>
         </div>
 
         {/* Key Metrics Cards */}
