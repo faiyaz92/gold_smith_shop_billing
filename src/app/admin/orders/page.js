@@ -1690,6 +1690,9 @@ export default function GoldSmithOrders() {
       }
       const customerData = { id: customerSnap.id, ...customerSnap.data() };
 
+      // Calculate customer's prior balance (what they owed before this transaction)
+      const priorBalance = customerData.currentPureGoldBalance || 0;
+
       // Get gold bank data
       const goldBankRef = doc(db, `${basePath}/goldbanks`, goldBankId);
       const goldBankSnap = await getDoc(goldBankRef);
@@ -1698,6 +1701,65 @@ export default function GoldSmithOrders() {
         return;
       }
       const goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
+
+      // ✅ INVOICE GENERATION: Create invoice document and PDF
+      // Generate invoice number
+      const invoicesPath = `${basePath}/invoices`;
+      const invoicesSnapshot = await getDocs(
+        query(collection(db, invoicesPath), orderBy('createdAt', 'desc'), limit(1))
+      );
+
+      let invoiceNumber = 'INV-001-' + new Date().getFullYear();
+      if (!invoicesSnapshot.empty) {
+        const lastInvoice = invoicesSnapshot.docs[0].data();
+        const lastNumber = parseInt(lastInvoice.invoiceNumber.split('-')[1]) || 0;
+        invoiceNumber = `INV-${String(lastNumber + 1).padStart(3, '0')}-${new Date().getFullYear()}`;
+      }
+
+      // Create invoice document
+      const invoiceData = {
+        invoiceNumber,
+        orderId: order.id,
+        customerId: order.customerId,
+        customerName: customerData.customerName || customerData.name,
+        customerCode: customerData.accountCode,
+        customerPhone: customerData.phone || customerData.customerPhone,
+        customerAddress: customerData.address,
+        productName: order.productName,
+        productWeight: finalWeightValue,
+        karat: order.karat || '18k',
+        commissionRate: commissionRateValue,
+        goldPrice: goldPriceValue,
+        productPureGold: finalPureGold,
+        commissionGold: commissionGold,
+        priorBalance: priorBalance, // What customer owed before this transaction
+        currentTransaction: totalPureGoldOwed, // This invoice amount
+        totalPureGold: totalPureGoldOwed + priorBalance, // Total amount customer owes now
+        paymentReceived: totalPureGoldOwed, // What was paid for this delivery
+        balanceDue: priorBalance, // What remains due from prior balance
+        paymentMethod,
+        goldBankId,
+        goldBankName: goldBankData.name,
+        status: 'issued',
+        issuedDate: serverTimestamp(),
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        notes,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        companyId
+      };
+
+      // Save invoice to Firestore
+      const invoiceRef = await addDoc(collection(db, invoicesPath), invoiceData);
+
+      // Generate and download invoice PDF
+      try {
+        await invoiceGenerator.downloadInvoice(invoiceData, order, customerData, goldPriceValue);
+        console.log('Invoice PDF downloaded successfully');
+      } catch (pdfError) {
+        console.error('Error generating invoice PDF:', pdfError);
+        // Continue with delivery process even if PDF fails
+      }
 
       // Process customer payment (in gold terms)
       const paymentReceipt = await processCustomerPayment(
@@ -1715,13 +1777,13 @@ export default function GoldSmithOrders() {
       const accountingEngine = new AccountingEngine(companyId);
       await accountingEngine.createEntry({
         date: new Date(),
-        description: `Product delivery to customer for Order ${order.id} - ${totalPureGoldOwed.toFixed(3)}g pure gold total owed`,
-        transactionType: 'product_delivery',
-        referenceId: order.id,
-        referenceType: 'order',
+        description: `Invoice ${invoiceNumber} for Order ${order.id} - ${totalPureGoldOwed.toFixed(3)}g pure gold total owed`,
+        transactionType: 'customer_invoice',
+        referenceId: invoiceRef.id, // Reference the invoice document
+        referenceType: 'invoice',
         entries: [
           {
-            accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).toUpperCase()}`,
+            accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).padStart(4, '0')}`,
             accountName: `${customerData.customerName} - Receivables`,
             debit: totalPureGoldOwed,
             credit: 0,
@@ -1764,6 +1826,8 @@ export default function GoldSmithOrders() {
         paymentMethod,
         goldBankId,
         deliveryNotes: notes,
+        invoiceId: invoiceRef.id, // Reference to invoice document
+        invoiceNumber: invoiceNumber, // Invoice number for display
         updatedAt: serverTimestamp(),
         lastStatusUpdate: serverTimestamp(),
         statusHistory: [
@@ -1778,7 +1842,9 @@ export default function GoldSmithOrders() {
             totalPureGoldOwed, // Store total gold owed
             goldPrice: goldPriceValue,
             goldBankId,
-            paymentMethod
+            paymentMethod,
+            invoiceId: invoiceRef.id,
+            invoiceNumber: invoiceNumber
           }
         ]
       });
@@ -1796,7 +1862,7 @@ export default function GoldSmithOrders() {
         notes: ''
       });
 
-      alert(`Order delivered successfully!\nCommission Gold: ${commissionGold.toFixed(3)}g pure\nProduct Gold: ${finalPureGold.toFixed(3)}g pure\nTotal Gold Owed: ${totalPureGoldOwed.toFixed(3)}g pure\nFinal Weight: ${finalWeightValue}g`);
+      alert(`Order delivered successfully!\nInvoice: ${invoiceNumber}\nCommission Gold: ${commissionGold.toFixed(3)}g pure\nProduct Gold: ${finalPureGold.toFixed(3)}g pure\nTotal Gold Owed: ${totalPureGoldOwed.toFixed(3)}g pure\nFinal Weight: ${finalWeightValue}g\n\nInvoice PDF has been downloaded.`);
       fetchInitialData();
 
     } catch (error) {
@@ -1860,7 +1926,7 @@ export default function GoldSmithOrders() {
               balanceType: 'gold'
             },
             {
-              accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).toUpperCase()}`,
+              accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).padStart(4, '0')}`,
               accountName: `${customerData.customerName || customerData.name} - Receivables`,
               debit: 0,
               credit: totalPureGoldOwed,

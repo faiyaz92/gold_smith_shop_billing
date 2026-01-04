@@ -152,6 +152,12 @@ export default function NewCustomerPage() {
         console.error('Failed to create customer account:', accountResult.message);
         // Don't fail the entire operation, just log the error
         // Customer is created, account creation failed
+      } else {
+        // ✅ Store account relationship in customer document (like manufacturers/gold banks)
+        await updateDoc(docRef, {
+          accountCode: accountResult.account.accountCode,
+          accountId: accountResult.account.accountId
+        });
       }
 
       alert('✅ Customer and account created successfully!');

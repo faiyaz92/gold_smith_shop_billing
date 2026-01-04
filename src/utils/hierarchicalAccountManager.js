@@ -705,8 +705,8 @@ export class HierarchicalAccountManager {
 
       // Generate customer account code (CUST-XXXX format)
       const customerNumber = customerId.includes('-')
-        ? customerId.split('-')[1]
-        : customerId.padStart(4, '0');
+        ? customerId.split('-').pop()
+        : customerId.slice(-4).padStart(4, '0');
       const customerAccountCode = `CUST-${customerNumber}`;
 
       // Check if account already exists

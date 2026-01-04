@@ -213,6 +213,38 @@ class InvoiceGenerator {
     doc.line(20, yPosition, pageWidth - 20, yPosition);
     yPosition += 10;
 
+    // Payment Summary Section
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PAYMENT SUMMARY:', 20, yPosition);
+    
+    yPosition += 7;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    
+    // Payment Received
+    doc.text('Payment Received Today:', 25, yPosition);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(34, 197, 94); // Green for payment received
+    doc.text(`${invoiceData.paymentReceived.toFixed(3)}g`, pageWidth - 25, yPosition, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+    
+    yPosition += 6;
+    doc.setFont('helvetica', 'normal');
+    
+    // Balance Due
+    doc.text('Balance Due:', 25, yPosition);
+    doc.setFont('helvetica', 'bold');
+    const balanceDueColor = invoiceData.balanceDue > 0 ? [220, 38, 38] : [34, 197, 94]; // Red if due, green if zero
+    doc.setTextColor(...balanceDueColor);
+    doc.text(`${invoiceData.balanceDue.toFixed(3)}g`, pageWidth - 25, yPosition, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+    
+    yPosition += 8;
+    doc.setLineWidth(0.3);
+    doc.line(20, yPosition, pageWidth - 20, yPosition);
+    yPosition += 8;
+
     // Reference Amount Section
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
