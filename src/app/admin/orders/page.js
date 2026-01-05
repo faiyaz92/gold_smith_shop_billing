@@ -58,7 +58,7 @@ import { useAccounting } from '@/app/context/AccountingContext';
 
 // Gold Smith Order Status Colors (matching BRD)
 const statusColors = {
-  'New': 'bg-gray-100 text-gray-800',
+  'New Order': 'bg-gray-100 text-gray-800',
   'Confirmed': 'bg-blue-100 text-blue-800',
   'Challan Issued': 'bg-cyan-100 text-cyan-800',
   'In Production': 'bg-yellow-100 text-yellow-800',
@@ -74,7 +74,7 @@ const statusColors = {
 // Gold Smith Order Statuses (from BRD)
 // ✅ TASK 6.4: Order Status Workflow Configuration
 const ORDER_STATUS_FLOW = {
-  'New': {
+  'New Order': {
     label: 'New Order',
     color: 'bg-gray-100 text-gray-800',
     nextStatuses: ['Confirmed', 'Cancelled'],
@@ -93,7 +93,7 @@ const ORDER_STATUS_FLOW = {
   'Challan Issued': {
     label: 'Challan Issued',
     color: 'bg-cyan-100 text-cyan-800',
-    nextStatuses: ['In Production', 'Cancelled'],
+    nextStatuses: ['In Production', 'Ready for Pickup', 'Picked Up', 'Cancelled'],
     allowedActions: ['issueChallan'],
     description: 'Gold withdrawal challan issued to manufacturer',
     accountingImpact: 'Gold withdrawal challan triggers: Debit 1102 (Gold in Transit), Credit 1101 (Gold Inventory)'
@@ -101,7 +101,7 @@ const ORDER_STATUS_FLOW = {
   'In Production': {
     label: 'In Production',
     color: 'bg-yellow-100 text-yellow-800',
-    nextStatuses: ['Ready for Pickup', 'Cancelled'],
+    nextStatuses: ['Ready for Pickup', 'Picked Up', 'Cancelled'],
     allowedActions: [],
     description: 'Manufacturer working on the order',
     accountingImpact: 'None - work in progress'
@@ -109,7 +109,7 @@ const ORDER_STATUS_FLOW = {
   'Ready for Pickup': {
     label: 'Ready for Pickup',
     color: 'bg-purple-100 text-purple-800',
-    nextStatuses: ['Picked Up', 'Ready for Delivery', 'Cancelled'],
+    nextStatuses: ['Picked Up', 'Cancelled'],
     allowedActions: ['generateInvoice'],
     description: 'Product received from manufacturer, ready for customer pickup or delivery',
     accountingImpact: 'None - product ready'
@@ -117,7 +117,7 @@ const ORDER_STATUS_FLOW = {
   'Picked Up': {
     label: 'Picked Up',
     color: 'bg-indigo-100 text-indigo-800',
-    nextStatuses: ['Completed'],
+    nextStatuses: ['Ready for Delivery', 'Delivered', 'Completed', 'Cancelled'],
     allowedActions: ['recordPayment'],
     description: 'Customer picked up the product',
     accountingImpact: 'None - delivery confirmation'
@@ -165,6 +165,79 @@ const ORDER_STATUS_FLOW = {
 };
 
 const ORDER_STATUSES = Object.keys(ORDER_STATUS_FLOW);
+
+// ✅ ACCOUNTING MILESTONES: Statuses that create accounting entries and cannot be bypassed
+const ACCOUNTING_MILESTONES = ['Challan Issued', 'Picked Up', 'Delivered', 'Completed'];
+
+// ✅ Function to validate status transitions based on accounting milestones
+const validateStatusTransition = (currentStatus, newStatus) => {
+  // Always allow cancellation from any status
+  if (newStatus === 'Cancelled') return true;
+
+  // Get current status index in milestones
+  const currentMilestoneIndex = ACCOUNTING_MILESTONES.indexOf(currentStatus);
+  const newMilestoneIndex = ACCOUNTING_MILESTONES.indexOf(newStatus);
+
+  // If current status is not a milestone, check if trying to bypass milestones
+  if (currentMilestoneIndex === -1) {
+    // From New Order, can only go to Confirmed or Cancelled
+    if (currentStatus === 'New Order' && newStatus !== 'Confirmed' && newStatus !== 'Cancelled') {
+      return { valid: false, message: 'From New Order status, you can only change to Confirmed or Cancelled.' };
+    }
+    // From Confirmed, can only go to Challan Issued or Cancelled
+    if (currentStatus === 'Confirmed' && newStatus !== 'Challan Issued' && newStatus !== 'Cancelled') {
+      return { valid: false, message: 'From Confirmed status, you can only change to Challan Issued or Cancelled. Please issue a challan first.' };
+    }
+    // From Challan Issued, can go to In Production, Ready for Pickup, Picked Up, or Cancelled (can bypass)
+    if (currentStatus === 'Challan Issued' && newStatus !== 'In Production' && newStatus !== 'Ready for Pickup' && newStatus !== 'Picked Up' && newStatus !== 'Cancelled') {
+      return { valid: false, message: 'From Challan Issued status, you can only change to In Production, Ready for Pickup, Picked Up, or Cancelled.' };
+    }
+    // From In Production, can go to Ready for Pickup, Picked Up, or Cancelled (can bypass to Picked Up)
+    if (currentStatus === 'In Production' && newStatus !== 'Ready for Pickup' && newStatus !== 'Picked Up' && newStatus !== 'Cancelled') {
+      return { valid: false, message: 'From In Production status, you can only change to Ready for Pickup, Picked Up, or Cancelled.' };
+    }
+    // From Ready for Pickup, can only go to Picked Up or Cancelled (cannot bypass the Picked Up milestone)
+    if (currentStatus === 'Ready for Pickup' && newStatus !== 'Picked Up' && newStatus !== 'Cancelled') {
+      return { valid: false, message: 'From Ready for Pickup status, you must first change to Picked Up before proceeding to other statuses.' };
+    }
+    // From Ready for Delivery, can only go to Delivered or Cancelled
+    if (currentStatus === 'Ready for Delivery' && newStatus !== 'Delivered' && newStatus !== 'Cancelled') {
+      return { valid: false, message: 'From Ready for Delivery status, you can only change to Delivered or Cancelled.' };
+    }
+  }
+
+  // If current status IS a milestone, cannot go backwards
+  if (currentMilestoneIndex !== -1 && newMilestoneIndex !== -1 && newMilestoneIndex <= currentMilestoneIndex) {
+    return { valid: false, message: `Cannot go backwards from ${currentStatus} to ${newStatus}. Accounting entries have been created.` };
+  }
+
+  // If trying to jump over milestones
+  if (currentMilestoneIndex !== -1 && newMilestoneIndex !== -1 && newMilestoneIndex > currentMilestoneIndex + 1) {
+    return { valid: false, message: `Cannot bypass accounting milestones. Must go through ${ACCOUNTING_MILESTONES[currentMilestoneIndex + 1]} first.` };
+  }
+
+  // Allow forward progression through defined next statuses
+  return { valid: true };
+};
+
+// ✅ Function to get valid next statuses for dropdown filtering
+const getValidNextStatuses = (currentStatus) => {
+  // If current status is not in ORDER_STATUS_FLOW, assume it's 'New Order'
+  const normalizedStatus = ORDER_STATUS_FLOW[currentStatus] ? currentStatus : 'New Order';
+  const nextStatuses = ORDER_STATUS_FLOW[normalizedStatus]?.nextStatuses || [];
+
+  // Always include current status first, then Cancelled, then other next statuses
+  const validStatuses = [normalizedStatus, 'Cancelled'];
+
+  // Add next statuses that pass validation (excluding Cancelled which is already included)
+  nextStatuses.forEach(status => {
+    if (status !== 'Cancelled' && !validStatuses.includes(status)) {
+      validStatuses.push(status);
+    }
+  });
+
+  return validStatuses;
+};
 
 // Payment Statuses for Gold Smith
 const PAYMENT_STATUSES = [
@@ -1073,10 +1146,25 @@ export default function GoldSmithOrders() {
       const orderData = orderSnap.data();
       const oldStatus = orderData.status;
 
-      // Validation for status changes
+      // ✅ COMPREHENSIVE STATUS VALIDATION (Backend safety check)
+      const normalizedOldStatus = ORDER_STATUS_FLOW[oldStatus] ? oldStatus : 'New Order';
+      const validation = validateStatusTransition(normalizedOldStatus, newStatus);
+      if (!validation.valid) {
+        alert(validation.message);
+        return;
+      }
+
+      // Special handling for status changes that require dialogs
       if (newStatus === 'Picked Up') {
-        // Show pickup dialog instead of direct status change
         handleShowPickupDialog(orderData);
+        return;
+      }
+      if (newStatus === 'Delivered') {
+        handleShowDeliveryDialog(orderData);
+        return;
+      }
+      if (newStatus === 'Challan Issued') {
+        handleShowChallanConfirmation(orderData);
         return;
       }
 
@@ -3198,7 +3286,7 @@ export default function GoldSmithOrders() {
             <div className="text-gray-600">Total Orders</div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-2xl font-bold text-blue-600">{orderStats.byStatus['New'] || 0}</div>
+            <div className="text-2xl font-bold text-blue-600">{orderStats.byStatus['New Order'] || 0}</div>
             <div className="text-gray-600">New Orders</div>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
@@ -3325,19 +3413,26 @@ export default function GoldSmithOrders() {
                     {/* ✅ TASK 6.4: Status Column */}
                     <td className="px-4 py-4 whitespace-nowrap">
                       <select
-                        value={order.status}
+                        value={ORDER_STATUS_FLOW[order.status] ? order.status : 'New Order'}
                         onChange={(e) => {
                           const newStatus = e.target.value;
-                          // Validation: From New/Confirmed, can only go to Challan Issued
-                          if ((order.status === 'New' || order.status === 'Confirmed') && newStatus !== 'Challan Issued') {
-                            alert('From New or Confirmed status, you can only change to Challan Issued status. Please issue a challan first.');
-                            e.target.value = order.status; // Reset dropdown
+
+                          // Don't update if selecting the same status
+                          if (newStatus === order.status) return;
+
+                          // ✅ COMPREHENSIVE STATUS VALIDATION
+                          const normalizedCurrentStatus = ORDER_STATUS_FLOW[order.status] ? order.status : 'New Order';
+                          const validation = validateStatusTransition(normalizedCurrentStatus, newStatus);
+                          if (!validation.valid) {
+                            alert(validation.message);
+                            e.target.value = ORDER_STATUS_FLOW[order.status] ? order.status : 'New Order'; // Reset dropdown
                             return;
                           }
-                          // Special handling for Challan Issued -> Challan Issued (already handled above)
-                          if ((order.status === 'New' || order.status === 'Confirmed') && newStatus === 'Challan Issued') {
+
+                          // Special handling for Challan Issued -> show challan confirmation dialog
+                          if (newStatus === 'Challan Issued') {
                             handleShowChallanConfirmation(order);
-                          } 
+                          }
                           // Special handling for Picked Up -> show pickup dialog
                           else if (newStatus === 'Picked Up') {
                             handleShowPickupDialog(order);
@@ -3350,9 +3445,9 @@ export default function GoldSmithOrders() {
                             updateOrderStatusSimple(order.id, newStatus);
                           }
                         }}
-                        className={`px-2 py-1 text-xs font-medium rounded border ${ORDER_STATUS_FLOW[order.status]?.color || 'bg-gray-100 text-gray-800 border-gray-300'}`}
+                        className={`px-2 py-1 text-xs font-medium rounded border ${ORDER_STATUS_FLOW[order.status]?.color || ORDER_STATUS_FLOW['New Order']?.color || 'bg-gray-100 text-gray-800 border-gray-300'}`}
                       >
-                        {ORDER_STATUSES.map(status => (
+                        {getValidNextStatuses(order.status).map(status => (
                           <option key={status} value={status}>
                             {ORDER_STATUS_FLOW[status]?.label || status}
                           </option>
@@ -3971,7 +4066,7 @@ export default function GoldSmithOrders() {
         {/* ✅ TASK 6.3: Order Receipt Dialog (BRD v2) */}
         {showReceiptDialog && createdOrderData && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg w-full max-w-lg">
+            <div className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
               <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-t-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -4748,7 +4843,7 @@ export default function GoldSmithOrders() {
         {/* ✅ TASK 7.1: Challan Success Dialog */}
         {showChallanDialog && challanOrderData && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg w-full max-w-2xl">
+            <div className="bg-white p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold mb-4 text-yellow-800">
                 ✓ Gold Withdrawal Challan Issued
               </h2>
@@ -4864,7 +4959,7 @@ export default function GoldSmithOrders() {
         {/* ✅ TASK 9.1: Invoice Success Dialog */}
         {showInvoiceDialog && invoiceOrderData && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg w-full max-w-2xl">
+            <div className="bg-white p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold mb-4 text-blue-800">
                 ✓ Customer Invoice Generated
               </h2>

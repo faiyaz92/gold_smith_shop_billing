@@ -156,7 +156,7 @@ export default function NewCustomerPage() {
         // ✅ Store account relationship in customer document (like manufacturers/gold banks)
         await updateDoc(docRef, {
           accountCode: accountResult.account.accountCode,
-          accountId: accountResult.account.accountId
+          accountId: accountResult.account.id
         });
       }
 

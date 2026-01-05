@@ -338,6 +338,34 @@ export class HierarchicalAccountManager {
   }
 
   /**
+   * Generate customer account code (CUST-XXXX format) - sequential
+   * @returns {string} - Generated customer account code
+   */
+  async generateCustomerAccountCode() {
+    try {
+      // Get all accounts to find existing CUST-XXXX codes
+      const allAccounts = await this.getAllAccounts();
+
+      // Find the highest customer account number
+      let maxNumber = 0;
+      allAccounts.forEach(account => {
+        if (account.accountCode && account.accountCode.startsWith('CUST-')) {
+          const number = parseInt(account.accountCode.replace('CUST-', ''));
+          if (number > maxNumber) maxNumber = number;
+        }
+      });
+
+      // Generate next sequential number
+      const nextNumber = (maxNumber + 1).toString().padStart(4, '0');
+      return `CUST-${nextNumber}`;
+    } catch (error) {
+      console.error('Error generating customer account code:', error);
+      // Fallback to timestamp-based code
+      return `CUST-${Date.now().toString().slice(-8)}`;
+    }
+  }
+
+  /**
    * Get normal balance for account type
    * @param {string} accountType - Account type
    * @returns {string} - Normal balance ('debit' or 'credit')
@@ -703,11 +731,8 @@ export class HierarchicalAccountManager {
         throw new Error('Customer ID and name are required');
       }
 
-      // Generate customer account code (CUST-XXXX format)
-      const customerNumber = customerId.includes('-')
-        ? customerId.split('-').pop()
-        : customerId.slice(-4).padStart(4, '0');
-      const customerAccountCode = `CUST-${customerNumber}`;
+      // Generate customer account code (CUST-XXXX format) - sequential
+      const customerAccountCode = await this.generateCustomerAccountCode();
 
       // Check if account already exists
       const existingAccount = await this.getAccountByCode(customerAccountCode);
@@ -872,10 +897,10 @@ export class HierarchicalAccountManager {
         };
       }
 
-      // Get parent account (2101 - Accounts Payable)
+      // Get parent account (2101 - Manufacturer Payables)
       const parentAccount = await this.getAccountByCode('2101');
       if (!parentAccount) {
-        throw new Error('Parent account (Accounts Payable) not found');
+        throw new Error('Parent account (Manufacturer Payables) not found');
       }
 
       // Call CORE createAccount method with manufacturer-specific additional fields

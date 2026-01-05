@@ -15,6 +15,8 @@ export default function GoldBanksPage() {
   const [goldBanks, setGoldBanks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
   const [formData, setFormData] = useState({
     bankName: '',
     location: '',
@@ -66,7 +68,7 @@ export default function GoldBanksPage() {
         });
 
         // ✅ Use centralized account creation method
-        const accountManager = new HierarchicalAccountManager();
+        const accountManager = new HierarchicalAccountManager(companyId);
         const accountResult = await accountManager.createGoldBankAccount({
           goldBankId: docRef.id,
           bankName: formData.bankName,
@@ -80,7 +82,7 @@ export default function GoldBanksPage() {
         // Update gold bank document with account code
         await updateDoc(docRef, {
           accountCode: accountResult.account.accountCode,
-          accountId: accountResult.account.accountId
+          accountId: accountResult.account.id
         });
 
         toast.success('✅ Gold bank and account created successfully');

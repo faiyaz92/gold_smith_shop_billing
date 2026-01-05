@@ -5,7 +5,7 @@
 // Manufacturers paid in USD for making charges only
 
 import { useState } from 'react';
-import { collection, addDoc, serverTimestamp, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useRouter } from 'next/navigation';
 import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
@@ -57,12 +57,30 @@ export default function NewManufacturerPage() {
         }
       });
 
-      // Format: 2101-MFG-XXX (2101 = Accounts Payable parent code)
+      // Format: 2101-MFG-XXX (2101 = Manufacturer Payables parent code)
       return `2101-MFG-${String(maxNumber + 1).padStart(3, '0')}`;
     } catch (error) {
       console.error('Error generating manufacturer code:', error);
       // Fallback to timestamp-based code
       return `2101-MFG-${Date.now().toString().slice(-6)}`;
+    }
+  };
+
+  const checkRequiredAccounts = async () => {
+    try {
+      const accountManager = new HierarchicalAccountManager(companyId);
+      
+      // Check if required GoldSmith parent accounts exist
+      const manufacturerPayablesAccount = await accountManager.getAccountByCode('2101');
+      const goldTransitAccount = await accountManager.getAccountByCode('1102');
+
+      if (!manufacturerPayablesAccount || !goldTransitAccount) {
+        throw new Error('Required GoldSmith accounts (2101 Manufacturer Payables, 1102 Gold in Transit) not found. Please initialize accounts from the Accounting page first.');
+      }
+      return true;
+    } catch (error) {
+      console.error('Error checking required accounts:', error);
+      throw error;
     }
   };
 
@@ -92,8 +110,11 @@ export default function NewManufacturerPage() {
 
       const docRef = await addDoc(collection(db, `${basePath}/manufacturers`), manufacturerData);
 
+      // ✅ Check required parent accounts exist
+      await checkRequiredAccounts();
+
       // ✅ Use centralized account creation method for payables
-      const accountManager = new HierarchicalAccountManager();
+      const accountManager = new HierarchicalAccountManager(companyId);
       const accountResult = await accountManager.createManufacturerAccount({
         manufacturerId: docRef.id,
         manufacturerName: formData.manufacturerName
@@ -116,9 +137,9 @@ export default function NewManufacturerPage() {
       // Update manufacturer document with both account codes
       await updateDoc(docRef, {
         accountCode: accountResult.account.accountCode,
-        accountId: accountResult.account.accountId,
+        accountId: accountResult.account.id,
         goldTransitAccountCode: goldTransitAccountResult.account.accountCode,
-        goldTransitAccountId: goldTransitAccountResult.account.accountId
+        goldTransitAccountId: goldTransitAccountResult.account.id
       });
 
       alert('✅ Manufacturer and account created successfully!');

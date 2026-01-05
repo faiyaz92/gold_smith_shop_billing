@@ -181,16 +181,16 @@ export class PaymentEngine {
   getCashAccountId(paymentMethod) {
     switch (paymentMethod) {
       case 'cash':
-        return 'MAIN-1001'; // Cash
+        return '1201'; // Cash (GoldSmith)
       case 'card':
       case 'upi':
       case 'online':
-        return 'MAIN-1002'; // Bank
+        return '1202'; // Bank Account (GoldSmith)
       case 'bank_transfer':
       case 'cheque':
-        return 'MAIN-1002'; // Bank
+        return '1202'; // Bank Account (GoldSmith)
       default:
-        return 'MAIN-1001'; // Default to cash
+        return '1201'; // Default to cash (GoldSmith)
     }
   }
 

@@ -118,8 +118,8 @@ export class AccountingEngine {
 
     try {
       // Determine accounts based on payment method
-      const cashAccount = paymentMethod === 'cash' ? 'MAIN-1001' : 'MAIN-1002'; // Cash or Bank
-      const salesAccount = 'MAIN-4001'; // Sales Revenue
+      const cashAccount = paymentMethod === 'cash' ? '1201' : '1202'; // Cash or Bank (GoldSmith)
+      const salesAccount = '4101'; // Commission Income (GoldSmith)
 
       return await this.recordTransaction({
         description: `Sale - Order ${orderId}`,
@@ -145,8 +145,8 @@ export class AccountingEngine {
     const { orderId, cogsAmount } = orderData;
 
     try {
-      const inventoryAccount = 'MAIN-1004'; // Inventory
-      const cogsAccount = 'MAIN-5001'; // Cost of Goods Sold
+      const inventoryAccount = '1103'; // Finished Goods Inventory (GoldSmith)
+      const cogsAccount = '5101'; // Making Charges (GoldSmith)
 
       return await this.recordTransaction({
         description: `COGS - Order ${orderId}`,
@@ -172,8 +172,8 @@ export class AccountingEngine {
     const { purchaseId, totalAmount, supplierId } = purchaseData;
 
     try {
-      const inventoryAccount = 'MAIN-1004'; // Inventory
-      const cashAccount = 'MAIN-1001'; // Cash
+      const inventoryAccount = '1103'; // Finished Goods Inventory (GoldSmith)
+      const cashAccount = '1201'; // Cash (GoldSmith)
 
       const result = await this.recordTransaction({
         description: `Cash Purchase - Supplier ${supplierId}`,
@@ -201,8 +201,8 @@ export class AccountingEngine {
     const { purchaseId, totalAmount, supplierId } = purchaseData;
 
     try {
-      const inventoryAccount = 'MAIN-1004'; // Inventory
-      const accountsPayable = 'MAIN-2001'; // Accounts Payable
+      const inventoryAccount = '1103'; // Finished Goods Inventory (GoldSmith)
+      const accountsPayable = '2102'; // Other Payables (GoldSmith)
 
       const result = await this.recordTransaction({
         description: `Credit Purchase - Supplier ${supplierId}`,
@@ -232,7 +232,7 @@ export class AccountingEngine {
     try {
       // Find customer receivable account
       const customerAccountCode = `CUST-${customerId.split('-')[1] || customerId.padStart(4, '0')}`;
-      const cashAccount = paymentMethod === 'cash' ? 'MAIN-1001' : 'MAIN-1002';
+      const cashAccount = paymentMethod === 'cash' ? '1201' : '1202'; // Cash or Bank (GoldSmith)
 
       return await this.recordTransaction({
         description: `Customer Payment - ${customerId}`,
@@ -258,8 +258,8 @@ export class AccountingEngine {
     const { paymentId, amount, supplierId, paymentMethod } = paymentData;
 
     try {
-      const accountsPayable = 'MAIN-2001'; // Accounts Payable
-      const cashAccount = paymentMethod === 'cash' ? 'MAIN-1001' : 'MAIN-1002';
+      const accountsPayable = '2101'; // Manufacturer Payables (GoldSmith)
+      const cashAccount = paymentMethod === 'cash' ? '1201' : '1202'; // Cash or Bank (GoldSmith)
 
       return await this.recordTransaction({
         description: `Supplier Payment - ${supplierId}`,
@@ -356,13 +356,24 @@ export class AccountingEngine {
    */
   async validateAccountingEquation() {
     try {
-      // Get balances for main account categories
-      const assetBalance = await this.getAccountBalance('MAIN-1000') || 0; // Assets
-      const liabilityBalance = await this.getAccountBalance('MAIN-2000') || 0; // Liabilities
-      const equityBalance = await this.getAccountBalance('MAIN-3000') || 0; // Equity
+      // For GoldSmith system, validate that key accounts exist and are accessible
+      // Since we don't have parent category accounts, check individual key accounts
+      const keyAccounts = ['1201', '1202', '1301', '2101', '3101']; // Cash, Bank, Receivables, Payables, Capital
 
-      const leftSide = assetBalance;
-      const rightSide = liabilityBalance + equityBalance;
+      let totalAssets = 0;
+      let totalLiabilities = 0;
+      let totalEquity = 0;
+
+      for (const accountCode of keyAccounts) {
+        const balance = await this.getAccountBalance(accountCode) || 0;
+        // Classify accounts by their first digit (GoldSmith system)
+        if (accountCode.startsWith('1')) totalAssets += balance; // Assets
+        else if (accountCode.startsWith('2')) totalLiabilities += balance; // Liabilities
+        else if (accountCode.startsWith('3')) totalEquity += balance; // Equity
+      }
+
+      const leftSide = totalAssets;
+      const rightSide = totalLiabilities + totalEquity;
       const difference = Math.abs(leftSide - rightSide);
 
       const isBalanced = difference < 0.01; // Allow for floating point precision
