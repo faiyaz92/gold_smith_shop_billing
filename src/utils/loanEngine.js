@@ -107,8 +107,6 @@ export class LoanEngine {
         accountingRecorded: true,
         updatedAt: serverTimestamp()
       });
-        updatedAt: serverTimestamp()
-      });
 
       // Record accounting entry: Customer owes gold grams
       // Debit: Loan Receivable (gold grams) - what customer owes

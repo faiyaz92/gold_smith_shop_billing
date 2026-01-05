@@ -122,8 +122,14 @@ This document summarizes the requirements for implementing quick operations in t
 - **Manufacturer Integration**: Updates manufacturer gold transit balances
 - **Simplified Workflow**: Streamlined version of order challan process
 
-#### 6. Dashboard Integration
-- **Quick Actions Grid**: 8-button grid with all operations
+#### 6. Receive Payment from Customer Form
+- **Customer Payment Recording**: Records USD payments against customer receivables
+- **Gold Conversion**: Converts USD payment to gold grams using real-time prices
+- **Accounting Integration**: Debit Cash (1201), Credit Customer Receivables (CUST-XXXX)
+- **Balance Updates**: Automatically updates customer account balances and hierarchical rollup
+
+#### 7. Dashboard Integration
+- **Quick Actions Grid**: 9-button grid with all operations
 - **Modal Management**: State management for all popup forms
 - **User-Friendly Interface**: Color-coded buttons with clear descriptions
 - **Responsive Design**: Works on desktop and mobile
@@ -150,6 +156,9 @@ This document summarizes the requirements for implementing quick operations in t
 5. **Challan**:
    - Debit Gold in Transit (1102), Credit Gold Bank (1101)
 
+6. **Receive Payment**:
+   - Debit Cash (1201), Credit Customer Receivables (CUST-XXXX)
+
 #### Data Flow
 1. User selects operation from dashboard
 2. Form opens with relevant fields
@@ -170,6 +179,7 @@ This document summarizes the requirements for implementing quick operations in t
 - `src/components/SaleForm.js` - New sales invoice form
 - `src/components/LoanForm.js` - New customer loan form
 - `src/components/QuickChallanForm.js` - New simplified challan form
+- `src/components/ReceivePaymentForm.js` - New customer payment receipt form
 - `src/components/GoldPricePopup.js` - Updated for form integration
 - `docs/04_Project_Management/QUICK_OPERATIONS_REQUIREMENTS_SUMMARY.md` - Implementation documentation
 
@@ -177,9 +187,10 @@ This document summarizes the requirements for implementing quick operations in t
 1. **Purchase Transactions**: Test both cash and credit purchases for gold and finished goods
 2. **Sales Transactions**: Test all payment methods (cash, gold, credit)
 3. **Loan Transactions**: Verify USD to gold conversion and receivable tracking
-4. **Challan Issuance**: Confirm accounting entries and manufacturer balance updates
-5. **Gold Price Integration**: Test conversion calculations and API fallbacks
-6. **Balance Validation**: Ensure accounting equation integrity after each transaction
+4. **Receive Payment Transactions**: Test customer payment recording with USD to gold conversion and receivable balance reduction
+5. **Challan Issuance**: Confirm accounting entries and manufacturer balance updates
+6. **Gold Price Integration**: Test conversion calculations and API fallbacks
+7. **Balance Validation**: Ensure accounting equation integrity after each transaction
 
 ### Success Metrics
 - ✅ All transactions maintain double-entry bookkeeping

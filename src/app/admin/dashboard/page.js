@@ -44,10 +44,14 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { DevModeToggle } from '@/components/DevModeToggle.js';
 import GoldPricePopup from '@/components/GoldPricePopup.js';
+import GoldPriceManager from '@/components/GoldPriceManager.js';
 import PurchaseForm from '@/components/PurchaseForm.js';
 import SaleForm from '@/components/SaleForm.js';
 import LoanForm from '@/components/LoanForm.js';
 import QuickChallanForm from '@/components/QuickChallanForm.js';
+import ReceivePaymentForm from '@/components/ReceivePaymentForm.js';
+import { fetchGoldPrice, getLatestGoldPrice } from '@/utils/goldPriceAPI';
+import AdminLayout from '@/app/admin/AdminLayout';
 
 // Gold Smith Dashboard - Key Metrics for Jewelry Wholesaler
 export default function GoldSmithDashboard() {
@@ -71,9 +75,13 @@ export default function GoldSmithDashboard() {
   const [showSaleForm, setShowSaleForm] = useState(false);
   const [showLoanForm, setShowLoanForm] = useState(false);
   const [showChallanForm, setShowChallanForm] = useState(false);
+  const [showReceivePaymentForm, setShowReceivePaymentForm] = useState(false);
+  const [showGoldPriceManager, setShowGoldPriceManager] = useState(false);
+  const [currentGoldPrice, setCurrentGoldPrice] = useState(null);
   const [goldPriceData, setGoldPriceData] = useState(null);
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const userRole = typeof window !== 'undefined' ? (localStorage.getItem('userRole') || 'company_admin') : 'company_admin';
   const ordersPath = `companies/${companyId}/orders`;
   const customersPath = `companies/${companyId}/customers`;
   const manufacturersPath = `companies/${companyId}/manufacturers`;
@@ -152,6 +160,19 @@ export default function GoldSmithDashboard() {
         }));
         setPayments(paymentsData);
       });
+
+      // Fetch current gold price
+      const loadGoldPrice = async () => {
+        try {
+          const priceData = await getLatestGoldPrice();
+          if (priceData) {
+            setCurrentGoldPrice(priceData);
+          }
+        } catch (error) {
+          console.error('Error loading gold price:', error);
+        }
+      };
+      loadGoldPrice();
 
       return () => {
         ordersUnsubscribe();
@@ -309,6 +330,10 @@ export default function GoldSmithDashboard() {
     setShowChallanForm(true);
   };
 
+  const handleReceivePayment = () => {
+    setShowReceivePaymentForm(true);
+  };
+
   const handleGoldPriceConfirm = (priceData) => {
     setGoldPriceData(priceData);
     setShowGoldPricePopup(false);
@@ -408,6 +433,31 @@ export default function GoldSmithDashboard() {
                 <p className="text-sm text-gray-500">Estimated earnings</p>
               </div>
               <IndianRupee className="w-8 h-8 text-purple-500" />
+            </div>
+          </motion.div>
+
+          {/* Current Gold Price */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-l-4 border-yellow-500 cursor-pointer hover:shadow-xl transition-shadow"
+            onClick={() => setShowGoldPriceManager(true)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Gold Price (24k)</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {currentGoldPrice ? `$${currentGoldPrice.pricePerOunce?.toLocaleString()}` : 'Loading...'}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {currentGoldPrice ? `$${currentGoldPrice.pricePerGram?.toFixed(2)}/g` : ''}
+                </p>
+              </div>
+              <div className="flex flex-col items-end">
+                <RefreshCw className="w-6 h-6 text-yellow-500 mb-1" />
+                <span className="text-xs text-gray-400">Click to edit</span>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -583,6 +633,16 @@ export default function GoldSmithDashboard() {
               <span className="text-sm font-medium text-cyan-700">Quick Challan</span>
               <span className="text-xs text-cyan-600 mt-1">Gold withdrawal</span>
             </button>
+
+            {/* Receive Payment */}
+            <button
+              onClick={handleReceivePayment}
+              className="flex flex-col items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors group"
+            >
+              <DollarSign className="w-8 h-8 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-green-700">Receive Payment</span>
+              <span className="text-xs text-green-600 mt-1">Customer payments</span>
+            </button>
           </div>
           
           {/* Additional Quick Links */}
@@ -652,6 +712,20 @@ export default function GoldSmithDashboard() {
         onClose={() => setShowChallanForm(false)}
         companyId={companyId}
         userRole={userRole}
+      />
+
+      {/* Receive Payment Form */}
+      <ReceivePaymentForm
+        isOpen={showReceivePaymentForm}
+        onClose={() => setShowReceivePaymentForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Gold Price Manager */}
+      <GoldPriceManager
+        isOpen={showGoldPriceManager}
+        onClose={() => setShowGoldPriceManager(false)}
       />
     </AdminLayout>
   );

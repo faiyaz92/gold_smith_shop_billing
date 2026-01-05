@@ -10,11 +10,13 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
   const [manufacturers, setManufacturers] = useState([]);
   const [goldBanks, setGoldBanks] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showGoldPricePopup, setShowGoldPricePopup] = useState(false);
 
   const [formData, setFormData] = useState({
     orderId: '',
+    customerId: '',
     manufacturerId: '',
     goldBankId: '',
     weight: '',
@@ -60,10 +62,21 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
       setOrders(ordersData);
     });
 
+    const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
+    const customersQuery = query(collection(db, customersPath), orderBy('name'));
+    const customersUnsubscribe = onSnapshot(customersQuery, (snapshot) => {
+      const customersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCustomers(customersData);
+    });
+
     return () => {
       manufacturersUnsubscribe();
       goldBanksUnsubscribe();
       ordersUnsubscribe();
+      customersUnsubscribe();
     };
   }, [isOpen, companyId]);
 
@@ -74,6 +87,7 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
       if (selectedOrder) {
         setFormData(prev => ({
           ...prev,
+          customerId: selectedOrder.customerId || '',
           manufacturerId: selectedOrder.manufacturerId || '',
           weight: selectedOrder.weight?.toString() || '',
           karat: selectedOrder.karat || '24k',
@@ -95,8 +109,9 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.orderId) {
-      newErrors.orderId = 'Please select an order';
+    // Order is now optional - if no order selected, customer becomes required
+    if (!formData.orderId && !formData.customerId) {
+      newErrors.customerId = 'Please select a customer/party when no order is selected';
     }
 
     if (!formData.manufacturerId) {
@@ -146,6 +161,7 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
       const challansPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/challans`;
 
       const selectedOrder = orders.find(o => o.id === formData.orderId);
+      const selectedCustomer = customers.find(c => c.id === formData.customerId);
       const manufacturer = manufacturers.find(m => m.id === formData.manufacturerId);
       const goldBank = goldBanks.find(b => b.id === formData.goldBankId);
 
@@ -164,9 +180,9 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
       const challanData = {
         challanNumber,
         challanType: 'gold_withdrawal',
-        orderId: formData.orderId,
-        customerId: selectedOrder?.customerId || '',
-        customerName: selectedOrder?.customerName || 'Unknown',
+        orderId: formData.orderId || null, // Optional now
+        customerId: selectedOrder?.customerId || formData.customerId || '',
+        customerName: selectedOrder?.customerName || selectedCustomer?.name || 'Unknown',
         manufacturerId: formData.manufacturerId,
         manufacturerName: manufacturer?.manufacturerName || 'Unknown',
         pureGoldAmount,
@@ -234,6 +250,7 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
       // Reset form
       setFormData({
         orderId: '',
+        customerId: '',
         manufacturerId: '',
         goldBankId: '',
         weight: '',
@@ -272,29 +289,62 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
             </button>
           </div>
 
+          {/* Description */}
+          <div className="px-6 py-3 bg-cyan-50 border-b">
+            <p className="text-sm text-cyan-800">
+              Issue gold withdrawal challans to manufacturers for any customer/party. Can be linked to an order or issued independently.
+            </p>
+          </div>
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {/* Order Selection */}
+            {/* Order Selection - Now Optional */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Order *
+                Order (Optional)
               </label>
               <select
                 value={formData.orderId}
                 onChange={(e) => setFormData(prev => ({ ...prev, orderId: e.target.value }))}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 ${
-                  errors.orderId ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
-                <option value="">Select Order</option>
+                <option value="">No specific order</option>
                 {orders.map(order => (
                   <option key={order.id} value={order.id}>
                     {order.id.slice(-8)} - {order.customerName} - {order.productName} ({order.weight}g {order.karat})
                   </option>
                 ))}
               </select>
-              {errors.orderId && (
-                <p className="text-red-500 text-xs mt-1">{errors.orderId}</p>
+              <p className="text-xs text-gray-500 mt-1">Leave empty to issue challan to any party/customer</p>
+            </div>
+
+            {/* Customer/Party Selection - Required when no order selected */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Customer/Party {!formData.orderId && '*'}
+              </label>
+              <select
+                value={formData.customerId}
+                onChange={(e) => setFormData(prev => ({ ...prev, customerId: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 ${
+                  errors.customerId ? 'border-red-500' : 'border-gray-300'
+                }`}
+                disabled={!!formData.orderId} // Disabled when order is selected
+              >
+                <option value="">
+                  {formData.orderId ? 'Auto-filled from order' : 'Select Customer/Party'}
+                </option>
+                {customers.map(customer => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name} {customer.phone ? `(${customer.phone})` : ''}
+                  </option>
+                ))}
+              </select>
+              {errors.customerId && (
+                <p className="text-red-500 text-xs mt-1">{errors.customerId}</p>
+              )}
+              {formData.orderId && (
+                <p className="text-xs text-gray-500 mt-1">Customer auto-filled from selected order</p>
               )}
             </div>
 

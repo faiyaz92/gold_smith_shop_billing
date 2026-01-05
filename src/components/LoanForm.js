@@ -227,7 +227,7 @@ export default function LoanForm({ isOpen, onClose, companyId, userRole }) {
               <h4 className="text-sm font-semibold text-blue-800 mb-2">How it works:</h4>
               <ul className="text-sm text-blue-700 space-y-1">
                 <li>• Cash loan amount is converted to equivalent pure gold grams</li>
-                <li>• Customer's receivable account increases by the gold equivalent</li>
+                <li>• Customer&apos;s receivable account increases by the gold equivalent</li>
                 <li>• Cash account decreases by the loan amount</li>
                 <li>• Customer can repay with gold or USD (converted back)</li>
               </ul>
