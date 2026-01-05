@@ -480,13 +480,15 @@ export class HierarchicalAccountManager {
         { accountCode: 'MAIN-1001', accountName: 'Cash in Hand', accountType: 'asset', category: 'Current Asset' },
         { accountCode: 'MAIN-1002', accountName: 'Bank Account - Primary', accountType: 'asset', category: 'Current Asset' },
         { accountCode: 'MAIN-1003', accountName: 'Accounts Receivable', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1004', accountName: 'Gold Inventory (24k Gold)', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1005', accountName: 'Silver Inventory (999 Silver)', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1006', accountName: 'Platinum Inventory (999 Platinum)', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1007', accountName: 'Diamond Inventory (by carat)', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1008', accountName: 'Stone Inventory (precious/semi-precious)', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1009', accountName: 'Prepaid Expenses', accountType: 'asset', category: 'Current Asset' },
-        { accountCode: 'MAIN-1010', accountName: 'GST Input Tax Credit', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1004', accountName: 'Loan Receivables', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1004', accountName: 'Loan Receivables', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1005', accountName: 'Gold Inventory (24k Gold)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1006', accountName: 'Silver Inventory (999 Silver)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1007', accountName: 'Platinum Inventory (999 Platinum)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1008', accountName: 'Diamond Inventory (by carat)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1009', accountName: 'Stone Inventory (precious/semi-precious)', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1010', accountName: 'Prepaid Expenses', accountType: 'asset', category: 'Current Asset' },
+        { accountCode: 'MAIN-1011', accountName: 'GST Input Tax Credit', accountType: 'asset', category: 'Current Asset' },
 
         // Fixed Assets (1200-1299) - 6 Accounts
         { accountCode: 'MAIN-1201', accountName: 'Jewelry Display Cases & Fixtures', accountType: 'asset', category: 'Fixed Asset' },
@@ -784,6 +786,68 @@ export class HierarchicalAccountManager {
 
     } catch (error) {
       console.error('Create customer account error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create loan receivable accounts for customer loans
+   * Calls the CORE createAccount method
+   * @param {object} loanData - Loan data (loanId, customerId, customerName, usdAmount, goldGramsEquivalent)
+   * @returns {object} - Creation results
+   */
+  async createLoanAccount(loanData) {
+    const { loanId, customerId, customerName, usdAmount, goldGramsEquivalent } = loanData;
+
+    try {
+      // Generate loan account code: LOAN-{customerId}-{loanSequence}
+      const customerShortId = customerId.split('-')[1] || customerId.padStart(4, '0');
+      const loanAccountCode = `LOAN-${customerShortId}-${loanId.split('-').pop()}`;
+
+      // Check if account already exists
+      const existingAccount = await this.getAccountByCode(loanAccountCode, this.companyId);
+      if (existingAccount) {
+        return {
+          success: true,
+          created: false,
+          account: existingAccount,
+          message: `Loan account ${loanAccountCode} already exists`
+        };
+      }
+
+      // Get parent account (MAIN-1004 - Loan Receivables)
+      const parentAccount = await this.getAccountByCode('MAIN-1004', this.companyId);
+      if (!parentAccount) {
+        throw new Error('Parent account (Loan Receivables) not found');
+      }
+
+      // Create the loan account
+      const createdAccount = await this.createAccount({
+        accountCode: loanAccountCode,
+        accountName: `${customerName} - Loan ${loanId.split('-').pop()}`,
+        accountType: 'asset',
+        classification: 'Current Asset',
+        parentAccountId: 'MAIN-1004',
+        normalBalance: 'debit',
+        description: `Loan receivable for ${goldGramsEquivalent.toFixed(3)}g gold equivalent of $${usdAmount.toFixed(2)}`,
+        isActive: true,
+        companyId: this.companyId,
+        // Migration-ready fields
+        _version: "2.0",
+        _migrationStatus: "active",
+        _v3Ready: true,
+        _v4Ready: false
+      });
+
+      return {
+        success: true,
+        created: true,
+        account: createdAccount,
+        message: `Loan account ${loanAccountCode} created successfully`
+      };
+
+    } catch (error) {
+      console.error('Create loan account error:', error);
       throw error;
     }
   }

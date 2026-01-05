@@ -99,15 +99,23 @@ export class LoanEngine {
       // Save loan record
       const docRef = await addDoc(collection(db, this.paths.getLoansPath()), loanDoc);
 
-      // Record accounting entry: Customer owes gold grams
-      // Debit: Customer Receivable (gold grams)
-      // Credit: Cash (USD amount)
+      // Record accounting entry using customer's receivable account
       await this.recordLoanAccounting(loanDoc);
 
       // Update loan with accounting flag
       await updateDoc(docRef, {
         accountingRecorded: true,
         updatedAt: serverTimestamp()
+      });
+        updatedAt: serverTimestamp()
+      });
+
+      // Record accounting entry: Customer owes gold grams
+      // Debit: Loan Receivable (gold grams) - what customer owes
+      // Credit: Cash (USD amount given)
+      await this.recordLoanAccounting({
+        ...loanDoc,
+        loanAccountId: loanAccountResult.account.accountCode
       });
 
       return {
@@ -174,12 +182,10 @@ export class LoanEngine {
 
       // Record accounting entry: Customer repays gold
       // Debit: Cash/Gold Inventory (gold received)
-      // Credit: Customer Receivable (gold grams)
+      // Credit: Loan Receivable (gold grams repaid)
       await this.recordRepaymentAccounting({
-        ...loan,
-        goldGramsReturned,
-        usdValueReturned,
-        repaymentDate
+        ...repayment,
+        loanAccountId: loan.loanAccountId
       });
 
       return {
@@ -202,14 +208,14 @@ export class LoanEngine {
   async recordLoanAccounting(loan) {
     // When giving cash loan:
     // Customer receives USD cash but owes equivalent gold grams
-    // Debit: Customer Receivable (gold grams) - what customer owes
-    // Credit: Cash (USD amount given)
+    // We use the customer's receivable account (not separate loan accounts)
+    // This keeps it simple - one account per customer tracks all receivables
 
     const customerAccountCode = `CUST-${loan.customerId.split('-')[1] || loan.customerId.padStart(4, '0')}`;
 
     await this.accountingEngine.recordTransaction({
-      description: `Cash loan to ${loan.customerName} - ${loan.goldGramsEquivalent.toFixed(3)}g gold equivalent of $${loan.usdAmount.toFixed(2)}`,
-      debitAccountId: customerAccountCode, // Customer receivable account
+      description: `Cash loan to ${loan.customerName} - ${loan.goldGramsEquivalent.toFixed(3)}g gold equivalent of $${loan.usdAmount.toFixed(2)} (Loan ID: ${loan.loanId})`,
+      debitAccountId: customerAccountCode, // Customer receivable account (includes loans)
       creditAccountId: '1201', // Cash account
       amount: loan.goldGramsEquivalent, // Amount in gold grams
       referenceType: 'loan',
@@ -222,14 +228,14 @@ export class LoanEngine {
    */
   async recordRepaymentAccounting(repayment) {
     // When customer repays with gold:
-    // Debit: Gold Inventory/Cash (gold received)
+    // Debit: Gold Inventory (gold received)
     // Credit: Customer Receivable (gold grams repaid)
 
     const customerAccountCode = `CUST-${repayment.customerId.split('-')[1] || repayment.customerId.padStart(4, '0')}`;
 
     await this.accountingEngine.recordTransaction({
-      description: `Loan repayment from ${repayment.customerName} - ${repayment.goldGramsReturned.toFixed(3)}g gold returned`,
-      debitAccountId: '1101', // Gold Inventory (assuming gold is deposited to inventory)
+      description: `Loan repayment from ${repayment.customerName} - ${repayment.goldGramsReturned.toFixed(3)}g gold returned (Loan ID: ${repayment.loanId})`,
+      debitAccountId: '1101', // Gold Inventory (gold received)
       creditAccountId: customerAccountCode, // Customer receivable account
       amount: repayment.goldGramsReturned,
       referenceType: 'loan_repayment',

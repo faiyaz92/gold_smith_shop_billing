@@ -42,8 +42,12 @@ import { collection, query, orderBy, onSnapshot, where, getDocs } from 'firebase
 import { db } from '@/app/firebase';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import AdminLayout from '../AdminLayout';
 import { DevModeToggle } from '@/components/DevModeToggle.js';
+import GoldPricePopup from '@/components/GoldPricePopup.js';
+import PurchaseForm from '@/components/PurchaseForm.js';
+import SaleForm from '@/components/SaleForm.js';
+import LoanForm from '@/components/LoanForm.js';
+import QuickChallanForm from '@/components/QuickChallanForm.js';
 
 // Gold Smith Dashboard - Key Metrics for Jewelry Wholesaler
 export default function GoldSmithDashboard() {
@@ -60,6 +64,14 @@ export default function GoldSmithDashboard() {
   const [categories, setCategories] = useState([]);
   const [payments, setPayments] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
+
+  // Quick Operations States
+  const [showGoldPricePopup, setShowGoldPricePopup] = useState(false);
+  const [showPurchaseForm, setShowPurchaseForm] = useState(false);
+  const [showSaleForm, setShowSaleForm] = useState(false);
+  const [showLoanForm, setShowLoanForm] = useState(false);
+  const [showChallanForm, setShowChallanForm] = useState(false);
+  const [goldPriceData, setGoldPriceData] = useState(null);
 
   const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
   const ordersPath = `companies/${companyId}/orders`;
@@ -278,6 +290,28 @@ export default function GoldSmithDashboard() {
 
   const handleViewReports = () => {
     router.push('/admin/invoices');
+  };
+
+  // New Quick Operations Handlers
+  const handlePurchaseFromSupplier = () => {
+    setShowPurchaseForm(true);
+  };
+
+  const handleSaleInvoice = () => {
+    setShowSaleForm(true);
+  };
+
+  const handleLoanToCustomer = () => {
+    setShowLoanForm(true);
+  };
+
+  const handleQuickChallan = () => {
+    setShowChallanForm(true);
+  };
+
+  const handleGoldPriceConfirm = (priceData) => {
+    setGoldPriceData(priceData);
+    setShowGoldPricePopup(false);
   };
 
   if (!isClient) {
@@ -509,6 +543,46 @@ export default function GoldSmithDashboard() {
               <span className="text-sm font-medium text-purple-700">View Reports</span>
               <span className="text-xs text-purple-600 mt-1">Invoices & statements</span>
             </button>
+
+            {/* Purchase from Supplier */}
+            <button
+              onClick={handlePurchaseFromSupplier}
+              className="flex flex-col items-center p-4 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors group"
+            >
+              <ShoppingBag className="w-8 h-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-indigo-700">Purchase</span>
+              <span className="text-xs text-indigo-600 mt-1">Gold or jewelry</span>
+            </button>
+
+            {/* Sale Invoice */}
+            <button
+              onClick={handleSaleInvoice}
+              className="flex flex-col items-center p-4 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors group"
+            >
+              <PackageCheck className="w-8 h-8 text-teal-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-teal-700">Sale Invoice</span>
+              <span className="text-xs text-teal-600 mt-1">Sell jewelry</span>
+            </button>
+
+            {/* Loan to Customer */}
+            <button
+              onClick={handleLoanToCustomer}
+              className="flex flex-col items-center p-4 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors group"
+            >
+              <IndianRupee className="w-8 h-8 text-orange-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-orange-700">Loan</span>
+              <span className="text-xs text-orange-600 mt-1">Cash to customer</span>
+            </button>
+
+            {/* Quick Challan */}
+            <button
+              onClick={handleQuickChallan}
+              className="flex flex-col items-center p-4 bg-cyan-50 hover:bg-cyan-100 rounded-lg transition-colors group"
+            >
+              <Truck className="w-8 h-8 text-cyan-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-cyan-700">Quick Challan</span>
+              <span className="text-xs text-cyan-600 mt-1">Gold withdrawal</span>
+            </button>
           </div>
           
           {/* Additional Quick Links */}
@@ -540,6 +614,45 @@ export default function GoldSmithDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Gold Price Popup */}
+      <GoldPricePopup
+        isOpen={showGoldPricePopup}
+        onClose={() => setShowGoldPricePopup(false)}
+        onPriceConfirm={handleGoldPriceConfirm}
+      />
+
+      {/* Purchase Form */}
+      <PurchaseForm
+        isOpen={showPurchaseForm}
+        onClose={() => setShowPurchaseForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Sale Form */}
+      <SaleForm
+        isOpen={showSaleForm}
+        onClose={() => setShowSaleForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Loan Form */}
+      <LoanForm
+        isOpen={showLoanForm}
+        onClose={() => setShowLoanForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Quick Challan Form */}
+      <QuickChallanForm
+        isOpen={showChallanForm}
+        onClose={() => setShowChallanForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
     </AdminLayout>
   );
 }
