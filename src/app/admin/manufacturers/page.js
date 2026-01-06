@@ -10,6 +10,7 @@ import { collection, getDocs, doc, updateDoc, query, where, addDoc } from 'fireb
 import { db } from '@/app/firebase';
 import Link from 'next/link';
 import { Plus, Search, Edit, Eye, ToggleLeft, ToggleRight, DollarSign, Scale, CreditCard } from 'lucide-react';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 
 export default function ManufacturersPage() {
   const [manufacturers, setManufacturers] = useState([]);
@@ -40,14 +41,50 @@ export default function ManufacturersPage() {
         ...doc.data()
       }));
 
+      // Fetch account balances for manufacturers
+      const accountManager = new HierarchicalAccountManager(companyId);
+      const manufacturersWithBalances = await Promise.all(
+        manufacturersData.map(async (manufacturer) => {
+          try {
+            let usdBalance = 0;
+
+            // Method 1: Use accountCode from manufacturer document if available
+            if (manufacturer.accountCode) {
+              const account = await accountManager.getAccountByCode(manufacturer.accountCode);
+              // Manufacturer accounts are liability accounts (credit balance)
+              // Positive balance means they owe us money
+              usdBalance = account ? (account.currentBalance || 0) : 0;
+            } else {
+              // Method 2: Try to find account by manufacturerId
+              const allAccounts = await accountManager.getAllAccounts();
+              const manufacturerAccount = allAccounts.find(account => 
+                account.manufacturerId === manufacturer.id && account.accountCode?.startsWith('2101-MFG-')
+              );
+              usdBalance = manufacturerAccount ? (manufacturerAccount.currentBalance || 0) : 0;
+            }
+
+            return {
+              ...manufacturer,
+              currentBalanceUSD: usdBalance // Add the actual balance from accounting system
+            };
+          } catch (error) {
+            console.error(`Error fetching balance for manufacturer ${manufacturer.id}:`, error);
+            return {
+              ...manufacturer,
+              currentBalanceUSD: manufacturer.currentBalanceUSD || 0 // Fallback to stored value
+            };
+          }
+        })
+      );
+
       // Sort by manufacturer code descending (newest first)
-      manufacturersData.sort((a, b) => {
+      manufacturersWithBalances.sort((a, b) => {
         const codeA = a.manufacturerCode || '';
         const codeB = b.manufacturerCode || '';
         return codeB.localeCompare(codeA);
       });
 
-      setManufacturers(manufacturersData);
+      setManufacturers(manufacturersWithBalances);
     } catch (error) {
       console.error('Error fetching manufacturers:', error);
     } finally {
@@ -94,13 +131,10 @@ export default function ManufacturersPage() {
     setProcessingPayment(true);
     try {
       const amount = parseFloat(paymentAmount);
-      const currentBalance = selectedManufacturer.currentBalanceUSD || 0;
-      const newBalance = currentBalance - amount;
 
-      // Update manufacturer balance
+      // Update manufacturer document (remove balance update since it's now fetched from accounting)
       const manufacturerRef = doc(db, `${basePath}/manufacturers`, selectedManufacturer.id);
       await updateDoc(manufacturerRef, {
-        currentBalanceUSD: newBalance,
         totalPaidUSD: (selectedManufacturer.totalPaidUSD || 0) + amount,
         lastPaymentDate: new Date(),
         lastPaymentAmount: amount,
@@ -119,8 +153,6 @@ export default function ManufacturersPage() {
         amountUSD: amount,
         paymentMethod,
         notes: paymentNotes,
-        balanceBefore: currentBalance,
-        balanceAfter: newBalance,
         createdAt: new Date(),
         createdBy: localStorage.getItem('userName') || 'Admin',
         status: 'completed'
@@ -153,14 +185,13 @@ export default function ManufacturersPage() {
         ]
       });
 
-      alert(`✅ Payment of $${amount.toFixed(2)} recorded successfully!\n\nPayment Number: ${paymentNumber}\nNew Balance: $${newBalance.toFixed(2)}`);
+      alert(`✅ Payment of $${amount.toFixed(2)} recorded successfully!\n\nPayment Number: ${paymentNumber}`);
 
-      // Update local state
+      // Update local state (balance will be refreshed from accounting system)
       setManufacturers(prev => prev.map(m =>
         m.id === selectedManufacturer.id
           ? { 
               ...m, 
-              currentBalanceUSD: newBalance,
               totalPaidUSD: (m.totalPaidUSD || 0) + amount,
               lastPaymentDate: new Date(),
               lastPaymentAmount: amount

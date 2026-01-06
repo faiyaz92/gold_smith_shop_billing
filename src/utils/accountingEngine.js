@@ -424,7 +424,8 @@ export class AccountingEngine {
           accountName: entry.accountName || account.accountName,
           debit: entry.debit || 0,
           credit: entry.credit || 0,
-          description: entry.description || ''
+          description: entry.description || '',
+          balanceType: entry.balanceType || 'usd' // Add balanceType to determine which balance field to update
         };
       });
 
@@ -493,7 +494,8 @@ export class AccountingEngine {
 
         if (accountSnap.exists()) {
           const accountData = accountSnap.data();
-          const currentBalance = accountData.currentBalance || 0;
+          const balanceField = line.balanceType === 'gold' ? 'currentBalanceGold' : 'currentBalance';
+          const currentBalance = accountData[balanceField] || 0;
 
           // Calculate new balance based on account type and debit/credit
           let newBalance = currentBalance;
@@ -506,18 +508,26 @@ export class AccountingEngine {
           }
 
           await updateDoc(accountRef, {
-            currentBalance: newBalance,
+            [balanceField]: newBalance,
             updatedAt: serverTimestamp()
           });
 
-          console.log(`✅ Updated ${accountData.accountCode}: ${currentBalance} → ${newBalance}`);
+          console.log(`✅ Updated ${accountData.accountCode} (${balanceField}): ${currentBalance} → ${newBalance}`);
 
           // Track updated account with new balance
-          updatedAccounts.push({ ...accountData, currentBalance: newBalance, id: line.accountId });
+          updatedAccounts.push({ ...accountData, [balanceField]: newBalance, id: line.accountId });
         }
       }
 
       // Update parent account balances
+      // First, update the allAccounts array with the new balances
+      for (const updatedAccount of updatedAccounts) {
+        const accountIndex = allAccounts.findIndex(acc => acc.id === updatedAccount.id);
+        if (accountIndex !== -1) {
+          allAccounts[accountIndex] = { ...allAccounts[accountIndex], ...updatedAccount };
+        }
+      }
+
       await this.updateParentBalances(updatedAccounts, allAccounts);
 
       return {
@@ -766,24 +776,32 @@ export class AccountingEngine {
 
         // Get all children of this parent
         const children = allAccounts.filter(acc =>
-          acc.parentAccount === parentAccount.id ||
-          acc.parentAccount === parentAccount.accountCode
+          acc.parentAccount === parentAccount.accountCode ||
+          acc.parentAccountId === parentAccount.id ||
+          acc.parentAccountId === parentAccount.accountCode
         );
 
-        // Calculate sum of all children balances
+        // Calculate sum of all children balances (both USD and Gold)
         const totalChildrenBalance = children.reduce((sum, child) => {
           return sum + (child.currentBalance || 0);
         }, 0);
 
-        // Update parent account balance
+        const totalChildrenBalanceGold = children.reduce((sum, child) => {
+          return sum + (child.currentBalanceGold || 0);
+        }, 0);
+
+        // Update parent account balance (both USD and Gold)
         const accountsPath = this.paths.getAccountsPath();
         const parentRef = doc(db, accountsPath, parentAccount.id);
         await updateDoc(parentRef, {
           currentBalance: totalChildrenBalance,
+          currentBalanceGold: totalChildrenBalanceGold,
           updatedAt: serverTimestamp()
         });
 
-        console.log(`✅ Updated parent ${parentAccount.accountCode}: ${parentAccount.currentBalance || 0} → ${totalChildrenBalance}`);
+        console.log(`✅ Updated parent ${parentAccount.accountCode}:`);
+        console.log(`   USD: ${(parentAccount.currentBalance || 0)} → ${totalChildrenBalance}`);
+        console.log(`   Gold: ${(parentAccount.currentBalanceGold || 0)} → ${totalChildrenBalanceGold}`);
       }
 
     } catch (error) {

@@ -14,7 +14,7 @@ export const initializeDefaultAccounts = async (companyId) => {
   try {
     console.log('🔍 Starting Gold Smith account initialization for company:', companyId);
 
-    // 15 Default Accounts per BRD v2 Section 2.3.1
+    // 16 Default Accounts per BRD v2 Section 2.3.1
     const defaultAccounts = [
       {
         accountCode: '1101',
@@ -300,7 +300,7 @@ export const initializeDefaultAccounts = async (companyId) => {
     console.log('✅ Successfully initialized default accounts for company:', companyId);
     return {
       success: results.errors.length === 0,
-      message: results.errors.length === 0 ? '15 default accounts created successfully' : 'Some accounts failed to create',
+      message: results.errors.length === 0 ? '16 default accounts created successfully' : 'Some accounts failed to create',
       accountCount: results.created.length,
       createdCount: results.created.length,
       skippedCount: results.skipped.length,

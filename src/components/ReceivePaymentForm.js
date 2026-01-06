@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, limit } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { AccountingEngine } from '@/utils/accountingEngine';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 import { X, Calculator, DollarSign, CreditCard } from 'lucide-react';
 import GoldPricePopup from './GoldPricePopup';
 
@@ -10,35 +11,128 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showGoldPricePopup, setShowGoldPricePopup] = useState(false);
+  const [orderLoading, setOrderLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     customerId: '',
     paymentAmount: '',
     paymentMethod: 'cash', // cash, bank_transfer, check
     description: '',
-    goldPriceData: null
+    goldPriceData: null,
+    isOrderPayment: false,
+    orderId: '',
+    orderData: null
   });
 
   const [errors, setErrors] = useState({});
 
-  // Load customers
+  // Load customers with account balances
   useEffect(() => {
     if (!isOpen || !companyId) return;
 
-    const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
-    const customersQuery = query(collection(db, customersPath), orderBy('name'));
-    const customersUnsubscribe = onSnapshot(customersQuery, (snapshot) => {
-      const customersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setCustomers(customersData);
-    });
+    const loadCustomersWithBalances = async () => {
+      try {
+        const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
+        const customersQuery = query(collection(db, customersPath), orderBy('customerName'));
+        
+        const customersUnsubscribe = onSnapshot(customersQuery, async (snapshot) => {
+          const customersData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
 
-    return () => {
-      customersUnsubscribe();
+          // Fetch account balances for each customer
+          const accountManager = new HierarchicalAccountManager(companyId);
+          const customersWithBalances = await Promise.all(
+            customersData.map(async (customer) => {
+              try {
+                let balance = 0;
+
+                // Method 1: Use accountCode from customer document if available
+                if (customer.accountCode) {
+                  const account = await accountManager.getAccountByCode(customer.accountCode);
+                  balance = account ? (account.currentBalanceGold || account.currentBalance || 0) : 0;
+                } else {
+                  // Method 2: Try to find account by customerId
+                  const allAccounts = await accountManager.getAllAccounts();
+                  const customerAccount = allAccounts.find(account => 
+                    account.customerId === customer.id && account.accountCode?.startsWith('CUST-')
+                  );
+                  balance = customerAccount ? 
+                    (customerAccount.currentBalanceGold || customerAccount.currentBalance || 0) : 0;
+                }
+
+                return {
+                  ...customer,
+                  accountBalance: balance,
+                  accountCode: customerAccount?.accountCode
+                };
+              } catch (error) {
+                console.error(`Error fetching balance for customer ${customer.id}:`, error);
+                return {
+                  ...customer,
+                  accountBalance: 0,
+                  accountCode: null
+                };
+              }
+            })
+          );
+
+          setCustomers(customersWithBalances);
+        });
+
+        return () => {
+          customersUnsubscribe();
+        };
+      } catch (error) {
+        console.error('Error setting up customers listener:', error);
+      }
     };
+
+    loadCustomersWithBalances();
   }, [isOpen, companyId]);
+
+  // Load order details when order ID changes
+  const loadOrderDetails = async (orderId) => {
+    if (!orderId || !companyId) {
+      setFormData(prev => ({ ...prev, orderData: null }));
+      return;
+    }
+
+    setOrderLoading(true);
+    try {
+      const ordersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/orders`;
+      const orderRef = doc(db, ordersPath, orderId);
+      const orderSnap = await getDoc(orderRef);
+
+      if (orderSnap.exists()) {
+        const orderData = { id: orderSnap.id, ...orderSnap.data() };
+        setFormData(prev => ({
+          ...prev,
+          orderData,
+          customerId: orderData.customerId || '',
+          description: `Payment for Order ${orderData.orderNumber || orderId}`
+        }));
+      } else {
+        setFormData(prev => ({ ...prev, orderData: null }));
+        alert('Order not found. Please check the Order ID.');
+      }
+    } catch (error) {
+      console.error('Error loading order:', error);
+      alert('Error loading order details.');
+    } finally {
+      setOrderLoading(false);
+    }
+  };
+
+  const handleOrderIdChange = (orderId) => {
+    setFormData(prev => ({ ...prev, orderId }));
+    if (orderId.length >= 6) { // Assuming order IDs are at least 6 characters
+      loadOrderDetails(orderId);
+    } else {
+      setFormData(prev => ({ ...prev, orderData: null }));
+    }
+  };
 
   const handleGoldPriceConfirm = (priceData) => {
     setFormData(prev => ({
@@ -52,8 +146,17 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.customerId) {
-      newErrors.customerId = 'Please select a customer';
+    if (formData.isOrderPayment) {
+      if (!formData.orderId) {
+        newErrors.orderId = 'Please enter Order ID';
+      }
+      if (!formData.orderData) {
+        newErrors.orderId = 'Please enter a valid Order ID';
+      }
+    } else {
+      if (!formData.customerId) {
+        newErrors.customerId = 'Please select a customer';
+      }
     }
 
     if (!formData.paymentAmount || parseFloat(formData.paymentAmount) <= 0) {
@@ -83,7 +186,9 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
       const accountingEngine = new AccountingEngine(companyId);
       const paymentsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/payments`;
 
-      const selectedCustomer = customers.find(c => c.id === formData.customerId);
+      const selectedCustomer = formData.isOrderPayment 
+        ? { id: formData.orderData.customerId, name: formData.orderData.customerName, accountCode: formData.orderData.customerAccountCode }
+        : customers.find(c => c.id === formData.customerId);
 
       // Generate payment reference number
       const paymentsSnapshot = await onSnapshot(query(collection(db, paymentsPath), orderBy('createdAt', 'desc'), limit(1)), () => {});
@@ -93,9 +198,9 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
       // Create payment record
       const paymentData = {
         paymentNumber,
-        paymentType: 'customer_payment',
-        customerId: formData.customerId,
-        customerName: selectedCustomer?.name || 'Unknown',
+        paymentType: formData.isOrderPayment ? 'order_payment' : 'customer_payment',
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
         paymentAmount: parseFloat(formData.paymentAmount),
         paymentMethod: formData.paymentMethod,
         description: formData.description,
@@ -106,7 +211,13 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         companyId: companyId,
-        createdBy: userRole
+        createdBy: userRole,
+        ...(formData.isOrderPayment && {
+          orderId: formData.orderId,
+          orderNumber: formData.orderData.orderNumber,
+          invoiceId: formData.orderData.invoiceId,
+          invoiceNumber: formData.orderData.invoiceNumber
+        })
       };
 
       const paymentRef = await addDoc(collection(db, paymentsPath), paymentData);
@@ -144,7 +255,33 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
         updatedAt: serverTimestamp()
       });
 
-      alert(`✅ Payment received successfully!\n\nPayment: ${paymentNumber}\nAmount: $${formData.paymentAmount}\nFrom: ${selectedCustomer?.name}`);
+      // Update order/invoice status if this is an order payment
+      if (formData.isOrderPayment && formData.orderData) {
+        const ordersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/orders`;
+        const orderRef = doc(db, ordersPath, formData.orderId);
+        
+        // Update order payment status
+        await updateDoc(orderRef, {
+          paymentStatus: 'Paid',
+          paymentAmount: (formData.orderData.paymentAmount || 0) + parseFloat(formData.paymentAmount),
+          paymentDate: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        // Update invoice if exists
+        if (formData.orderData.invoiceId) {
+          const invoicesPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/invoices`;
+          const invoiceRef = doc(db, invoicesPath, formData.orderData.invoiceId);
+          await updateDoc(invoiceRef, {
+            paymentStatus: 'Paid',
+            paymentAmount: (formData.orderData.paymentAmount || 0) + parseFloat(formData.paymentAmount),
+            paymentDate: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+
+      alert(`✅ Payment received successfully!\n\nPayment: ${paymentNumber}\nAmount: $${formData.paymentAmount}\nFrom: ${selectedCustomer?.name}${formData.isOrderPayment ? `\nOrder: ${formData.orderData.orderNumber}` : ''}`);
       onClose();
 
       // Reset form
@@ -153,7 +290,10 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
         paymentAmount: '',
         paymentMethod: 'cash',
         description: '',
-        goldPriceData: null
+        goldPriceData: null,
+        isOrderPayment: false,
+        orderId: '',
+        orderData: null
       });
       setErrors({});
 
@@ -188,14 +328,87 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
           {/* Description */}
           <div className="px-6 py-3 bg-green-50 border-b">
             <p className="text-sm text-green-800">
-              Record customer payments against outstanding receivables. Payments can be in USD or converted from gold.
+              Record customer payments against outstanding receivables or specific orders. Payments can be in USD or converted from gold.
             </p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {/* Customer Selection */}
+            {/* Payment Type Toggle */}
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Payment Type
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    checked={!formData.isOrderPayment}
+                    onChange={() => setFormData(prev => ({ 
+                      ...prev, 
+                      isOrderPayment: false,
+                      orderId: '',
+                      orderData: null,
+                      customerId: '',
+                      description: ''
+                    }))}
+                    className="mr-2"
+                  />
+                  General Payment
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="paymentType"
+                    checked={formData.isOrderPayment}
+                    onChange={() => setFormData(prev => ({ 
+                      ...prev, 
+                      isOrderPayment: true,
+                      customerId: '',
+                      description: ''
+                    }))}
+                    className="mr-2"
+                  />
+                  Order Payment
+                </label>
+              </div>
+            </div>
+
+            {/* Order ID Input (when order payment is selected) */}
+            {formData.isOrderPayment && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Order ID *
+                </label>
+                <input
+                  type="text"
+                  value={formData.orderId}
+                  onChange={(e) => handleOrderIdChange(e.target.value)}
+                  placeholder="Enter Order ID"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                    errors.orderId ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+                {orderLoading && <p className="text-blue-600 text-xs mt-1">Loading order details...</p>}
+                {formData.orderData && (
+                  <div className="mt-2 p-3 bg-blue-50 rounded-md">
+                    <p className="text-sm text-blue-800">
+                      <strong>Order:</strong> {formData.orderData.orderNumber}<br/>
+                      <strong>Customer:</strong> {formData.orderData.customerName}<br/>
+                      <strong>Amount:</strong> ${formData.orderData.totalAmount?.toFixed(2) || 'N/A'}
+                    </p>
+                  </div>
+                )}
+                {errors.orderId && (
+                  <p className="text-red-500 text-xs mt-1">{errors.orderId}</p>
+                )}
+              </div>
+            )}
+
+            {/* Customer Selection (when general payment is selected) */}
+            {!formData.isOrderPayment && (
+              <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Customer *
               </label>
@@ -209,14 +422,16 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
                 <option value="">Select Customer</option>
                 {customers.map(customer => (
                   <option key={customer.id} value={customer.id}>
-                    {customer.name} {customer.phone ? `(${customer.phone})` : ''}
+                    {customer.customerName || customer.name} {customer.phone ? `(${customer.phone})` : ''} 
+                    {customer.accountBalance > 0 ? ` - Balance: ${customer.accountBalance.toFixed(3)}g gold` : ''}
                   </option>
                 ))}
               </select>
               {errors.customerId && (
                 <p className="text-red-500 text-xs mt-1">{errors.customerId}</p>
               )}
-            </div>
+              </div>
+            )}
 
             {/* Payment Amount */}
             <div>

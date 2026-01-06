@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { AccountingEngine } from '@/utils/accountingEngine';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 import { X, Calculator, Truck, DollarSign } from 'lucide-react';
 import GoldPricePopup from './GoldPricePopup';
 
@@ -63,13 +64,49 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
     });
 
     const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
-    const customersQuery = query(collection(db, customersPath), orderBy('name'));
-    const customersUnsubscribe = onSnapshot(customersQuery, (snapshot) => {
+    const customersQuery = query(collection(db, customersPath), orderBy('customerName'));
+    const customersUnsubscribe = onSnapshot(customersQuery, async (snapshot) => {
       const customersData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      setCustomers(customersData);
+
+      // Fetch account balances for customers
+      const accountManager = new HierarchicalAccountManager(companyId);
+      const customersWithBalances = await Promise.all(
+        customersData.map(async (customer) => {
+          try {
+            let balance = 0;
+
+            // Method 1: Use accountCode from customer document if available
+            if (customer.accountCode) {
+              const account = await accountManager.getAccountByCode(customer.accountCode);
+              balance = account ? (account.currentBalanceGold || account.currentBalance || 0) : 0;
+            } else {
+              // Method 2: Fallback - find account by customerId
+              const allAccounts = await accountManager.getAllAccounts();
+              const customerAccount = allAccounts.find(account => 
+                account.customerId === customer.id && account.accountCode?.startsWith('CUST-')
+              );
+              balance = customerAccount ? 
+                (customerAccount.currentBalanceGold || customerAccount.currentBalance || 0) : 0;
+            }
+
+            return {
+              ...customer,
+              accountBalance: balance
+            };
+          } catch (error) {
+            console.error(`Error fetching balance for customer ${customer.id}:`, error);
+            return {
+              ...customer,
+              accountBalance: 0
+            };
+          }
+        })
+      );
+
+      setCustomers(customersWithBalances);
     });
 
     return () => {
@@ -336,7 +373,9 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
                 </option>
                 {customers.map(customer => (
                   <option key={customer.id} value={customer.id}>
-                    {customer.name} {customer.phone ? `(${customer.phone})` : ''}
+                    {customer.name || customer.customerName} {customer.phone ? `(${customer.phone})` : ''} 
+                    {customer.accountBalance > 0 ? ` - Balance: ${customer.accountBalance.toFixed(3)}g gold` : ''} 
+                    {customer.accountBalance > 0 ? ` - Balance: ${customer.accountBalance.toFixed(3)}g gold` : ''}
                   </option>
                 ))}
               </select>

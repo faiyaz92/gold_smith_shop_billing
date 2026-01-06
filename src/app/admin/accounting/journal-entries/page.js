@@ -8,7 +8,7 @@ import AdminLayout from '@/app/admin/AdminLayout';
 import { Plus, Edit, Trash2, Save, X, Search, Filter } from 'lucide-react';
 
 // Jewelry Accounting Entry Form Component
-function JournalEntryForm({ entry, onSave, onCancel, accounts }) {
+function JournalEntryForm({ entry, onSave, onCancel, accounts, accountTypes, accountsByType }) {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     description: '',
@@ -254,23 +254,35 @@ function JournalEntryForm({ entry, onSave, onCancel, accounts }) {
                         className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                       >
                         <option value="">Select Account</option>
-                        {accounts
-                          .sort((a, b) => {
-                            // Sort by accountCode to group parent and children together
-                            return a.accountCode.localeCompare(b.accountCode);
-                          })
-                          .map(account => {
-                            const isSubAccount = account.level === 2 || account.parentAccount;
-                            const prefix = isSubAccount ? '\u00A0\u00A0\u00A0\u00A0↳ ' : '';
-                            return (
-                              <option 
-                                key={account.accountId} 
-                                value={account.accountId}
-                                className={isSubAccount ? 'text-gray-600' : 'font-semibold'}
-                              >
-                                {prefix}{account.accountCode} - {account.accountName || account.name}
+                        {Object.entries(accountTypes)
+                          .sort(([,a], [,b]) => a.order - b.order)
+                          .flatMap(([typeKey, typeInfo]) => {
+                            const typeAccounts = accountsByType[typeKey] || [];
+                            if (typeAccounts.length === 0) return [];
+                            
+                            const headerOption = (
+                              <option key={`${typeKey}-header`} disabled className="font-bold bg-gray-100">
+                                ── {typeInfo.label} ({typeAccounts.length} accounts) ──
                               </option>
                             );
+                            
+                            const accountOptions = typeAccounts
+                              .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+                              .map(account => {
+                                const isSubAccount = account.level === 2 || account.parentAccount;
+                                const prefix = isSubAccount ? '  ↳ ' : '';
+                                return (
+                                  <option 
+                                    key={account.accountId} 
+                                    value={account.accountId}
+                                    className={isSubAccount ? 'text-gray-600' : 'font-semibold'}
+                                  >
+                                    {prefix}{account.accountCode} - {account.accountName || account.name}
+                                  </option>
+                                );
+                              });
+                            
+                            return [headerOption, ...accountOptions];
                           })}
                       </select>
                     </td>
@@ -385,6 +397,23 @@ export default function JournalEntriesPage() {
   const [editingEntry, setEditingEntry] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+
+  // Group accounts by type for better organization
+  const accountsByType = accounts.reduce((acc, account) => {
+    const type = account.accountType;
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(account);
+    return acc;
+  }, {});
+
+  // Account types configuration
+  const accountTypes = {
+    asset: { label: 'Assets', order: 1 },
+    liability: { label: 'Liabilities', order: 2 },
+    equity: { label: 'Equity', order: 3 },
+    income: { label: 'Income/Revenue', order: 4 },
+    expense: { label: 'Expenses', order: 5 }
+  };
 
   // Load journal entries and accounts
   useEffect(() => {
@@ -569,6 +598,8 @@ export default function JournalEntriesPage() {
                   setEditingEntry(null);
                 }}
                 accounts={accounts}
+                accountTypes={accountTypes}
+                accountsByType={accountsByType}
               />
             </div>
           </div>

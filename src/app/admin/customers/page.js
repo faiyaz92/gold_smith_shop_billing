@@ -7,11 +7,11 @@
 // Added monthly balance statement generation with aging analysis
 
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Plus, Search, Edit, Eye, UserX, UserCheck, FileText } from 'lucide-react';
 import Link from 'next/link';
-import { downloadCustomerBalanceStatement, getCustomerTransactionsForStatement } from '@/utils/customerBalanceStatement';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([]);
@@ -26,6 +26,59 @@ export default function CustomersPage() {
     fetchCustomers();
   }, []);
 
+  const backfillAccountCodes = async (customersData) => {
+    try {
+      const accountManager = new HierarchicalAccountManager(companyId);
+      const allAccounts = await accountManager.getAllAccounts();
+
+      const customersNeedingUpdate = customersData.filter(customer => 
+        !customer.accountCode && customer.id
+      );
+
+      if (customersNeedingUpdate.length > 0) {
+        console.log(`🔄 Backfilling account codes for ${customersNeedingUpdate.length} customers`);
+
+        for (const customer of customersNeedingUpdate) {
+          // Find the customer's account by customerId
+          const customerAccount = allAccounts.find(account => 
+            account.customerId === customer.id && account.accountCode?.startsWith('CUST-')
+          );
+
+          if (customerAccount) {
+            // Update the customer document with account linkage
+            const customerRef = doc(db, `${basePath}/customers`, customer.id);
+            await updateDoc(customerRef, {
+              accountCode: customerAccount.accountCode,
+              accountId: customerAccount.id,
+              updatedAt: serverTimestamp()
+            });
+            console.log(`✅ Backfilled account code ${customerAccount.accountCode} for customer ${customer.customerName}`);
+          }
+        }
+      }
+
+      // Migrate balances from currentBalance to currentBalanceGold for customer accounts
+      const customerAccounts = allAccounts.filter(account => 
+        account.accountCode?.startsWith('CUST-') && account.currentBalance && !account.currentBalanceGold
+      );
+
+      if (customerAccounts.length > 0) {
+        console.log(`🔄 Migrating balances for ${customerAccounts.length} customer accounts`);
+
+        for (const account of customerAccounts) {
+          const accountRef = doc(db, `${basePath}/accounts`, account.id || account.accountCode);
+          await updateDoc(accountRef, {
+            currentBalanceGold: account.currentBalance,
+            updatedAt: serverTimestamp()
+          });
+          console.log(`✅ Migrated balance ${account.currentBalance}g for account ${account.accountCode}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error backfilling account codes:', error);
+    }
+  };
+
   const fetchCustomers = async () => {
     try {
       const customersRef = collection(db, `${basePath}/customers`);
@@ -37,7 +90,45 @@ export default function CustomersPage() {
         ...doc.data()
       }));
 
-      setCustomers(customersData);
+      // Backfill accountCode for customers that don't have it but should
+      await backfillAccountCodes(customersData);
+
+      // Fetch account balances for customers
+      const accountManager = new HierarchicalAccountManager(companyId);
+      const customersWithBalances = await Promise.all(
+        customersData.map(async (customer) => {
+          try {
+            let balance = 0;
+
+            // Method 1: Use accountCode from customer document if available
+            if (customer.accountCode) {
+              const account = await accountManager.getAccountByCode(customer.accountCode);
+              balance = account ? (account.currentBalanceGold || account.currentBalance || 0) : 0;
+            } else {
+              // Method 2: Try to find account by customerId
+              const allAccounts = await accountManager.getAllAccounts();
+              const customerAccount = allAccounts.find(account => 
+                account.customerId === customer.id && account.accountCode?.startsWith('CUST-')
+              );
+              balance = customerAccount ? 
+                (customerAccount.currentBalanceGold || customerAccount.currentBalance || 0) : 0;
+            }
+
+            return {
+              ...customer,
+              currentBalanceGold: balance // Add the actual balance from accounting system
+            };
+          } catch (error) {
+            console.error(`Error fetching balance for customer ${customer.id}:`, error);
+            return {
+              ...customer,
+              currentBalanceGold: 0
+            };
+          }
+        })
+      );
+
+      setCustomers(customersWithBalances);
     } catch (error) {
       console.error('Error fetching customers:', error);
     } finally {
@@ -198,7 +289,7 @@ export default function CustomersPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {(() => {
-                      const goldBalance = customer.currentPureGoldBalance || customer.outstandingBalance || 0;
+                      const goldBalance = customer.currentBalanceGold || customer.currentPureGoldBalance || customer.outstandingBalance || 0;
                       const isGoldBalance = typeof goldBalance === 'number';
                       return (
                         <div>

@@ -36,6 +36,23 @@ export default function QuickTransferPage() {
     return () => unsubscribe();
   }, [companyId]);
 
+  // Group accounts by type for better organization
+  const accountsByType = accounts.reduce((acc, account) => {
+    const type = account.accountType;
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(account);
+    return acc;
+  }, {});
+
+  // Account types configuration
+  const accountTypes = {
+    asset: { label: 'Assets', order: 1 },
+    liability: { label: 'Liabilities', order: 2 },
+    equity: { label: 'Equity', order: 3 },
+    income: { label: 'Income/Revenue', order: 4 },
+    expense: { label: 'Expenses', order: 5 }
+  };
+
   // Helper function to check if account has children
   const hasChildren = (accountId) => {
     return accounts.some(acc => 
@@ -213,12 +230,37 @@ export default function QuickTransferPage() {
               }`}
             >
               <option value="">-- Select Source Account --</option>
-              {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.accountCode} - {acc.accountName} 
-                  {acc.currentBalance !== undefined && ` (Balance: ${acc.currentBalance})`}
-                </option>
-              ))}
+              {Object.entries(accountTypes)
+                .sort(([,a], [,b]) => a.order - b.order)
+                .flatMap(([typeKey, typeInfo]) => {
+                  const typeAccounts = accountsByType[typeKey] || [];
+                  if (typeAccounts.length === 0) return [];
+                  
+                  const headerOption = (
+                    <option key={`${typeKey}-header`} disabled className="font-bold bg-gray-100">
+                      ── {typeInfo.label} ({typeAccounts.length} accounts) ──
+                    </option>
+                  );
+                  
+                  const accountOptions = typeAccounts
+                    .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+                    .map(acc => {
+                      const isSubAccount = acc.level === 2 || acc.parentAccount;
+                      const prefix = isSubAccount ? '  ↳ ' : '';
+                      return (
+                        <option
+                          key={acc.id}
+                          value={acc.id}
+                          className={isSubAccount ? 'text-gray-600' : 'font-semibold'}
+                        >
+                          {prefix}{acc.accountCode} - {acc.accountName}
+                          {acc.currentBalance !== undefined && ` (Balance: ${acc.currentBalance})`}
+                        </option>
+                      );
+                    });
+                  
+                  return [headerOption, ...accountOptions];
+                })}
             </select>
             {errors.fromAccount && (
               <p className="text-red-500 text-sm mt-1">{errors.fromAccount}</p>
@@ -248,12 +290,37 @@ export default function QuickTransferPage() {
               }`}
             >
               <option value="">-- Select Destination Account --</option>
-              {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.accountCode} - {acc.accountName}
-                  {acc.currentBalance !== undefined && ` (Balance: ${acc.currentBalance})`}
-                </option>
-              ))}
+              {Object.entries(accountTypes)
+                .sort(([,a], [,b]) => a.order - b.order)
+                .flatMap(([typeKey, typeInfo]) => {
+                  const typeAccounts = accountsByType[typeKey] || [];
+                  if (typeAccounts.length === 0) return [];
+                  
+                  const headerOption = (
+                    <option key={`${typeKey}-header-dest`} disabled className="font-bold bg-gray-100">
+                      ── {typeInfo.label} ({typeAccounts.length} accounts) ──
+                    </option>
+                  );
+                  
+                  const accountOptions = typeAccounts
+                    .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+                    .map(acc => {
+                      const isSubAccount = acc.level === 2 || acc.parentAccount;
+                      const prefix = isSubAccount ? '  ↳ ' : '';
+                      return (
+                        <option
+                          key={acc.id}
+                          value={acc.id}
+                          className={isSubAccount ? 'text-gray-600' : 'font-semibold'}
+                        >
+                          {prefix}{acc.accountCode} - {acc.accountName}
+                          {acc.currentBalance !== undefined && ` (Balance: ${acc.currentBalance})`}
+                        </option>
+                      );
+                    });
+                  
+                  return [headerOption, ...accountOptions];
+                })}
             </select>
             {errors.toAccount && (
               <p className="text-red-500 text-sm mt-1">{errors.toAccount}</p>

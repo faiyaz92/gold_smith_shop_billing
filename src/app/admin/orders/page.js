@@ -7,30 +7,21 @@ import AdminLayout from '../AdminLayout';
 import { useRouter } from 'next/navigation';
 import {
   LogOut,
-  ChevronDown,
+  Phone,
   ChevronUp,
-  Package,
-  ShoppingBag,
-  Users,
-  Home,
-  Tag,
-  Truck,
-  Clock,
-  Plus,
-  Search,
-  Filter,
+  ChevronDown,
   Eye,
   Edit,
-  Phone,
-  Printer,
-  Save,
+  Truck,
+  Plus,
+  TrendingUp,
   FileText,
   DollarSign,
-  TrendingUp,
-  Calendar
+  Save,
+  Package,
+  Printer
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-import AdminHeader from '../Componenets/AdminHeader';
+
 import {
   onSnapshot,
   query,
@@ -38,20 +29,13 @@ import {
   orderBy,
   doc,
   updateDoc,
-  where,
   serverTimestamp,
   addDoc,
   getDocs,
   getDoc,
   limit
 } from 'firebase/firestore';
-import { AccountingEngine } from '@/utils/accountingEngine';
-import { AutomatedTransactionEngine } from '@/app/utils/automatedTransactionEngine';
-import { InventoryService } from '@/utils/inventoryService';
-import orderReceiptGenerator from '@/utils/orderReceiptGenerator';
-import challanGenerator from '@/utils/challanGenerator';
-import invoiceGenerator from '@/utils/invoiceGenerator';
-import paymentReceiptGenerator from '@/utils/paymentReceiptGenerator';
+
 import { db } from '../../firebase';
 import { SectionBadge, useDevMode } from '@/components/SectionBadge.js';
 import { useAccounting } from '@/app/context/AccountingContext';
@@ -279,6 +263,8 @@ export default function GoldSmithOrders() {
   const [paymentSuccessData, setPaymentSuccessData] = useState(null);
   const [showPaymentHistoryDialog, setShowPaymentHistoryDialog] = useState(false);
   const [paymentHistoryData, setPaymentHistoryData] = useState(null);
+  const [showDeliveryDialog, setShowDeliveryDialog] = useState(false);
+  const [deliveryOrder, setDeliveryOrder] = useState(null);
   // ✅ TASK 7.2 & 7.3: Additional Challan & Return Dialog State
   const [showAdditionalChallanDialog, setShowAdditionalChallanDialog] = useState(false);
   const [additionalChallanData, setAdditionalChallanData] = useState({
@@ -304,31 +290,6 @@ export default function GoldSmithOrders() {
   const [products, setProducts] = useState([]);
   const [goldBanks, setGoldBanks] = useState([]);
   
-  // Purchase Entry State
-  const [showPurchaseEntryDialog, setShowPurchaseEntryDialog] = useState(false);
-  const [purchaseEntryOrder, setPurchaseEntryOrder] = useState(null);
-  const [purchaseEntryData, setPurchaseEntryData] = useState({
-    weightReceived: '',
-    manufacturingCost: '',
-    gstAmount: '',
-    paymentType: 'cash', // 'cash' or 'credit'
-    creditDays: 0,
-    notes: ''
-  });
-
-  // Delivery & Billing State
-  const [showDeliveryDialog, setShowDeliveryDialog] = useState(false);
-  const [deliveryOrder, setDeliveryOrder] = useState(null);
-  const [deliveryData, setDeliveryData] = useState({
-    deliveryDate: new Date().toISOString().split('T')[0],
-    finalWeight: '', // Pre-filled from order
-    commissionRate: '', // Editable commission rate
-    goldPrice: '', // User input for gold price
-    paymentMethod: 'cash', // 'cash' or 'credit'
-    goldBankId: '', // Selected gold bank for customer gold deposit
-    notes: ''
-  });
-
   // Pickup Dialog State
   const [showPickupDialog, setShowPickupDialog] = useState(false);
   const [pickupOrder, setPickupOrder] = useState(null);
@@ -452,22 +413,7 @@ export default function GoldSmithOrders() {
     }
   };
 
-  // ✅ UTILITY: Check if specific account exists
-  const checkAccountExists = async (accountCode) => {
-    try {
-      const accountsPath = `${basePath}/accounts`;
-      const accountsQuery = query(collection(db, accountsPath));
-      const snapshot = await getDocs(accountsQuery);
-      
-      const accountExists = snapshot.docs.some(doc => doc.data().accountCode === accountCode);
-      console.log(`🔍 Account ${accountCode} exists:`, accountExists);
-      
-      return accountExists;
-    } catch (error) {
-      console.error('Error checking account existence:', error);
-      return false;
-    }
-  };
+
 
   const processManufacturerPayment = async (order, manufacturerData, commissionAmount, paymentMethod, manufacturerBillNumber, notes) => {
     try {
@@ -1076,59 +1022,7 @@ export default function GoldSmithOrders() {
     return { total, byStatus, byPaymentStatus };
   }, [orders]);
 
-  // Calculate and record commission for completed order
-  const calculateAndRecordCommission = async (orderId) => {
-    try {
-      // Get order details
-      const orderDoc = await getDoc(doc(db, ordersPath, orderId));
-      if (!orderDoc.exists()) return;
 
-      const order = orderDoc.data();
-
-      // Calculate commission: Customer Price - Manufacturing Cost
-      const customerPrice = order.total || 0;
-      const manufacturingCost = order.metalCost + (order.makingChargeTotal || 0);
-      const commissionAmount = customerPrice - manufacturingCost;
-
-      if (commissionAmount <= 0) {
-        console.log('No commission to record for order:', orderId);
-        return;
-      }
-
-      // Initialize accounting engines
-      const accountingEngine = new AccountingEngine(companyId);
-      const transactionEngine = new AutomatedTransactionEngine(companyId);
-
-      // Record commission recognition (income)
-      const commissionEntry = transactionEngine.createCommissionRecognitionEntry({
-        orderId,
-        commissionAmount,
-        date: new Date()
-      });
-
-      // Record the transaction
-      await accountingEngine.recordTransaction({
-        description: commissionEntry.description,
-        debitAccountId: commissionEntry.lines[0].accountId, // Commission Income
-        creditAccountId: commissionEntry.lines[1].accountId, // Current Year Profit/Loss
-        amount: commissionAmount,
-        referenceType: 'commission_recognition',
-        referenceId: orderId
-      });
-
-      // Update order with commission details
-      await updateDoc(doc(db, ordersPath, orderId), {
-        commissionAmount,
-        commissionRecorded: true,
-        commissionRecordedAt: serverTimestamp()
-      });
-
-      console.log(`Commission recorded: ₹${commissionAmount} for order ${orderId}`);
-
-    } catch (error) {
-      console.error('Error calculating commission:', error);
-    }
-  };
 
   // Update order status with history tracking
   // ✅ TASK 6.4: Order Status Workflow Handler
@@ -1449,26 +1343,6 @@ export default function GoldSmithOrders() {
         notes: ''
       });
       setShowPickupDialog(true);
-    }
-  };
-
-  // ✅ Handle Show Delivery Dialog
-  const handleShowDeliveryDialog = async (order) => {
-    try {
-      setDeliveryOrder(order);
-      setDeliveryData({
-        deliveryDate: new Date().toISOString().split('T')[0],
-        finalWeight: order.finishedWeight || order.weight || '',
-        commissionRate: '',
-        goldPrice: '',
-        paymentMethod: 'cash',
-        goldBankId: '',
-        notes: ''
-      });
-      setShowDeliveryDialog(true);
-    } catch (error) {
-      console.error('Error preparing delivery dialog:', error);
-      alert('Error preparing delivery dialog');
     }
   };
 
@@ -2980,8 +2854,11 @@ export default function GoldSmithOrders() {
       };
 
       // Create the order document
+      console.log('Orders: Saving order to path:', ordersPath);
+      console.log('Orders: Order data:', orderData);
       const orderRef = await addDoc(collection(db, ordersPath), orderData);
       const orderId = orderRef.id;
+      console.log('Orders: Order saved with ID:', orderId);
 
       // Update product name cache if new product
       if (newOrder.productName && !productNameCache.includes(newOrder.productName)) {
@@ -3023,238 +2900,6 @@ export default function GoldSmithOrders() {
     } catch (error) {
       console.error('Error creating order:', error);
       alert('Error creating order. Please try again.');
-    }
-  };
-
-  // Handle Purchase Entry Submission
-  const handlePurchaseEntrySubmit = async () => {
-    try {
-      if (!purchaseEntryOrder) {
-        alert('No order selected for purchase entry');
-        return;
-      }
-
-      // Validation
-      if (!purchaseEntryData.weightReceived || parseFloat(purchaseEntryData.weightReceived) <= 0) {
-        alert('Please enter the weight received');
-        return;
-      }
-      if (!purchaseEntryData.manufacturingCost || parseFloat(purchaseEntryData.manufacturingCost) <= 0) {
-        alert('Please enter the manufacturing cost');
-        return;
-      }
-
-      const weightReceived = parseFloat(purchaseEntryData.weightReceived);
-      const manufacturingCost = parseFloat(purchaseEntryData.manufacturingCost);
-      const gstAmount = parseFloat(purchaseEntryData.gstAmount) || 0;
-      const totalPurchaseCost = manufacturingCost + gstAmount;
-
-      // Calculate commission (Profit = Customer Price - Manufacturing Cost)
-      const commissionAmount = purchaseEntryOrder.total - totalPurchaseCost;
-
-      // Create purchase entry document
-      const purchaseEntry = {
-        orderId: purchaseEntryOrder.id,
-        orderNumber: purchaseEntryOrder.orderNumber || purchaseEntryOrder.id,
-        customerId: purchaseEntryOrder.customerId,
-        customerName: purchaseEntryOrder.customerName,
-        manufacturerId: purchaseEntryOrder.manufacturerId,
-        manufacturerName: getManufacturerName(purchaseEntryOrder.manufacturerId),
-        categoryId: purchaseEntryOrder.categoryId,
-        productName: purchaseEntryOrder.productName,
-        karat: purchaseEntryOrder.karat,
-        weightOrdered: purchaseEntryOrder.weight,
-        weightReceived,
-        customerPrice: purchaseEntryOrder.total,
-        manufacturingCost,
-        gstAmount,
-        totalPurchaseCost,
-        commissionAmount,
-        paymentType: purchaseEntryData.paymentType,
-        creditDays: purchaseEntryData.paymentType === 'credit' ? parseInt(purchaseEntryData.creditDays) || 0 : 0,
-        dueDate: purchaseEntryData.paymentType === 'credit' 
-          ? new Date(Date.now() + (parseInt(purchaseEntryData.creditDays) || 0) * 24 * 60 * 60 * 1000)
-          : null,
-        notes: purchaseEntryData.notes,
-        createdAt: serverTimestamp(),
-        createdBy: 'admin', // Replace with actual user
-        type: 'order_pickup'
-      };
-
-      // Save purchase entry
-      await addDoc(collection(db, `companies/${companyId}/purchaseEntries`), purchaseEntry);
-
-      // Update order document
-      const orderRef = doc(db, ordersPath, purchaseEntryOrder.id);
-      await updateDoc(orderRef, {
-        purchaseEntryCompleted: true,
-        purchaseEntryDate: serverTimestamp(),
-        weightReceived,
-        manufacturingCost,
-        commissionAmount,
-        paymentTypeToManufacturer: purchaseEntryData.paymentType,
-        inventoryUpdated: true,
-        commissionCalculated: true
-      });
-
-      // Add inventory for the purchased metal
-      const inventoryService = new InventoryService(companyId);
-      await inventoryService.addInventoryFromOrderPickup(
-        purchaseEntryOrder.id,
-        {
-          ...purchaseEntryOrder,
-          weightReceived,
-          manufacturingCost
-        }
-      );
-
-      // Create accounting entries
-      const accountingEngine = new AccountingEngine(companyId);
-      
-      // Debit: Purchases Account (Asset)
-      // Credit: Cash/Manufacturer (if credit, creates payable)
-      await accountingEngine.recordPurchaseEntry({
-        orderId: purchaseEntryOrder.id,
-        manufacturerId: purchaseEntryOrder.manufacturerId,
-        amount: totalPurchaseCost,
-        paymentType: purchaseEntryData.paymentType,
-        description: `Purchase entry for order ${purchaseEntryOrder.id} - ${purchaseEntryOrder.productName}`,
-        date: new Date()
-      });
-
-      // Record commission income
-      // Debit: Purchases/Cost of Goods Account
-      // Credit: Commission Income
-      await accountingEngine.recordCommissionIncome({
-        orderId: purchaseEntryOrder.id,
-        amount: commissionAmount,
-        description: `Commission on order ${purchaseEntryOrder.id}`,
-        date: new Date()
-      });
-
-      // Close dialog and reset
-      setShowPurchaseEntryDialog(false);
-      setPurchaseEntryOrder(null);
-      setPurchaseEntryData({
-        weightReceived: '',
-        manufacturingCost: '',
-        gstAmount: '',
-        paymentType: 'cash',
-        creditDays: 0,
-        notes: ''
-      });
-
-      alert(`Purchase entry completed successfully!\nCommission Earned: ₹${commissionAmount.toFixed(2)}`);
-    } catch (error) {
-      console.error('Error submitting purchase entry:', error);
-      alert('Error submitting purchase entry. Please try again.');
-    }
-  };
-
-  // Handle Delivery & Billing Submission
-  const handleDeliverySubmit = async () => {
-    try {
-      if (!deliveryOrder) {
-        alert('No order selected for delivery');
-        return;
-      }
-
-      // Validation
-      if (!deliveryData.deliveryDate) {
-        alert('Please select a delivery date');
-        return;
-      }
-
-      const paidAmount = parseFloat(deliveryData.paidAmount) || 0;
-
-      // Determine payment status based on payment method and amount
-      let paymentStatus = 'Not Billed';
-      if (deliveryData.paymentMethod === 'cash') {
-        if (paidAmount >= deliveryOrder.total) {
-          paymentStatus = 'Paid';
-        } else if (paidAmount > 0) {
-          paymentStatus = 'Partially Paid';
-        } else {
-          paymentStatus = 'Billed';
-        }
-      } else {
-        // Credit sale
-        paymentStatus = 'Billed';
-      }
-
-      // Update order document
-      const orderRef = doc(db, ordersPath, deliveryOrder.id);
-      await updateDoc(orderRef, {
-        deliveryCompleted: true,
-        deliveryDate: new Date(deliveryData.deliveryDate),
-        paymentMethod: deliveryData.paymentMethod,
-        paymentStatus,
-        paidAmount,
-        balanceDue: deliveryOrder.total - paidAmount,
-        billingDate: serverTimestamp(),
-        notes: deliveryData.notes,
-        updatedAt: serverTimestamp()
-      });
-
-      // Generate bill/invoice based on payment method
-      const orderReceiptEngine = new OrderReceiptEngine(companyId);
-      
-      if (deliveryData.paymentMethod === 'cash') {
-        // Generate cash bill (receipt)
-        await orderReceiptEngine.generateBill({
-          orderId: deliveryOrder.id,
-          orderData: deliveryOrder,
-          paymentType: 'cash',
-          paidAmount,
-          deliveryDate: new Date(deliveryData.deliveryDate)
-        });
-      } else {
-        // Generate credit invoice
-        await orderReceiptEngine.generateInvoice({
-          orderId: deliveryOrder.id,
-          orderData: deliveryOrder,
-          deliveryDate: new Date(deliveryData.deliveryDate),
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days credit
-        });
-      }
-
-      // Create accounting entries
-      const accountingEngine = new AccountingEngine(companyId);
-      
-      if (deliveryData.paymentMethod === 'cash' && paidAmount > 0) {
-        // Record cash sale
-        await accountingEngine.recordCashSale({
-          orderId: deliveryOrder.id,
-          customerId: deliveryOrder.customerId,
-          amount: paidAmount,
-          description: `Cash sale for order ${deliveryOrder.id}`,
-          date: new Date(deliveryData.deliveryDate)
-        });
-      } else if (deliveryData.paymentMethod === 'credit') {
-        // Record credit sale (creates receivable)
-        await accountingEngine.recordCreditSale({
-          orderId: deliveryOrder.id,
-          customerId: deliveryOrder.customerId,
-          amount: deliveryOrder.total,
-          description: `Credit sale for order ${deliveryOrder.id}`,
-          date: new Date(deliveryData.deliveryDate)
-        });
-      }
-
-      // Close dialog and reset
-      setShowDeliveryDialog(false);
-      setDeliveryOrder(null);
-      setDeliveryData({
-        deliveryDate: new Date().toISOString().split('T')[0],
-        paymentMethod: 'cash',
-        paidAmount: 0,
-        notes: ''
-      });
-
-      alert(`Delivery completed successfully!\nPayment Status: ${paymentStatus}`);
-    } catch (error) {
-      console.error('Error submitting delivery:', error);
-      alert('Error submitting delivery. Please try again.');
     }
   };
 
@@ -4171,218 +3816,6 @@ export default function GoldSmithOrders() {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Purchase Entry Dialog */}
-        {showPurchaseEntryDialog && purchaseEntryOrder && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-              <h2 className="text-2xl font-bold mb-4 text-purple-800">Purchase Entry - Order Pickup</h2>
-              
-              {/* Order Summary */}
-              <div className="bg-purple-50 p-4 rounded-lg mb-6 border border-purple-200">
-                <h3 className="font-semibold text-purple-900 mb-3">Order Details</h3>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-gray-600">Order ID:</span>
-                    <span className="ml-2 font-semibold">{purchaseEntryOrder.id}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Customer:</span>
-                    <span className="ml-2 font-semibold">{purchaseEntryOrder.customerName}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Product:</span>
-                    <span className="ml-2 font-semibold">{purchaseEntryOrder.productName}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Karat:</span>
-                    <span className="ml-2 font-semibold">{purchaseEntryOrder.karat}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Ordered Weight:</span>
-                    <span className="ml-2 font-semibold">{purchaseEntryOrder.weight}g</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Customer Price:</span>
-                    <span className="ml-2 font-semibold text-green-600">₹{purchaseEntryOrder.total?.toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Manufacturer:</span>
-                    <span className="ml-2 font-semibold">{getManufacturerName(purchaseEntryOrder.manufacturerId)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Purchase Entry Form */}
-              <div className="space-y-4 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Weight Received */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Weight Received (grams) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={purchaseEntryData.weightReceived}
-                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, weightReceived: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Enter weight received"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Actual weight received (may differ slightly due to wastage)
-                    </p>
-                  </div>
-
-                  {/* Manufacturing Cost */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Manufacturing Cost (₹) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={purchaseEntryData.manufacturingCost}
-                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, manufacturingCost: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Enter manufacturing cost"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Amount charged by manufacturer (excluding GST)
-                    </p>
-                  </div>
-
-                  {/* GST Amount */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      GST Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={purchaseEntryData.gstAmount}
-                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, gstAmount: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Enter GST amount"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      GST charged by manufacturer (optional)
-                    </p>
-                  </div>
-
-                  {/* Payment Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Payment Type *
-                    </label>
-                    <select
-                      value={purchaseEntryData.paymentType}
-                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, paymentType: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="cash">Cash Payment</option>
-                      <option value="credit">Credit (Pay Later)</option>
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      How did you pay the manufacturer?
-                    </p>
-                  </div>
-                </div>
-
-                {/* Credit Days (shown only if payment type is credit) */}
-                {purchaseEntryData.paymentType === 'credit' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Credit Days
-                    </label>
-                    <input
-                      type="number"
-                      value={purchaseEntryData.creditDays}
-                      onChange={(e) => setPurchaseEntryData({...purchaseEntryData, creditDays: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Number of days to pay"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Payment due in how many days?
-                    </p>
-                  </div>
-                )}
-
-                {/* Notes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notes (Optional)
-                  </label>
-                  <textarea
-                    value={purchaseEntryData.notes}
-                    onChange={(e) => setPurchaseEntryData({...purchaseEntryData, notes: e.target.value})}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Any additional notes about the purchase..."
-                  />
-                </div>
-              </div>
-
-              {/* Commission Calculation Preview */}
-              {purchaseEntryData.manufacturingCost && (
-                <div className="bg-green-50 p-4 rounded-lg mb-6 border border-green-200">
-                  <h3 className="font-semibold text-green-900 mb-3">Commission Calculation</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-700">Customer Price:</span>
-                      <span className="font-semibold">₹{purchaseEntryOrder.total?.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-700">Manufacturing Cost:</span>
-                      <span className="font-semibold">₹{parseFloat(purchaseEntryData.manufacturingCost).toFixed(2)}</span>
-                    </div>
-                    {purchaseEntryData.gstAmount && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">GST Amount:</span>
-                        <span className="font-semibold">₹{parseFloat(purchaseEntryData.gstAmount).toFixed(2)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between pt-2 border-t border-green-300">
-                      <span className="text-gray-700 font-semibold">Total Purchase Cost:</span>
-                      <span className="font-semibold">
-                        ₹{(parseFloat(purchaseEntryData.manufacturingCost) + (parseFloat(purchaseEntryData.gstAmount) || 0)).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t-2 border-green-500">
-                      <span className="text-green-900 font-bold text-lg">Commission Earned:</span>
-                      <span className="text-green-600 font-bold text-lg">
-                        ₹{(purchaseEntryOrder.total - (parseFloat(purchaseEntryData.manufacturingCost) + (parseFloat(purchaseEntryData.gstAmount) || 0))).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowPurchaseEntryDialog(false);
-                    setPurchaseEntryOrder(null);
-                  }}
-                  className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handlePurchaseEntrySubmit}
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold"
-                >
-                  Complete Purchase Entry
-                </button>
-              </div>
-
-              <p className="text-xs text-gray-500 mt-4 text-center">
-                This will record the purchase, calculate commission, update inventory, and create accounting entries.
-              </p>
             </div>
           </div>
         )}

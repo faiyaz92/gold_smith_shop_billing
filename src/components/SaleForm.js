@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { AccountingEngine } from '@/utils/accountingEngine';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 import { X, Calculator, PackageCheck, DollarSign } from 'lucide-react';
 import GoldPricePopup from './GoldPricePopup';
 
@@ -23,21 +24,72 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
 
   const [errors, setErrors] = useState({});
 
-  // Load customers
+  // Load customers with account balances
   useEffect(() => {
     if (!isOpen || !companyId) return;
 
-    const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
-    const customersQuery = query(collection(db, customersPath), orderBy('name'));
-    const customersUnsubscribe = onSnapshot(customersQuery, (snapshot) => {
-      const customersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setCustomers(customersData);
-    });
+    const loadCustomersWithBalances = async () => {
+      try {
+        const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
+        const customersQuery = query(collection(db, customersPath), orderBy('customerName'));
+        
+        const customersUnsubscribe = onSnapshot(customersQuery, async (snapshot) => {
+          const customersData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
 
-    return () => customersUnsubscribe();
+          // Fetch account balances for each customer
+          const accountManager = new HierarchicalAccountManager(companyId);
+          const customersWithBalances = await Promise.all(
+            customersData.map(async (customer) => {
+              try {
+                let balance = 0;
+                let accountCode = customer.accountCode;
+
+                // Method 1: Use accountCode from customer document if available
+                if (customer.accountCode) {
+                  const account = await accountManager.getAccountByCode(customer.accountCode);
+                  balance = account ? (account.currentBalanceGold || account.currentBalance || 0) : 0;
+                } else {
+                  // Method 2: Fallback - find account by customerId
+                  const allAccounts = await accountManager.getAllAccounts();
+                  const customerAccount = allAccounts.find(account => 
+                    account.customerId === customer.id && account.accountCode?.startsWith('CUST-')
+                  );
+                  balance = customerAccount ? 
+                    (customerAccount.currentBalanceGold || customerAccount.currentBalance || 0) : 0;
+                  accountCode = customerAccount?.accountCode;
+                }
+
+                return {
+                  ...customer,
+                  accountBalance: balance,
+                  accountCode: accountCode
+                };
+              } catch (error) {
+                console.error(`Error fetching balance for customer ${customer.id}:`, error);
+                return {
+                  ...customer,
+                  accountBalance: 0,
+                  accountCode: null
+                };
+              }
+            })
+          );
+
+          setCustomers(customersWithBalances);
+        });
+
+        return () => {
+          customersUnsubscribe();
+        };
+      } catch (error) {
+        console.error('Error setting up customers listener:', error);
+      }
+    };
+
+    loadCustomersWithBalances();
   }, [isOpen, companyId]);
 
   const handleGoldPriceConfirm = (priceData) => {
@@ -250,7 +302,8 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
                 <option value="">Select Customer</option>
                 {customers.map(customer => (
                   <option key={customer.id} value={customer.id}>
-                    {customer.name || customer.customerName}
+                    {customer.name || customer.customerName} {customer.phone ? `(${customer.phone})` : ''} 
+                    {customer.accountBalance > 0 ? ` - Balance: ${customer.accountBalance.toFixed(3)}g gold` : ''}
                   </option>
                 ))}
               </select>

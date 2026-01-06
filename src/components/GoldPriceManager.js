@@ -11,7 +11,7 @@ export default function GoldPriceManager({ isOpen, onClose }) {
   const [saving, setSaving] = useState(false);
   const [pricePerOunce, setPricePerOunce] = useState('');
   const [pricePerGram, setPricePerGram] = useState('');
-  const [isConverting, setIsConverting] = useState(false);
+  const [activeField, setActiveField] = useState(null); // Track which field user is editing
 
   // Load latest gold price on mount
   useEffect(() => {
@@ -20,25 +20,21 @@ export default function GoldPriceManager({ isOpen, onClose }) {
     }
   }, [isOpen]);
 
-  // Update gram price when ounce price changes (only if not currently converting)
+  // Update gram price when ounce price changes (only when ounce field is active)
   useEffect(() => {
-    if (pricePerOunce && !isNaN(pricePerOunce) && !isConverting) {
-      setIsConverting(true);
+    if (pricePerOunce && !isNaN(pricePerOunce) && activeField === 'ounce') {
       const gramPrice = parseFloat(pricePerOunce) / OUNCE_TO_GRAM;
       setPricePerGram(gramPrice.toFixed(2));
-      setTimeout(() => setIsConverting(false), 100);
     }
-  }, [pricePerOunce, isConverting]);
+  }, [pricePerOunce, activeField]);
 
-  // Update ounce price when gram price changes (only if not currently converting)
+  // Update ounce price when gram price changes (only when gram field is active)
   useEffect(() => {
-    if (pricePerGram && !isNaN(pricePerGram) && !isConverting) {
-      setIsConverting(true);
+    if (pricePerGram && !isNaN(pricePerGram) && activeField === 'gram') {
       const ouncePrice = parseFloat(pricePerGram) * OUNCE_TO_GRAM;
       setPricePerOunce(ouncePrice.toFixed(2));
-      setTimeout(() => setIsConverting(false), 100);
     }
-  }, [pricePerGram, isConverting]);
+  }, [pricePerGram, activeField]);
 
   const loadGoldPrice = async () => {
     setLoading(true);
@@ -155,6 +151,8 @@ export default function GoldPriceManager({ isOpen, onClose }) {
                 <input
                   type="text"
                   value={pricePerOunce}
+                  onFocus={() => setActiveField('ounce')}
+                  onBlur={() => setActiveField(null)}
                   onChange={(e) => {
                     const value = e.target.value;
                     // Allow only numbers and decimal point
@@ -173,6 +171,8 @@ export default function GoldPriceManager({ isOpen, onClose }) {
                 <input
                   type="text"
                   value={pricePerGram}
+                  onFocus={() => setActiveField('gram')}
+                  onBlur={() => setActiveField(null)}
                   onChange={(e) => {
                     const value = e.target.value;
                     // Allow only numbers and decimal point
@@ -187,7 +187,7 @@ export default function GoldPriceManager({ isOpen, onClose }) {
             </div>
 
             <p className="text-xs text-gray-500">
-              💡 Enter price in either field (e.g., $4500 per ounce) - the other field will auto-calculate. Use numbers only (no currency symbols).
+              💡 Click in a field to edit it. The other field will auto-update when you finish editing. Enter numbers only (e.g., 4500).
             </p>
           </div>
 

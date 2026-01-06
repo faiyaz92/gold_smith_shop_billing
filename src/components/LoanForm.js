@@ -4,6 +4,7 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 
 import { db } from '@/app/firebase';
 import { AccountingEngine } from '@/utils/accountingEngine';
 import { LoanEngine } from '@/utils/loanEngine';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 import { X, Calculator, IndianRupee, DollarSign } from 'lucide-react';
 import GoldPricePopup from './GoldPricePopup';
 
@@ -21,18 +22,42 @@ export default function LoanForm({ isOpen, onClose, companyId, userRole }) {
 
   const [errors, setErrors] = useState({});
 
-  // Load customers
+  // Load customers with account balances
   useEffect(() => {
     if (!isOpen || !companyId) return;
 
     const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
-    const customersQuery = query(collection(db, customersPath), orderBy('name'));
-    const customersUnsubscribe = onSnapshot(customersQuery, (snapshot) => {
+    const customersQuery = query(collection(db, customersPath), orderBy('customerName'));
+    const customersUnsubscribe = onSnapshot(customersQuery, async (snapshot) => {
       const customersData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      setCustomers(customersData);
+
+      // Fetch account balances for customers
+      const accountManager = new HierarchicalAccountManager(companyId);
+      const customersWithBalances = customersData.map(customer => {
+        // Method 1: Use accountCode from customer document if available
+        if (customer.accountCode) {
+          // For now, we'll need to fetch individual accounts or cache them
+          // This is a simplified version - in production you'd want to batch fetch
+          return accountManager.getAccountByCode(customer.accountCode).then(account => ({
+            ...customer,
+            accountBalance: account ? (account.currentBalanceGold || account.currentBalance || 0) : 0
+          }));
+        } else {
+          // Method 2: Fallback - use stored balance or 0
+          return {
+            ...customer,
+            accountBalance: customer.currentPureGoldBalance || 0
+          };
+        }
+      });
+
+      // Wait for all balance fetches to complete
+      const customersWithBalancesResolved = await Promise.all(customersWithBalances);
+
+      setCustomers(customersWithBalancesResolved);
     });
 
     return () => customersUnsubscribe();
@@ -144,7 +169,8 @@ export default function LoanForm({ isOpen, onClose, companyId, userRole }) {
                 <option value="">Select Customer</option>
                 {customers.map(customer => (
                   <option key={customer.id} value={customer.id}>
-                    {customer.name || customer.customerName}
+                    {customer.name || customer.customerName} {customer.phone ? `(${customer.phone})` : ''} 
+                    {customer.accountBalance > 0 ? ` - Balance: ${customer.accountBalance.toFixed(3)}g gold` : ''}
                   </option>
                 ))}
               </select>

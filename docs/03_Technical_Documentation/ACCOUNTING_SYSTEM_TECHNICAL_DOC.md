@@ -50,26 +50,26 @@ Manages account creation, hierarchy, and relationships.
 
 **Storage Path**: `Easy2Solutions/companyDirectory/tenantCompanies/{companyId}/accounts`
 
-**Default Accounts Created**:
+**Default Accounts Created** (16 accounts per BRD v2 Section 2.3.1):
 
-| Account Code | Account Name | Type | Balance Type | Description |
-|-------------|--------------|------|--------------|-------------|
-| 1101 | Gold Bank (Sharaf) | asset | debit | Gold custody at Sharaf Gold Bank |
-| 1102 | Gold in Transit | asset | debit | Pure gold with manufacturers for production |
-| 1103 | Finished Goods Inventory | asset | debit | Finished jewelry inventory in pure gold equivalent |
-| 1104 | Gold in Hand | asset | debit | Physical gold held in business premises for customer transactions |
-| 1201 | Cash | asset | debit | Cash on hand (USD) |
-| 1202 | Bank Account | asset | debit | Bank deposits (USD) |
-| 1301 | Customer Receivables | asset | debit | Pure gold owed by customers |
-| 2101 | Manufacturer Payables | liability | credit | USD owed to manufacturers for making charges |
-| 2102 | Other Payables | liability | credit | Other amounts payable (USD) |
-| 3101 | Owner's Capital | equity | credit | Owner investment and capital |
-| 3201 | Retained Earnings | equity | credit | Accumulated earnings in pure gold equivalent |
-| 4101 | Commission Income | income | credit | Commission earned in pure gold |
-| 5101 | Making Charges | expense | debit | Making charges paid to manufacturers (USD) |
-| 5201 | Salaries | expense | debit | Staff salaries and wages (USD) |
-| 5202 | Rent | expense | debit | Shop and office rent (USD) |
-| 5203 | Utilities | expense | debit | Electricity, water, internet, etc. (USD) |
+| Account Code | Account Name | Type | Balance Type | Category | Description |
+|-------------|--------------|------|--------------|----------|-------------|
+| 1101 | Gold Bank (Sharaf) | asset | debit | current_assets | Gold custody at Sharaf Gold Bank |
+| 1102 | Gold in Transit | asset | debit | current_assets | Pure gold with manufacturers for production |
+| 1103 | Finished Goods Inventory | asset | debit | current_assets | Finished jewelry inventory in pure gold equivalent |
+| 1104 | Gold in Hand | asset | debit | current_assets | Physical gold held in business premises for customer transactions |
+| 1201 | Cash | asset | debit | current_assets | Cash on hand (USD) |
+| 1202 | Bank Account | asset | debit | current_assets | Bank deposits (USD) |
+| 1301 | Customer Receivables | asset | debit | current_assets | Pure gold owed by customers |
+| 2101 | Manufacturer Payables | liability | credit | current_liabilities | USD owed to manufacturers for making charges |
+| 2102 | Other Payables | liability | credit | current_liabilities | Other amounts payable (USD) |
+| 3101 | Owner's Capital | equity | credit | equity | Owner investment and capital |
+| 3201 | Retained Earnings | equity | credit | equity | Accumulated earnings in pure gold equivalent |
+| 4101 | Commission Income | income | credit | revenue | Commission earned in pure gold |
+| 5101 | Making Charges | expense | debit | cost_of_goods_sold | Making charges paid to manufacturers (USD) |
+| 5201 | Salaries | expense | debit | operating_expenses | Staff salaries and wages (USD) |
+| 5202 | Rent | expense | debit | operating_expenses | Shop and office rent (USD) |
+| 5203 | Utilities | expense | debit | operating_expenses | Electricity, water, internet, etc. (USD) |
 
 **Account Document Structure** (for system accounts):
 ```javascript
@@ -86,6 +86,13 @@ Manages account creation, hierarchy, and relationships.
   isActive: true,
   parentAccount: null,
   level: 1,
+  createdBy: "system",
+  // Migration-ready fields
+  _version: "2.0",
+  _migrationStatus: "active",
+  _v3Ready: true,
+  _v4Ready: false,
+  // Auto-generated fields
   accountId: "firestore-doc-id",
   companyId: "company-id",
   createdAt: Timestamp,
