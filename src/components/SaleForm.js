@@ -153,7 +153,11 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
       if (!customerAccountCode) {
         // Create customer account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        customerAccountCode = await accountManager.createCustomerAccount(customer);
+        const customerAccountResult = await accountManager.createCustomerAccount(customer);
+        if (!customerAccountResult.success) {
+          throw new Error(`Failed to create customer account: ${customerAccountResult.message}`);
+        }
+        customerAccountCode = customerAccountResult.account.accountCode;
         // Update customer document with new account code
         await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`, customer.id), {
           accountCode: customerAccountCode,

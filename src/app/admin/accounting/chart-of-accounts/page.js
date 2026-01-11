@@ -252,8 +252,10 @@ export default function ChartOfAccountsPage() {
             {/* Current Balance Display */}
             <div className="text-right min-w-[150px]">
               <div className="text-sm font-semibold text-gray-900">
-                {account.currentBalanceGold > 0 ? (
-                  <span className="text-yellow-600">{account.currentBalanceGold.toFixed(3)}g</span>
+                {account.currentBalanceGold !== undefined && account.currentBalanceGold !== null ? (
+                  <span className={account.currentBalanceGold < 0 ? 'text-red-600' : 'text-yellow-600'}>
+                    {account.currentBalanceGold.toFixed(3)}g
+                  </span>
                 ) : account.currentBalance !== undefined ? (
                   <span className={account.balanceType === 'debit' && account.currentBalance < 0 ? 'text-red-600' : 'text-gray-900'}>
                     ${account.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -262,7 +264,7 @@ export default function ChartOfAccountsPage() {
                   <span className="text-gray-400">$0.00</span>
                 )}
               </div>
-              {account.currentBalanceGold > 0 && account.currentBalance !== undefined && account.currentBalance > 0 && (
+              {account.currentBalanceGold !== undefined && account.currentBalanceGold !== null && account.currentBalance !== undefined && account.currentBalance > 0 && (
                 <div className="text-xs text-gray-500">
                   ${account.currentBalance.toFixed(2)}
                 </div>

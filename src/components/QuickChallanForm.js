@@ -43,7 +43,7 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
       setManufacturers(manufacturersData);
     });
 
-    const goldBanksPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/goldbanks`;
+    const goldBanksPath = `goldBanks`; // ✅ FIXED: Root level collection
     const goldBanksQuery = query(collection(db, goldBanksPath), orderBy('bankName'));
     const goldBanksUnsubscribe = onSnapshot(goldBanksQuery, (snapshot) => {
       const goldBanksData = snapshot.docs.map(doc => ({
@@ -245,7 +245,14 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
       if (!goldTransitAccountCode) {
         // Create manufacturer gold transit account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturer);
+        const goldTransitAccountResult = await accountManager.createManufacturerGoldTransitAccount({
+          manufacturerId: manufacturer.id,
+          manufacturerName: manufacturer.manufacturerName || manufacturer.name
+        });
+        if (!goldTransitAccountResult.success) {
+          throw new Error(`Failed to create gold transit account: ${goldTransitAccountResult.message}`);
+        }
+        goldTransitAccountCode = goldTransitAccountResult.account.accountCode;
         // Update manufacturer document with new account code
         await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/manufacturers`, manufacturer.id), {
           goldTransitAccountCode: goldTransitAccountCode,
@@ -260,9 +267,17 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
       if (!goldBankAccountCode) {
         // Create gold bank account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        goldBankAccountCode = await accountManager.createGoldBankAccount(goldBank);
+        const goldBankAccountResult = await accountManager.createGoldBankAccount({
+          goldBankId: goldBank.id,
+          bankName: goldBank.bankName,
+          location: goldBank.location
+        });
+        if (!goldBankAccountResult.success) {
+          throw new Error(`Failed to create gold bank account: ${goldBankAccountResult.message}`);
+        }
+        goldBankAccountCode = goldBankAccountResult.account.accountCode;
         // Update gold bank document with new account code
-        await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/goldbanks`, goldBank.id), {
+        await updateDoc(doc(db, `goldBanks`, goldBank.id), { // ✅ FIXED: Root level collection
           accountCode: goldBankAccountCode,
           updatedAt: serverTimestamp()
         });

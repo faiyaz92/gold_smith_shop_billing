@@ -11,6 +11,7 @@ import { db } from '@/app/firebase';
 import Link from 'next/link';
 import { Plus, Search, Edit, Eye, ToggleLeft, ToggleRight, DollarSign, Scale, CreditCard } from 'lucide-react';
 import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
+import { AccountingEngine } from '@/utils/accountingEngine';
 
 export default function ManufacturersPage() {
   const [manufacturers, setManufacturers] = useState([]);
@@ -42,36 +43,36 @@ export default function ManufacturersPage() {
       }));
 
       // Fetch account balances for manufacturers
-      const accountManager = new HierarchicalAccountManager(companyId);
+      const accountingEngine = new AccountingEngine(companyId);
       const manufacturersWithBalances = await Promise.all(
         manufacturersData.map(async (manufacturer) => {
           try {
             let usdBalance = 0;
+            let goldTransitBalance = 0;
 
-            // Method 1: Use accountCode from manufacturer document if available
+            // Get USD balance from payable account
             if (manufacturer.accountCode) {
-              const account = await accountManager.getAccountByCode(manufacturer.accountCode);
-              // Manufacturer accounts are liability accounts (credit balance)
-              // Positive balance means they owe us money
-              usdBalance = account ? (account.currentBalance || 0) : 0;
-            } else {
-              // Method 2: Try to find account by manufacturerId
-              const allAccounts = await accountManager.getAllAccounts();
-              const manufacturerAccount = allAccounts.find(account => 
-                account.manufacturerId === manufacturer.id && account.accountCode?.startsWith('2101-MFG-')
-              );
-              usdBalance = manufacturerAccount ? (manufacturerAccount.currentBalance || 0) : 0;
+              const payableBalance = await accountingEngine.getAccountBalanceByCode(manufacturer.accountCode);
+              usdBalance = payableBalance.currentBalance || 0;
+            }
+
+            // Get gold transit balance from gold transit account
+            if (manufacturer.goldTransitAccountCode) {
+              const transitBalance = await accountingEngine.getAccountBalanceByCode(manufacturer.goldTransitAccountCode);
+              goldTransitBalance = transitBalance.currentBalanceGold || 0;
             }
 
             return {
               ...manufacturer,
-              currentBalanceUSD: usdBalance // Add the actual balance from accounting system
+              currentBalanceUSD: usdBalance,
+              goldInTransit: goldTransitBalance
             };
           } catch (error) {
             console.error(`Error fetching balance for manufacturer ${manufacturer.id}:`, error);
             return {
               ...manufacturer,
-              currentBalanceUSD: manufacturer.currentBalanceUSD || 0 // Fallback to stored value
+              currentBalanceUSD: manufacturer.currentBalanceUSD || 0,
+              goldInTransit: manufacturer.goldInTransit || 0
             };
           }
         })

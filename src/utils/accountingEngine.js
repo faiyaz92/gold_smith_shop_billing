@@ -351,6 +351,40 @@ export class AccountingEngine {
   }
 
   /**
+   * Get current balance directly from account document by account code
+   * @param {string} accountCode - Account code to find balance for
+   * @returns {object} - Balance object with currentBalance and currentBalanceGold
+   */
+  async getAccountBalanceByCode(accountCode) {
+    try {
+      // Get all accounts to find the one with matching account code
+      const accountsPath = this.paths.getAccountsPath();
+      const allAccountsSnapshot = await getDocs(query(collection(db, accountsPath)));
+      const account = allAccountsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .find(acc => acc.accountCode === accountCode);
+
+      if (!account) {
+        throw new Error(`Account with code ${accountCode} not found`);
+      }
+
+      return {
+        accountId: account.id,
+        accountCode: account.accountCode,
+        accountName: account.accountName,
+        currentBalance: account.currentBalance || 0,
+        currentBalanceGold: account.currentBalanceGold || 0,
+        balanceType: account.balanceType,
+        accountType: account.accountType
+      };
+
+    } catch (error) {
+      console.error(`Get account balance by code error for ${accountCode}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Validate accounting equation: Assets = Liabilities + Equity
    * @returns {object} - Validation result
    */

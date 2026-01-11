@@ -242,7 +242,11 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
       if (!customerAccountCode) {
         // Create customer account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        customerAccountCode = await accountManager.createCustomerAccount(selectedCustomer);
+        const customerAccountResult = await accountManager.createCustomerAccount(selectedCustomer);
+        if (!customerAccountResult.success) {
+          throw new Error(`Failed to create customer account: ${customerAccountResult.message}`);
+        }
+        customerAccountCode = customerAccountResult.account.accountCode;
         // Update customer document with new account code
         await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`, selectedCustomer.id), {
           accountCode: customerAccountCode,

@@ -2,9 +2,10 @@
 // Gold Loan Engine for Ahmad Gold Business
 // Handles cash loans converted to gold grams and gold repayments
 
-import { collection, addDoc, doc, updateDoc, getDoc, getDocs, query, where, orderBy, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, getDoc, getDocs, query, where, orderBy, limit, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db } from '../app/firebase.js';
 import { AccountingEngine } from './accountingEngine.js';
+import { HierarchicalAccountManager } from './hierarchicalAccountManager.js';
 
 // Utility function to get firestore paths
 const getFirestorePaths = (companyId) => {
@@ -99,21 +100,53 @@ export class LoanEngine {
       // Save loan record
       const docRef = await addDoc(collection(db, this.paths.getLoansPath()), loanDoc);
 
-      // Record accounting entry using customer's receivable account
-      await this.recordLoanAccounting(loanDoc);
+      // ✅ ACCOUNT CODE AUDIT: Get customer account code
+      let customerAccountCode = customer?.accountCode;
+      if (!customerAccountCode) {
+        const accountManager = new HierarchicalAccountManager(this.companyId);
+        const accountResult = await accountManager.createCustomerAccount(customer);
+        if (!accountResult.success) {
+          throw new Error(`Failed to create customer account: ${accountResult.message}`);
+        }
+        customerAccountCode = accountResult.account.accountCode;
+
+        // Update customer document with account code
+        const customerRef = doc(db, this.paths.getCustomersPath(), customerId);
+        await updateDoc(customerRef, {
+          accountCode: customerAccountCode,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // Record accounting entry using createEntry directly
+      await this.accountingEngine.createEntry({
+        date: new Date(),
+        description: `Cash loan to ${customer.name} - ${goldGramsEquivalent.toFixed(3)}g gold equivalent of $${usdAmount.toFixed(2)} (Loan ID: ${loanId})`,
+        transactionType: 'loan',
+        referenceId: loanId,
+        referenceType: 'loan',
+        entries: [
+          {
+            accountCode: customerAccountCode, // Customer Receivables - gold grams owed
+            accountName: `${customer.name} - Receivables`,
+            debit: goldGramsEquivalent, // Gold grams customer owes
+            credit: 0,
+            balanceType: 'gold'
+          },
+          {
+            accountCode: '1201', // Cash - USD given to customer
+            accountName: 'Cash',
+            debit: 0,
+            credit: usdAmount, // USD amount given
+            balanceType: 'usd'
+          }
+        ]
+      });
 
       // Update loan with accounting flag
       await updateDoc(docRef, {
         accountingRecorded: true,
         updatedAt: serverTimestamp()
-      });
-
-      // Record accounting entry: Customer owes gold grams
-      // Debit: Loan Receivable (gold grams) - what customer owes
-      // Credit: Cash (USD amount given)
-      await this.recordLoanAccounting({
-        ...loanDoc,
-        loanAccountId: loanAccountResult.account.accountCode
       });
 
       return {
@@ -178,12 +211,48 @@ export class LoanEngine {
         updatedAt: serverTimestamp()
       });
 
-      // Record accounting entry: Customer repays gold
-      // Debit: Cash/Gold Inventory (gold received)
-      // Credit: Loan Receivable (gold grams repaid)
-      await this.recordRepaymentAccounting({
-        ...repayment,
-        loanAccountId: loan.loanAccountId
+      // ✅ ACCOUNT CODE AUDIT: Get customer account code
+      const customer = await this.getCustomer(loan.customerId);
+      let customerAccountCode = customer?.accountCode;
+      if (!customerAccountCode) {
+        const accountManager = new HierarchicalAccountManager(this.companyId);
+        const accountResult = await accountManager.createCustomerAccount(customer);
+        if (!accountResult.success) {
+          throw new Error(`Failed to create customer account: ${accountResult.message}`);
+        }
+        customerAccountCode = accountResult.account.accountCode;
+
+        // Update customer document with account code
+        const customerRef = doc(db, this.paths.getCustomersPath(), loan.customerId);
+        await updateDoc(customerRef, {
+          accountCode: customerAccountCode,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // Record accounting entry using createEntry directly
+      await this.accountingEngine.createEntry({
+        date: new Date(),
+        description: `Loan repayment from ${loan.customerName} - ${goldGramsReturned.toFixed(3)}g gold returned (Loan ID: ${loanId})`,
+        transactionType: 'loan_repayment',
+        referenceId: loanId,
+        referenceType: 'loan_repayment',
+        entries: [
+          {
+            accountCode: '1104', // Gold in Hand - gold received
+            accountName: 'Gold in Hand',
+            debit: goldGramsReturned, // Gold grams received
+            credit: 0,
+            balanceType: 'gold'
+          },
+          {
+            accountCode: customerAccountCode, // Customer Receivables - gold grams repaid
+            accountName: `${loan.customerName} - Receivables`,
+            debit: 0,
+            credit: goldGramsReturned, // Gold grams repaid
+            balanceType: 'gold'
+          }
+        ]
       });
 
       return {
@@ -198,47 +267,6 @@ export class LoanEngine {
       console.error('Error recording loan repayment:', error);
       throw error;
     }
-  }
-
-  /**
-   * Record accounting entries for loan
-   */
-  async recordLoanAccounting(loan) {
-    // When giving cash loan:
-    // Customer receives USD cash but owes equivalent gold grams
-    // We use the customer's receivable account (not separate loan accounts)
-    // This keeps it simple - one account per customer tracks all receivables
-
-    const customerAccountCode = `CUST-${loan.customerId.split('-')[1] || loan.customerId.padStart(4, '0')}`;
-
-    await this.accountingEngine.recordTransaction({
-      description: `Cash loan to ${loan.customerName} - ${loan.goldGramsEquivalent.toFixed(3)}g gold equivalent of $${loan.usdAmount.toFixed(2)} (Loan ID: ${loan.loanId})`,
-      debitAccountId: customerAccountCode, // Customer receivable account (includes loans)
-      creditAccountId: '1201', // Cash account
-      amount: loan.goldGramsEquivalent, // Amount in gold grams
-      referenceType: 'loan',
-      referenceId: loan.loanId
-    });
-  }
-
-  /**
-   * Record accounting entries for repayment
-   */
-  async recordRepaymentAccounting(repayment) {
-    // When customer repays with gold:
-    // Debit: Gold Inventory (gold received)
-    // Credit: Customer Receivable (gold grams repaid)
-
-    const customerAccountCode = `CUST-${repayment.customerId.split('-')[1] || repayment.customerId.padStart(4, '0')}`;
-
-    await this.accountingEngine.recordTransaction({
-      description: `Loan repayment from ${repayment.customerName} - ${repayment.goldGramsReturned.toFixed(3)}g gold returned (Loan ID: ${repayment.loanId})`,
-      debitAccountId: '1101', // Gold Inventory (gold received)
-      creditAccountId: customerAccountCode, // Customer receivable account
-      amount: repayment.goldGramsReturned,
-      referenceType: 'loan_repayment',
-      referenceId: repayment.loanId
-    });
   }
 
   /**

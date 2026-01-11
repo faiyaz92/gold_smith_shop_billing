@@ -43,6 +43,7 @@ import { SectionBadge, useDevMode } from '@/components/SectionBadge.js';
 import { useAccounting } from '@/app/context/AccountingContext';
 import { AccountingEngine } from '@/utils/accountingEngine.js';
 import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager.js';
+import challanGenerator from '@/utils/challanGenerator.js';
 
 // Gold Smith Order Status Colors (matching BRD)
 const statusColors = {
@@ -275,7 +276,6 @@ export default function GoldSmithOrders() {
     commissionRate: '',
     goldPrice: '',
     paymentMethod: 'cash',
-    goldBankId: '',
     notes: ''
   });
   // ✅ Quick Customer Payment Dialog State
@@ -480,7 +480,14 @@ export default function GoldSmithOrders() {
       if (!manufacturerAccountCode) {
         // Create manufacturer account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        manufacturerAccountCode = await accountManager.createManufacturerAccount(manufacturerData);
+        const manufacturerAccountResult = await accountManager.createManufacturerAccount({
+          manufacturerId: manufacturerData.id,
+          manufacturerName: manufacturerData.manufacturerName || manufacturerData.name
+        });
+        if (!manufacturerAccountResult.success) {
+          throw new Error(`Failed to create manufacturer account: ${manufacturerAccountResult.message}`);
+        }
+        manufacturerAccountCode = manufacturerAccountResult.account.accountCode;
         // Update manufacturer document with new account code
         await updateDoc(doc(db, `${basePath}/manufacturers`, manufacturerData.id), {
           accountCode: manufacturerAccountCode,
@@ -679,7 +686,7 @@ export default function GoldSmithOrders() {
       let goldBankData = null;
       let goldBankAccountCode = null;
       if (order.goldBankId) {
-        const goldBankRef = doc(db, `${basePath}/goldbanks`, order.goldBankId);
+        const goldBankRef = doc(db, 'goldBanks', order.goldBankId); // ✅ FIXED: Root level collection
         const goldBankSnap = await getDoc(goldBankRef);
         if (goldBankSnap.exists()) {
           goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
@@ -687,7 +694,11 @@ export default function GoldSmithOrders() {
           if (!goldBankAccountCode) {
             // Create gold bank account if missing
             const accountManager = new HierarchicalAccountManager(companyId);
-            goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
+            const goldBankAccountResult = await accountManager.createGoldBankAccount(goldBankData);
+            if (!goldBankAccountResult.success) {
+              throw new Error(`Failed to create gold bank account: ${goldBankAccountResult.message}`);
+            }
+            goldBankAccountCode = goldBankAccountResult.account.accountCode;
             // Update gold bank document with new account code
             await updateDoc(goldBankRef, {
               accountCode: goldBankAccountCode,
@@ -704,7 +715,11 @@ export default function GoldSmithOrders() {
       if (!goldTransitAccountCode) {
         // Create manufacturer gold transit account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+        const goldTransitAccountResult = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+        if (!goldTransitAccountResult.success) {
+          throw new Error(`Failed to create gold transit account: ${goldTransitAccountResult.message}`);
+        }
+        goldTransitAccountCode = goldTransitAccountResult.account.accountCode;
         // Update manufacturer document with new account code
         await updateDoc(doc(db, `${basePath}/manufacturers`, manufacturerData.id), {
           goldTransitAccountCode: goldTransitAccountCode,
@@ -835,7 +850,7 @@ export default function GoldSmithOrders() {
       let goldBankData = null;
       let goldBankAccountCode = null;
       if (selectedGoldBankId) {
-        const goldBankRef = doc(db, `${basePath}/goldbanks`, selectedGoldBankId);
+        const goldBankRef = doc(db, 'goldBanks', selectedGoldBankId); // ✅ FIXED: Root level collection
         const goldBankSnap = await getDoc(goldBankRef);
         if (goldBankSnap.exists()) {
           goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
@@ -843,7 +858,11 @@ export default function GoldSmithOrders() {
           if (!goldBankAccountCode) {
             // Create gold bank account if missing
             const accountManager = new HierarchicalAccountManager(companyId);
-            goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
+            const goldBankAccountResult = await accountManager.createGoldBankAccount(goldBankData);
+            if (!goldBankAccountResult.success) {
+              throw new Error(`Failed to create gold bank account: ${goldBankAccountResult.message}`);
+            }
+            goldBankAccountCode = goldBankAccountResult.account.accountCode;
             // Update gold bank document with new account code
             await updateDoc(goldBankRef, {
               accountCode: goldBankAccountCode,
@@ -860,7 +879,11 @@ export default function GoldSmithOrders() {
       if (!goldTransitAccountCode) {
         // Create manufacturer gold transit account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+        const goldTransitAccountResult = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+        if (!goldTransitAccountResult.success) {
+          throw new Error(`Failed to create gold transit account: ${goldTransitAccountResult.message}`);
+        }
+        goldTransitAccountCode = goldTransitAccountResult.account.accountCode;
         // Update manufacturer document with new account code
         await updateDoc(doc(db, `${basePath}/manufacturers`, manufacturerData.id), {
           goldTransitAccountCode: goldTransitAccountCode,
@@ -960,7 +983,11 @@ export default function GoldSmithOrders() {
       if (!goldTransitAccountCode) {
         // Create manufacturer gold transit account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+        const goldTransitAccountResult = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+        if (!goldTransitAccountResult.success) {
+          throw new Error(`Failed to create gold transit account: ${goldTransitAccountResult.message}`);
+        }
+        goldTransitAccountCode = goldTransitAccountResult.account.accountCode;
         // Update manufacturer document with new account code
         await updateDoc(doc(db, `${basePath}/manufacturers`, manufacturerData.id), {
           goldTransitAccountCode: goldTransitAccountCode,
@@ -1347,15 +1374,27 @@ export default function GoldSmithOrders() {
       let goldBankData = null;
       let goldBankAccountCode = null;
       if (order.goldBankId) {
-        const goldBankRef = doc(db, `${basePath}/goldbanks`, order.goldBankId);
+        const goldBankRef = doc(db, 'goldBanks', order.goldBankId); // ✅ FIXED: Root level collection
         const goldBankSnap = await getDoc(goldBankRef);
         if (goldBankSnap.exists()) {
           goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
+          // Ensure goldBankId is set for account creation
+          if (!goldBankData.goldBankId) {
+            goldBankData.goldBankId = goldBankSnap.id;
+          }
           goldBankAccountCode = goldBankData.accountCode;
           if (!goldBankAccountCode) {
             // Create gold bank account if missing
             const accountManager = new HierarchicalAccountManager(companyId);
-            goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
+            const goldBankAccountResult = await accountManager.createGoldBankAccount({
+              goldBankId: goldBankData.id,
+              bankName: goldBankData.bankName,
+              location: goldBankData.location
+            });
+            if (!goldBankAccountResult.success) {
+              throw new Error(`Failed to create gold bank account: ${goldBankAccountResult.message}`);
+            }
+            goldBankAccountCode = goldBankAccountResult.account.accountCode;
             // Update gold bank document with new account code
             await updateDoc(goldBankRef, {
               accountCode: goldBankAccountCode,
@@ -1372,7 +1411,14 @@ export default function GoldSmithOrders() {
       if (!goldTransitAccountCode) {
         // Create manufacturer gold transit account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+        const goldTransitAccountResult = await accountManager.createManufacturerGoldTransitAccount({
+          manufacturerId: manufacturerData.id,
+          manufacturerName: manufacturerData.manufacturerName || manufacturerData.name
+        });
+        if (!goldTransitAccountResult.success) {
+          throw new Error(`Failed to create gold transit account: ${goldTransitAccountResult.message}`);
+        }
+        goldTransitAccountCode = goldTransitAccountResult.account.accountCode;
         // Update manufacturer document with new account code
         await updateDoc(manufacturerRef, {
           goldTransitAccountCode: goldTransitAccountCode,
@@ -1852,7 +1898,11 @@ export default function GoldSmithOrders() {
       if (!goldTransitAccountCode) {
         // Create manufacturer gold transit account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+        const goldTransitAccountResult = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+        if (!goldTransitAccountResult.success) {
+          throw new Error(`Failed to create gold transit account: ${goldTransitAccountResult.message}`);
+        }
+        goldTransitAccountCode = goldTransitAccountResult.account.accountCode;
         // Update manufacturer document with new account code
         await updateDoc(manufacturerRef, {
           goldTransitAccountCode: goldTransitAccountCode,
@@ -1968,7 +2018,7 @@ export default function GoldSmithOrders() {
   // ✅ Handle Confirm Delivery
   const handleConfirmDelivery = async () => {
     try {
-      const { deliveryDate, finalWeight, commissionRate, goldPrice, paymentMethod, goldBankId, notes } = deliveryData;
+      const { deliveryDate, finalWeight, commissionRate, goldPrice, paymentMethod, notes } = deliveryData;
       const order = deliveryOrder;
 
       if (!finalWeight || parseFloat(finalWeight) <= 0) {
@@ -1983,11 +2033,6 @@ export default function GoldSmithOrders() {
 
       if (!goldPrice || parseFloat(goldPrice) <= 0) {
         alert('Please enter a valid gold price');
-        return;
-      }
-
-      if (!goldBankId) {
-        alert('Please select a gold bank for customer gold deposit');
         return;
       }
 
@@ -2023,154 +2068,44 @@ export default function GoldSmithOrders() {
       }
       const customerData = { id: customerSnap.id, ...customerSnap.data() };
 
-      // Calculate customer's prior balance (what they owed before this transaction)
-      const priorBalance = customerData.currentPureGoldBalance || 0;
-
-      // Get gold bank data
-      const goldBankRef = doc(db, `${basePath}/goldbanks`, goldBankId);
-      const goldBankSnap = await getDoc(goldBankRef);
-      if (!goldBankSnap.exists()) {
-        alert('Gold bank not found');
-        return;
-      }
-      const goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
-
-      // ✅ INVOICE GENERATION: Create invoice document and PDF
-      // Generate invoice number
-      const invoicesPath = `${basePath}/invoices`;
-      const invoicesSnapshot = await getDocs(
-        query(collection(db, invoicesPath), orderBy('createdAt', 'desc'), limit(1))
-      );
-
-      let invoiceNumber = 'INV-001-' + new Date().getFullYear();
-      if (!invoicesSnapshot.empty) {
-        const lastInvoice = invoicesSnapshot.docs[0].data();
-        const lastNumber = parseInt(lastInvoice.invoiceNumber.split('-')[1]) || 0;
-        invoiceNumber = `INV-${String(lastNumber + 1).padStart(3, '0')}-${new Date().getFullYear()}`;
-      }
-
-      // Create invoice document
-      const invoiceData = {
-        invoiceNumber,
-        orderId: order.id,
-        customerId: order.customerId,
-        customerName: customerData.customerName || customerData.name,
-        customerCode: customerData.accountCode,
-        customerPhone: customerData.phone || customerData.customerPhone,
-        customerAddress: customerData.address,
-        productName: order.productName,
-        productWeight: finalWeightValue,
-        karat: order.karat || '18k',
-        commissionRate: commissionRateValue,
-        goldPrice: goldPriceValue,
-        productPureGold: finalPureGold,
-        commissionGold: commissionGold,
-        priorBalance: priorBalance, // What customer owed before this transaction
-        currentTransaction: totalPureGoldOwed, // This invoice amount
-        totalPureGold: totalPureGoldOwed + priorBalance, // Total amount customer owes now
-        paymentReceived: totalPureGoldOwed, // What was paid for this delivery
-        balanceDue: priorBalance, // What remains due from prior balance
-        paymentMethod,
-        goldBankId,
-        goldBankName: goldBankData.name,
-        status: 'issued',
-        issuedDate: serverTimestamp(),
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        notes,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        companyId
-      };
-
-      // Save invoice to Firestore
-      const invoiceRef = await addDoc(collection(db, invoicesPath), invoiceData);
-
-      // Generate and download invoice PDF
-      try {
-        await invoiceGenerator.downloadInvoice(invoiceData, order, customerData, goldPriceValue);
-        console.log('Invoice PDF downloaded successfully');
-      } catch (pdfError) {
-        console.error('Error generating invoice PDF:', pdfError);
-        // Continue with delivery process even if PDF fails
-      }
-
-      // Process customer payment (in gold terms)
-      const paymentReceipt = await processCustomerPayment(
-        order,
-        customerData,
-        totalPureGoldOwed, // Total pure gold owed
-        paymentMethod,
-        notes,
-        goldPriceValue // Pass gold price for conversion
-      );
-
-      // ✅ ACCOUNTING: Record delivery transaction
-      // Debit: Customer Receivables, Credit: Sales Revenue, Credit: Finished Goods Inventory, Debit: Gold in Hand
-      // All in pure gold terms
+      // ✅ ACCOUNTING: Simple delivery transaction
+      // Always reduce finished goods inventory
+      // If credit: increase customer receivables
+      // If cash: increase gold in hand
       const accountingEngine = new AccountingEngine(companyId);
 
-      // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
-      let customerAccountCode = customerData.accountCode;
-      if (!customerAccountCode) {
-        // Create customer account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        customerAccountCode = await accountManager.createCustomerAccount(customerData);
-        // Update customer document with new account code
-        await updateDoc(doc(db, `${basePath}/customers`, customerData.id), {
-          accountCode: customerAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        customerData.accountCode = customerAccountCode;
-      }
-      
-      const entries = [
-        {
-          accountCode: customerAccountCode, // ✅ FIXED: Use specific customer account
-          accountName: `${customerData.customerName} - Receivables`,
-          debit: totalPureGoldOwed,
-          credit: 0,
-          balanceType: 'gold'
-        },
-        {
-          accountCode: '4101', // Sales Revenue
-          accountName: 'Sales Revenue',
-          debit: 0,
-          credit: totalPureGoldOwed,
-          balanceType: 'gold'
-        },
-        {
-          accountCode: '1103', // Finished Goods Inventory
-          accountName: 'Finished Goods Inventory',
-          debit: 0,
-          credit: finalPureGold,
-          balanceType: 'gold'
-        },
-        {
-          accountCode: '1104', // Gold in Hand
-          accountName: 'Gold in Hand',
-          debit: finalPureGold,
-          credit: 0,
-          balanceType: 'gold'
+      // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code for credit payments
+      let customerAccountCode = null;
+      if (paymentMethod === 'credit') {
+        customerAccountCode = customerData.accountCode;
+        if (!customerAccountCode) {
+          // Create customer account if missing
+          const accountManager = new HierarchicalAccountManager(companyId);
+          const customerAccountResult = await accountManager.createCustomerAccount(customerData);
+          if (!customerAccountResult.success) {
+            throw new Error(`Failed to create customer account: ${customerAccountResult.message}`);
+          }
+          customerAccountCode = customerAccountResult.account.accountCode;
+          // Update customer document with new account code
+          await updateDoc(doc(db, `${basePath}/customers`, customerData.id), {
+            accountCode: customerAccountCode,
+            updatedAt: serverTimestamp()
+          });
+          // Update local data
+          customerData.accountCode = customerAccountCode;
         }
-      ];
-
-      const accountsValid = await validateAccountsForEntry(entries);
-      if (!accountsValid) {
-        return;
       }
-      
-      await accountingEngine.createEntry({
-        date: new Date(),
-        description: `Invoice ${invoiceNumber} for Order ${order.id} - ${totalPureGoldOwed.toFixed(3)}g pure gold total owed`,
-        transactionType: 'customer_invoice',
-        referenceId: invoiceRef.id, // Reference the invoice document
-        referenceType: 'invoice',
-        entries: [
+
+      // Create accounting entries based on payment method
+      const entries = [];
+
+      if (paymentMethod === 'credit') {
+        // Credit payment: Customer will pay later
+        entries.push(
           {
-            accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).padStart(4, '0')}`,
+            accountCode: customerAccountCode, // Customer Receivables
             accountName: `${customerData.customerName} - Receivables`,
-            debit: totalPureGoldOwed,
+            debit: totalPureGoldOwed, // Product gold + commission gold
             credit: 0,
             balanceType: 'gold'
           },
@@ -2178,24 +2113,70 @@ export default function GoldSmithOrders() {
             accountCode: '4101', // Sales Revenue
             accountName: 'Sales Revenue',
             debit: 0,
-            credit: totalPureGoldOwed,
+            credit: totalPureGoldOwed, // Revenue for product + commission
             balanceType: 'gold'
           },
           {
             accountCode: '1103', // Finished Goods Inventory
             accountName: 'Finished Goods Inventory',
             debit: 0,
-            credit: finalPureGold,
+            credit: finalPureGold, // Only actual finished goods, not commission
             balanceType: 'gold'
           },
           {
             accountCode: '1104', // Gold in Hand
             accountName: 'Gold in Hand',
-            debit: finalPureGold,
+            debit: finalPureGold, // Gold handed to customer
             credit: 0,
             balanceType: 'gold'
           }
-        ]
+        );
+      } else {
+        // Cash payment: Customer pays immediately with gold
+        entries.push(
+          {
+            accountCode: '1104', // Gold in Hand
+            accountName: 'Gold in Hand',
+            debit: totalPureGoldOwed, // Product gold + commission gold received
+            credit: 0,
+            balanceType: 'gold'
+          },
+          {
+            accountCode: '4101', // Sales Revenue
+            accountName: 'Sales Revenue',
+            debit: 0,
+            credit: totalPureGoldOwed, // Revenue for product + commission
+            balanceType: 'gold'
+          },
+          {
+            accountCode: '1103', // Finished Goods Inventory
+            accountName: 'Finished Goods Inventory',
+            debit: 0,
+            credit: finalPureGold, // Only actual finished goods, not commission
+            balanceType: 'gold'
+          },
+          {
+            accountCode: '1104', // Gold in Hand
+            accountName: 'Gold in Hand',
+            debit: finalPureGold, // Gold handed to customer
+            credit: 0,
+            balanceType: 'gold'
+          }
+        );
+      }
+
+      const accountsValid = await validateAccountsForEntry(entries);
+      if (!accountsValid) {
+        return;
+      }
+
+      await accountingEngine.createEntry({
+        date: new Date(),
+        description: `Order ${order.id} delivery - ${finalPureGold.toFixed(3)}g finished goods + ${commissionGold.toFixed(3)}g commission (${paymentMethod})`,
+        transactionType: 'order_delivery',
+        referenceId: order.id,
+        referenceType: 'order',
+        entries: entries
       });
 
       // Update order status to "Delivered"
@@ -2208,14 +2189,11 @@ export default function GoldSmithOrders() {
         finalDeliveryPureGold: finalPureGold,
         deliveryCommissionGold: commissionGold, // Store commission in gold
         totalPureGoldOwed, // Store total gold owed
-        remainingPureGold: totalPureGoldOwed, // Initial remaining balance
+        remainingPureGold: paymentMethod === 'credit' ? totalPureGoldOwed : 0, // Remaining balance
         goldPrice: goldPriceValue,
         paymentMethod,
-        goldBankId,
         deliveryNotes: notes,
-        invoiceId: invoiceRef.id, // Reference to invoice document
-        invoiceNumber: invoiceNumber, // Invoice number for display
-        paymentStatus: 'Not Paid', // Initial payment status
+        paymentStatus: paymentMethod === 'cash' ? 'Paid' : 'Not Paid', // Payment status
         updatedAt: serverTimestamp(),
         lastStatusUpdate: serverTimestamp(),
         statusHistory: [
@@ -2229,10 +2207,7 @@ export default function GoldSmithOrders() {
             commissionGold, // Store commission in gold
             totalPureGoldOwed, // Store total gold owed
             goldPrice: goldPriceValue,
-            goldBankId,
-            paymentMethod,
-            invoiceId: invoiceRef.id,
-            invoiceNumber: invoiceNumber
+            paymentMethod
           }
         ]
       });
@@ -2246,11 +2221,10 @@ export default function GoldSmithOrders() {
         commissionRate: '',
         goldPrice: '',
         paymentMethod: 'cash',
-        goldBankId: '',
         notes: ''
       });
 
-      alert(`Order delivered successfully!\nInvoice: ${invoiceNumber}\nCommission Gold: ${commissionGold.toFixed(3)}g pure\nProduct Gold: ${finalPureGold.toFixed(3)}g pure\nTotal Gold Owed: ${totalPureGoldOwed.toFixed(3)}g pure\nFinal Weight: ${finalWeightValue}g\n\nInvoice PDF has been downloaded.`);
+      alert(`Order delivered successfully!\nPayment Method: ${paymentMethod}\nCommission Gold: ${commissionGold.toFixed(3)}g pure\nProduct Gold: ${finalPureGold.toFixed(3)}g pure\nTotal Gold ${paymentMethod === 'credit' ? 'Owed' : 'Received'}: ${totalPureGoldOwed.toFixed(3)}g pure\nFinal Weight: ${finalWeightValue}g`);
       fetchInitialData();
 
     } catch (error) {
@@ -2288,7 +2262,11 @@ export default function GoldSmithOrders() {
       if (!customerAccountCode) {
         // Create customer account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        customerAccountCode = await accountManager.createCustomerAccount(customerData);
+        const customerAccountResult = await accountManager.createCustomerAccount(customerData);
+        if (!customerAccountResult.success) {
+          throw new Error(`Failed to create customer account: ${customerAccountResult.message}`);
+        }
+        customerAccountCode = customerAccountResult.account.accountCode;
         // Update customer document with new account code
         await updateDoc(doc(db, `${basePath}/customers`, customerData.id), {
           accountCode: customerAccountCode,
@@ -2581,31 +2559,59 @@ export default function GoldSmithOrders() {
         let goldBankAccountCode = null;
         let goldBankAccountName = 'Gold Bank (Sharaf)';
         if (selectedGoldBankId) {
-          const goldBankRef = doc(db, `${basePath}/goldbanks`, selectedGoldBankId);
+          const goldBankRef = doc(db, 'goldBanks', selectedGoldBankId); // ✅ FIXED: Root level collection
           const goldBankSnap = await getDoc(goldBankRef);
           if (goldBankSnap.exists()) {
-            const goldBankData = goldBankSnap.data();
+            const goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
+            // Ensure goldBankId is set for account creation
+            if (!goldBankData.goldBankId) {
+              goldBankData.goldBankId = goldBankSnap.id;
+            }
             goldBankAccountCode = goldBankData.accountCode;
             goldBankAccountName = `${goldBankData.bankName || 'Gold Bank'} - Gold Custody`;
+            console.log('Gold bank found, accountCode:', goldBankAccountCode); // DEBUG
             if (!goldBankAccountCode) {
               // Create gold bank account if missing
               const accountManager = new HierarchicalAccountManager(companyId || 'default-company');
-              goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
+              const goldBankAccountResult = await accountManager.createGoldBankAccount({
+                goldBankId: goldBankData.id,
+                bankName: goldBankData.bankName,
+                location: goldBankData.location
+              });
+              console.log('Gold bank account creation result:', goldBankAccountResult); // DEBUG
+              if (!goldBankAccountResult.success) {
+                throw new Error(`Failed to create gold bank account: ${goldBankAccountResult.message}`);
+              }
+              goldBankAccountCode = goldBankAccountResult.account.accountCode;
+              console.log('Created gold bank accountCode:', goldBankAccountCode); // DEBUG
               // Update gold bank document with new account code
               await updateDoc(goldBankRef, {
                 accountCode: goldBankAccountCode,
+                goldBankId: goldBankSnap.id, // Ensure goldBankId is set
                 updatedAt: serverTimestamp()
               });
             }
+          } else {
+            console.log('Gold bank not found for ID:', selectedGoldBankId); // DEBUG
           }
         }
 
         // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has gold transit account code
         let goldTransitAccountCode = manufacturerData.goldTransitAccountCode;
+        console.log('Initial goldTransitAccountCode from manufacturer:', goldTransitAccountCode); // DEBUG
         if (!goldTransitAccountCode) {
           // Create manufacturer gold transit account if missing
           const accountManager = new HierarchicalAccountManager(companyId || 'default-company');
-          goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
+          const goldTransitAccountResult = await accountManager.createManufacturerGoldTransitAccount({
+            manufacturerId: manufacturerData.id,
+            manufacturerName: manufacturerData.manufacturerName || manufacturerData.name
+          });
+          console.log('Manufacturer gold transit account creation result:', goldTransitAccountResult); // DEBUG
+          if (!goldTransitAccountResult.success) {
+            throw new Error(`Failed to create gold transit account: ${goldTransitAccountResult.message}`);
+          }
+          goldTransitAccountCode = goldTransitAccountResult.account.accountCode;
+          console.log('Created manufacturer gold transit accountCode:', goldTransitAccountCode); // DEBUG
           // Update manufacturer document with new account code
           await updateDoc(manufacturerRef, {
             goldTransitAccountCode: goldTransitAccountCode,
@@ -2615,6 +2621,14 @@ export default function GoldSmithOrders() {
           manufacturerData.goldTransitAccountCode = goldTransitAccountCode;
         }
         
+        // Ensure we have valid account codes
+        if (!goldBankAccountCode) {
+          throw new Error('Failed to get or create gold bank account code');
+        }
+        if (!goldTransitAccountCode) {
+          throw new Error('Failed to get or create manufacturer gold transit account code');
+        }
+
         if (challanType === 'additional_gold') {
           // Additional Gold: Debit Gold in Transit, Credit Gold Bank
           
@@ -2634,6 +2648,10 @@ export default function GoldSmithOrders() {
               balanceType: 'gold'
             }
           ];
+
+          console.log('Additional gold entries:', entries); // DEBUG
+          console.log('goldTransitAccountCode:', goldTransitAccountCode); // DEBUG
+          console.log('goldBankAccountCode:', goldBankAccountCode); // DEBUG
 
           const accountsValid = await validateAccountsForEntry(entries);
           if (!accountsValid) {
@@ -2678,23 +2696,44 @@ export default function GoldSmithOrders() {
           let goldBankAccountName = 'Gold Bank (Sharaf)';
 
           if (selectedGoldBankId) {
-            const goldBankRef = doc(db, `${basePath}/goldbanks`, selectedGoldBankId);
+            const goldBankRef = doc(db, 'goldBanks', selectedGoldBankId); // ✅ FIXED: Root level collection
             const goldBankSnap = await getDoc(goldBankRef);
             if (goldBankSnap.exists()) {
               const goldBankData = goldBankSnap.data();
+              // Ensure goldBankId is set for account creation
+              if (!goldBankData.goldBankId) {
+                goldBankData.goldBankId = goldBankSnap.id;
+              }
               goldBankAccountCode = goldBankData.accountCode;
               goldBankAccountName = `${goldBankData.bankName} (${goldBankData.location || 'N/A'})`;
               if (!goldBankAccountCode) {
                 // Create gold bank account if missing
                 const accountManager = new HierarchicalAccountManager(companyId || 'default-company');
-                goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
+                const goldBankAccountResult = await accountManager.createGoldBankAccount({
+                  goldBankId: goldBankData.goldBankId || goldBankSnap.id,
+                  bankName: goldBankData.bankName,
+                  location: goldBankData.location
+                });
+                if (!goldBankAccountResult.success) {
+                  throw new Error(`Failed to create gold bank account: ${goldBankAccountResult.message}`);
+                }
+                goldBankAccountCode = goldBankAccountResult.account.accountCode;
                 // Update gold bank document with new account code
                 await updateDoc(goldBankRef, {
                   accountCode: goldBankAccountCode,
+                  goldBankId: goldBankSnap.id, // Ensure goldBankId is set
                   updatedAt: serverTimestamp()
                 });
               }
             }
+          }
+
+          // Ensure we have valid account codes
+          if (!goldBankAccountCode) {
+            throw new Error('Failed to get or create gold bank account code');
+          }
+          if (!goldTransitAccountCode) {
+            throw new Error('Failed to get or create manufacturer gold transit account code');
           }
 
           const entries = [
@@ -2713,6 +2752,10 @@ export default function GoldSmithOrders() {
               balanceType: 'gold'
             }
           ];
+
+          console.log('Gold return entries:', entries); // DEBUG
+          console.log('goldBankAccountCode:', goldBankAccountCode); // DEBUG
+          console.log('goldTransitAccountCode:', goldTransitAccountCode); // DEBUG
 
           const accountsValid = await validateAccountsForEntry(entries);
           if (!accountsValid) {
@@ -2734,7 +2777,7 @@ export default function GoldSmithOrders() {
                 balanceType: 'gold'
               },
               {
-                accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold in Transit
+                accountCode: goldTransitAccountCode, // ✅ FIXED: Use specific manufacturer gold transit account
                 accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
                 debit: 0,
                 credit: pureGoldAmount,
@@ -2900,7 +2943,11 @@ export default function GoldSmithOrders() {
         if (!customerAccountCode) {
           // Create customer account if missing
           const accountManager = new HierarchicalAccountManager(companyId);
-          customerAccountCode = await accountManager.createCustomerAccount(customerData);
+          const customerAccountResult = await accountManager.createCustomerAccount(customerData);
+          if (!customerAccountResult.success) {
+            throw new Error(`Failed to create customer account: ${customerAccountResult.message}`);
+          }
+          customerAccountCode = customerAccountResult.account.accountCode;
           // Update customer document with new account code
           await updateDoc(doc(db, `${basePath}/customers`, customerData.id), {
             accountCode: customerAccountCode,
@@ -3147,7 +3194,11 @@ export default function GoldSmithOrders() {
           if (!customerAccountCode) {
             // Create customer account if missing
             const accountManager = new HierarchicalAccountManager(companyId);
-            customerAccountCode = await accountManager.createCustomerAccount(customerData);
+            const customerAccountResult = await accountManager.createCustomerAccount(customerData);
+            if (!customerAccountResult.success) {
+              throw new Error(`Failed to create customer account: ${customerAccountResult.message}`);
+            }
+            customerAccountCode = customerAccountResult.account.accountCode;
             // Update customer document with new account code
             await updateDoc(customerRef, {
               accountCode: customerAccountCode,
@@ -3159,7 +3210,7 @@ export default function GoldSmithOrders() {
         // ✅ ACCOUNT CODE AUDIT: Ensure gold bank has account code
         let goldBankAccountCode = null;
         if (paymentData.goldBankId) {
-          const goldBankRef = doc(db, `${basePath}/goldbanks`, paymentData.goldBankId);
+          const goldBankRef = doc(db, 'goldBanks', paymentData.goldBankId); // ✅ FIXED: Root level collection
           const goldBankSnap = await getDoc(goldBankRef);
           if (goldBankSnap.exists()) {
             const goldBankData = goldBankSnap.data();
@@ -3167,7 +3218,11 @@ export default function GoldSmithOrders() {
             if (!goldBankAccountCode) {
               // Create gold bank account if missing
               const accountManager = new HierarchicalAccountManager(companyId);
-              goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
+              const goldBankAccountResult = await accountManager.createGoldBankAccount(goldBankData);
+              if (!goldBankAccountResult.success) {
+                throw new Error(`Failed to create gold bank account: ${goldBankAccountResult.message}`);
+              }
+              goldBankAccountCode = goldBankAccountResult.account.accountCode;
               // Update gold bank document with new account code
               await updateDoc(goldBankRef, {
                 accountCode: goldBankAccountCode,
@@ -3516,7 +3571,11 @@ export default function GoldSmithOrders() {
         if (!customerAccountCode) {
           // Create customer account if missing
           const accountManager = new HierarchicalAccountManager(companyId);
-          customerAccountCode = await accountManager.createCustomerAccount(customerData);
+          const customerAccountResult = await accountManager.createCustomerAccount(customerData);
+          if (!customerAccountResult.success) {
+            throw new Error(`Failed to create customer account: ${customerAccountResult.message}`);
+          }
+          customerAccountCode = customerAccountResult.account.accountCode;
           // Update customer document with new account code
           await updateDoc(doc(db, `${basePath}/customers`, order.customerId), {
             accountCode: customerAccountCode,
@@ -3698,7 +3757,7 @@ export default function GoldSmithOrders() {
         debitAccountName = 'Gold in Hand';
       } else {
         // ✅ ACCOUNT CODE AUDIT: Ensure gold bank has account code
-        const goldBankRef = doc(db, `${basePath}/goldbanks`, selectedGoldBankId);
+        const goldBankRef = doc(db, 'goldBanks', selectedGoldBankId); // ✅ FIXED: Root level collection
         const goldBankSnap = await getDoc(goldBankRef);
         if (goldBankSnap.exists()) {
           const goldBankData = goldBankSnap.data();
@@ -3706,7 +3765,11 @@ export default function GoldSmithOrders() {
           if (!debitAccountCode) {
             // Create gold bank account if missing
             const accountManager = new HierarchicalAccountManager(companyId);
-            debitAccountCode = await accountManager.createGoldBankAccount(goldBankData);
+            const goldBankAccountResult = await accountManager.createGoldBankAccount(goldBankData);
+            if (!goldBankAccountResult.success) {
+              throw new Error(`Failed to create gold bank account: ${goldBankAccountResult.message}`);
+            }
+            debitAccountCode = goldBankAccountResult.account.accountCode;
             // Update gold bank document with new account code
             await updateDoc(goldBankRef, {
               accountCode: debitAccountCode,
@@ -3725,7 +3788,11 @@ export default function GoldSmithOrders() {
       if (!creditAccountCode) {
         // Create customer account if missing
         const accountManager = new HierarchicalAccountManager(companyId);
-        creditAccountCode = await accountManager.createCustomerAccount(order.customerData);
+        const customerAccountResult = await accountManager.createCustomerAccount(order.customerData);
+        if (!customerAccountResult.success) {
+          throw new Error(`Failed to create customer account: ${customerAccountResult.message}`);
+        }
+        creditAccountCode = customerAccountResult.account.accountCode;
         // Update customer document with new account code
         await updateDoc(doc(db, `${basePath}/customers`, order.customerId), {
           accountCode: creditAccountCode,
@@ -5225,30 +5292,6 @@ export default function GoldSmithOrders() {
                       </p>
                     </div>
 
-                    {/* Gold Bank Selection */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Gold Bank for Customer Deposit *
-                      </label>
-                      <select
-                        value={deliveryData.goldBankId}
-                        onChange={(e) => setDeliveryData({...deliveryData, goldBankId: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      >
-                        <option value="">Select Gold Bank</option>
-                        {goldBanks.map((bank) => (
-                          <option key={bank.id} value={bank.id}>
-                            {bank.bankName} ({bank.location || 'N/A'})
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Bank where customer gold will be deposited
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Payment Method */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -5259,9 +5302,12 @@ export default function GoldSmithOrders() {
                         onChange={(e) => setDeliveryData({...deliveryData, paymentMethod: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       >
-                        <option value="cash">Cash Payment</option>
+                        <option value="cash">Cash Payment (Gold Deposit)</option>
                         <option value="credit">Credit (Pay Later)</option>
                       </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        How the customer will pay for the delivery
+                      </p>
                     </div>
 
                     {/* Delivery Date */}
@@ -5366,22 +5412,17 @@ export default function GoldSmithOrders() {
                             <div className="bg-blue-50 p-3 rounded border border-blue-200">
                               <h5 className="font-medium text-blue-900 mb-2">Accounting Entries (All in Gold)</h5>
                               <div className="text-xs space-y-1">
-                                <div className="font-semibold text-green-700">📦 Delivery Transaction (Always):</div>
-                                <div>📊 Debit: Customer Receivables (+{totalPureGoldOwed.toFixed(3)}g gold)</div>
+                                <div className="font-semibold text-green-700">📦 Delivery Transaction:</div>
+                                {deliveryData.paymentMethod === 'credit' ? (
+                                  <div>📊 Debit: Customer Receivables (+{totalPureGoldOwed.toFixed(3)}g gold)</div>
+                                ) : (
+                                  <div>🏦 Debit: Gold in Hand (+{totalPureGoldOwed.toFixed(3)}g gold received)</div>
+                                )}
                                 <div>💰 Credit: Sales Revenue (+{totalPureGoldOwed.toFixed(3)}g gold)</div>
                                 <div>📦 Credit: Finished Goods Inventory (-{finalPureGold.toFixed(3)}g gold)</div>
-                                <div>🏦 Debit: Gold in Hand (+{finalPureGold.toFixed(3)}g gold)</div>
+                                <div>🏦 Debit: Gold in Hand ({deliveryData.paymentMethod === 'cash' ? '+' : '-'}{finalPureGold.toFixed(3)}g gold {deliveryData.paymentMethod === 'cash' ? 'net' : 'handed to customer'})</div>
                                 {deliveryData.paymentMethod === 'cash' && (
-                                  <>
-                                    <div className="font-semibold text-blue-700 mt-2">💰 Cash Payment Transaction:</div>
-                                    <div>🏦 Debit: Gold in Hand (+{totalPureGoldOwed.toFixed(3)}g), Credit: Customer Receivables (-{totalPureGoldOwed.toFixed(3)}g)</div>
-                                  </>
-                                )}
-                                {deliveryData.paymentMethod === 'credit' && (
-                                  <>
-                                    <div className="font-semibold text-orange-700 mt-2">📅 Credit Payment:</div>
-                                    <div>📊 Customer Receivables remains (+{totalPureGoldOwed.toFixed(3)}g) - payment expected later</div>
-                                  </>
+                                  <div className="text-blue-600 mt-1">Net Gold in Hand: +{commissionGold.toFixed(3)}g (commission retained)</div>
                                 )}
                               </div>
                             </div>
@@ -5415,7 +5456,7 @@ export default function GoldSmithOrders() {
                   </button>
                   <button
                     onClick={handleConfirmDelivery}
-                    disabled={!deliveryData.finalWeight || !deliveryData.commissionRate || !deliveryData.goldPrice || !deliveryData.goldBankId}
+                    disabled={!deliveryData.finalWeight || !deliveryData.commissionRate || !deliveryData.goldPrice}
                     className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold flex items-center justify-center gap-2"
                   >
                     <Truck className="w-4 h-4" />
