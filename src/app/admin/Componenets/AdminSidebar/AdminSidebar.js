@@ -29,57 +29,49 @@ const allMenuItems = [
     id: 'dashboard', 
     label: 'dashboard',
     icon: <Home className="w-4 h-4" />, 
-    href: '/admin/dashboard',
-    roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier', 'delivery_man', 'pickup_man']
+    href: '/admin/dashboard'
   },
   { 
     id: 'orders', 
     label: 'orders',
     icon: <ShoppingBag className="w-4 h-4" />, 
-    href: '/admin/orders',
-    roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier', 'delivery_man', 'pickup_man']
+    href: '/admin/orders'
   },
   { 
     id: 'billing', 
     label: 'billing',
     icon: <CreditCard className="w-4 h-4" />, 
-    href: '/admin/billing',
-    roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier']
+    href: '/admin/billing'
   },
   { 
     id: 'customers', 
     label: 'customers',
     icon: <Users className="w-4 h-4" />, 
-    href: '/admin/customers',
-    roles: ['company_admin', 'general_manager', 'branch_manager', 'cashier']
+    href: '/admin/customers'
   },
   { 
     id: 'manufacturers', 
     label: 'suppliers',
     icon: <Building className="w-4 h-4" />, 
-    href: '/admin/manufacturers',
-    roles: ['company_admin', 'general_manager', 'branch_manager']
+    href: '/admin/manufacturers'
   },
   { 
     id: 'goldbanks', 
     label: 'goldBanks',
     icon: <MapPin className="w-4 h-4" />, 
-    href: '/admin/goldbanks',
-    roles: ['company_admin', 'general_manager']
+    href: '/admin/goldbanks'
   },
   { 
     id: 'accounting', 
     label: 'accounting',
     icon: <Package className="w-4 h-4" />, 
-    href: '/admin/accounting',
-    roles: ['company_admin', 'general_manager', 'branch_manager']
+    href: '/admin/accounting'
   },
   { 
     id: 'reports', 
     label: 'reports',
     icon: <BarChart3 className="w-4 h-4" />, 
-    href: '/admin/reports',
-    roles: ['company_admin', 'general_manager', 'branch_manager']
+    href: '/admin/reports'
   },
 ];
 
@@ -103,14 +95,10 @@ export default function AdminSidebar({ toggleSidebar }) {
     const role = localStorage.getItem('userRole') || '';
     setUserRole(role);
 
-    const allowedMenuItems = allMenuItems.filter(item => 
-      item.roles.includes(role)
-    );
-    setFilteredMenu(allowedMenuItems);
+    // Show all menu items to all users (no role filtering)
+    setFilteredMenu(allMenuItems);
 
-    if (role && pathname === '/admin/dashboard' && roleDefaults[role] !== '/admin/dashboard') {
-      window.location.href = roleDefaults[role];
-    }
+    // Remove role-based redirects - all users can access dashboard
   }, [pathname]);
 
   const getRoleInfo = (role) => {
