@@ -25,7 +25,7 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
     if (!isOpen || !companyId) return;
 
     const manufacturersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/manufacturers`;
-    const manufacturersQuery = query(collection(db, manufacturersPath), orderBy('name'));
+    const manufacturersQuery = query(collection(db, manufacturersPath), orderBy('manufacturerName'));
     const manufacturersUnsubscribe = onSnapshot(manufacturersQuery, (snapshot) => {
       const manufacturersData = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -220,7 +220,7 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
                   ...prev,
                   manufacturerId: e.target.value,
                   manufacturerData: selectedManufacturer,
-                  description: selectedManufacturer ? `Payment to ${selectedManufacturer.name}` : ''
+                  description: selectedManufacturer ? `Payment to ${selectedManufacturer.manufacturerName}` : ''
                 }));
               }}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
@@ -232,7 +232,7 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
                 .filter(m => (m.currentBalanceUSD || 0) > 0)
                 .map(manufacturer => (
                 <option key={manufacturer.id} value={manufacturer.id}>
-                  {manufacturer.name} {manufacturer.phone ? `(${manufacturer.phone})` : ''}
+                  {manufacturer.manufacturerName} {manufacturer.phone ? `(${manufacturer.phone})` : ''}
                   {manufacturer.currentBalanceUSD ? ` - Balance: $${manufacturer.currentBalanceUSD.toFixed(2)}` : ''}
                 </option>
               ))}

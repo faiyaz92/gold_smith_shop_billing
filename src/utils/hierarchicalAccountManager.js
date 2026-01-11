@@ -69,7 +69,6 @@ export class HierarchicalAccountManager {
         category: finalCategory,
         balanceType: finalBalanceType,
         currentBalance: parseFloat(currentBalance) || 0,
-        currentBalanceGold: parseFloat(currentBalanceGold) || 0,
         description,
         isSystem,
         isActive,
@@ -83,6 +82,11 @@ export class HierarchicalAccountManager {
         // ADDITIONAL FIELDS - Account type specific fields
         ...additionalFields
       };
+
+      // Only add currentBalanceGold if it's explicitly provided (not undefined)
+      if (currentBalanceGold !== undefined) {
+        accountDocument.currentBalanceGold = parseFloat(currentBalanceGold) || 0;
+      }
 
       // Create document in Firestore
       const docRef = doc(db, this.paths.accountsPath(), accountCode);

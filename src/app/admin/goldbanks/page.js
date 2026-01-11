@@ -6,16 +6,19 @@
 
 import { useState, useEffect } from 'react';
 import { db } from '@/app/firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp, onSnapshot, query, where } from 'firebase/firestore';
 import { Building2, Plus, Edit2, Trash2, MapPin, Scale } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
+import { useAccounting } from '@/app/context/AccountingContext';
+import { AccountingEngine } from '@/utils/accountingEngine';
 
 export default function GoldBanksPage() {
+  const { companyId } = useAccounting();
   const [goldBanks, setGoldBanks] = useState([]);
+  const [accountBalances, setAccountBalances] = useState({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
   const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
   const [formData, setFormData] = useState({
     bankName: '',
@@ -29,8 +32,15 @@ export default function GoldBanksPage() {
   const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
+    if (!companyId) return;
     fetchGoldBanks();
-  }, []);
+  }, [companyId]);
+
+  useEffect(() => {
+    if (goldBanks.length > 0) {
+      fetchAccountBalances();
+    }
+  }, [goldBanks]);
 
   const fetchGoldBanks = async () => {
     try {
@@ -46,6 +56,33 @@ export default function GoldBanksPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAccountBalances = async () => {
+    if (!companyId) return;
+
+    const accountingEngine = new AccountingEngine(companyId);
+    const balances = {};
+
+    for (const bank of goldBanks) {
+      if (bank.accountCode) {
+        try {
+          const balanceData = await accountingEngine.getAccountBalanceByCode(bank.accountCode);
+          balances[bank.accountCode] = {
+            currentBalanceGold: balanceData.currentBalanceGold || 0,
+            currentBalance: balanceData.currentBalance || 0
+          };
+        } catch (error) {
+          console.error(`Error fetching balance for ${bank.accountCode}:`, error);
+          balances[bank.accountCode] = {
+            currentBalanceGold: 0,
+            currentBalance: 0
+          };
+        }
+      }
+    }
+
+    setAccountBalances(balances);
   };
 
   const handleSubmit = async (e) => {
@@ -124,7 +161,10 @@ export default function GoldBanksPage() {
     setShowForm(false);
   };
 
-  const totalGold = goldBanks.reduce((sum, bank) => sum + (bank.currentGoldBalance || 0), 0);
+  const totalGold = goldBanks.reduce((sum, bank) => {
+    const accountBalance = accountBalances[bank.accountCode];
+    return sum + (accountBalance?.currentBalanceGold || 0);
+  }, 0);
 
   if (loading) {
     return (
@@ -274,10 +314,25 @@ export default function GoldBanksPage() {
                 <span className="font-medium">Account Code:</span> {bank.accountCode}
               </p>
               <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mt-3">
-                <p className="text-xs text-yellow-700 font-medium">Gold Balance</p>
+                <p className="text-xs text-yellow-700 font-medium">Current Balance</p>
                 <p className="text-xl font-bold text-yellow-900">
-                  {(bank.currentGoldBalance || 0).toFixed(3)}g
+                  {(() => {
+                    const accountBalance = accountBalances[bank.accountCode];
+                    return accountBalance ? (
+                      <span className={accountBalance.currentBalanceGold < 0 ? 'text-red-600' : 'text-yellow-600'}>
+                        {accountBalance.currentBalanceGold.toFixed(3)}g
+                      </span>
+                    ) : '0.000g';
+                  })()}
                 </p>
+                {(() => {
+                  const accountBalance = accountBalances[bank.accountCode];
+                  return accountBalance && accountBalance.currentBalance > 0 ? (
+                    <p className="text-xs text-gray-500">
+                      ${accountBalance.currentBalance.toFixed(2)}
+                    </p>
+                  ) : null;
+                })()}
                 <p className="text-xs text-yellow-600">Pure Gold (24k)</p>
               </div>
             </div>

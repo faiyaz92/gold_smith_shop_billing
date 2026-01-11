@@ -41,8 +41,7 @@ export default function PurchaseForm({ isOpen, onClose, companyId, userRole }) {
       setSuppliers(suppliersData);
     });
 
-    const goldBanksPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/goldbanks`;
-    const goldBanksQuery = query(collection(db, goldBanksPath), orderBy('bankName'));
+    const goldBanksQuery = query(collection(db, 'goldBanks'), orderBy('bankName'));
     const goldBanksUnsubscribe = onSnapshot(goldBanksQuery, (snapshot) => {
       const goldBanksData = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -177,7 +176,11 @@ export default function PurchaseForm({ isOpen, onClose, companyId, userRole }) {
             if (!goldBankAccountCode) {
               // Create gold bank account if missing
               const accountManager = new HierarchicalAccountManager(companyId);
-              goldBankAccountCode = await accountManager.createGoldBankAccount(goldBank);
+              const goldBankAccountResult = await accountManager.createGoldBankAccount(goldBank);
+              if (!goldBankAccountResult.success) {
+                throw new Error(`Failed to create gold bank account: ${goldBankAccountResult.message}`);
+              }
+              goldBankAccountCode = goldBankAccountResult.account.accountCode;
               // Update gold bank document with new account code
               await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/goldbanks`, goldBank.id), {
                 accountCode: goldBankAccountCode,
@@ -227,7 +230,24 @@ export default function PurchaseForm({ isOpen, onClose, companyId, userRole }) {
             }
           ];
         } else {
-          // Credit purchase
+          // Credit purchase - finished goods
+          const supplier = suppliers.find(s => s.id === formData.supplierId);
+          
+          // ✅ ACCOUNT CODE AUDIT: Ensure supplier has account code
+          let supplierAccountCode = supplier?.accountCode;
+          if (!supplierAccountCode) {
+            // Create supplier account if missing
+            const accountManager = new HierarchicalAccountManager(companyId);
+            supplierAccountCode = await accountManager.createManufacturerAccount(supplier);
+            // Update supplier document with new account code
+            await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/manufacturers`, supplier.id), {
+              accountCode: supplierAccountCode,
+              updatedAt: serverTimestamp()
+            });
+            // Update local data
+            supplier.accountCode = supplierAccountCode;
+          }
+
           accountingEntries = [
             {
               accountCode: '1103', // Finished Goods Inventory
@@ -237,8 +257,8 @@ export default function PurchaseForm({ isOpen, onClose, companyId, userRole }) {
               balanceType: 'gold'
             },
             {
-              accountCode: '2101', // Manufacturer Payables
-              accountName: 'Manufacturer Payables',
+              accountCode: supplierAccountCode, // ✅ FIXED: Use specific supplier account
+              accountName: `${supplier?.manufacturerName || 'Supplier'} - Payables`,
               debit: 0,
               credit: parseFloat(formData.usdAmount),
               balanceType: 'usd'
