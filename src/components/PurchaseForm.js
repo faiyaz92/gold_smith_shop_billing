@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { AccountingEngine } from '@/utils/accountingEngine';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 import { X, Calculator, ShoppingBag, DollarSign } from 'lucide-react';
 import GoldPricePopup from './GoldPricePopup';
 
@@ -150,17 +151,54 @@ export default function PurchaseForm({ isOpen, onClose, companyId, userRole }) {
         } else {
           // Credit purchase
           const supplier = suppliers.find(s => s.id === formData.supplierId);
+          
+          // ✅ ACCOUNT CODE AUDIT: Ensure supplier has account code
+          let supplierAccountCode = supplier?.accountCode;
+          if (!supplierAccountCode) {
+            // Create supplier account if missing
+            const accountManager = new HierarchicalAccountManager(companyId);
+            supplierAccountCode = await accountManager.createManufacturerAccount(supplier);
+            // Update supplier document with new account code
+            await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/manufacturers`, supplier.id), {
+              accountCode: supplierAccountCode,
+              updatedAt: serverTimestamp()
+            });
+            // Update local data
+            supplier.accountCode = supplierAccountCode;
+          }
+
+          // ✅ ACCOUNT CODE AUDIT: Ensure gold bank has account code
+          let goldBankAccountCode = '1101'; // Default fallback should not be used
+          let goldBankName = 'Gold Bank (Sharaf)';
+          if (formData.goldBankId) {
+            const goldBank = goldBanks.find(b => b.id === formData.goldBankId);
+            goldBankAccountCode = goldBank?.accountCode;
+            goldBankName = goldBank?.bankName + ' - Gold Custody';
+            if (!goldBankAccountCode) {
+              // Create gold bank account if missing
+              const accountManager = new HierarchicalAccountManager(companyId);
+              goldBankAccountCode = await accountManager.createGoldBankAccount(goldBank);
+              // Update gold bank document with new account code
+              await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/goldbanks`, goldBank.id), {
+                accountCode: goldBankAccountCode,
+                updatedAt: serverTimestamp()
+              });
+              // Update local data
+              goldBank.accountCode = goldBankAccountCode;
+            }
+          }
+          
           accountingEntries = [
             {
-              accountCode: formData.goldBankId ? goldBanks.find(b => b.id === formData.goldBankId)?.accountCode || '1101' : '1101',
-              accountName: formData.goldBankId ? goldBanks.find(b => b.id === formData.goldBankId)?.bankName + ' - Gold Custody' : 'Gold Bank (Sharaf)',
+              accountCode: goldBankAccountCode, // ✅ FIXED: Use specific gold bank account
+              accountName: goldBankName,
               debit: pureGoldAmount,
               credit: 0,
               balanceType: 'gold'
             },
             {
-              accountCode: '2101', // Manufacturer Payables
-              accountName: 'Manufacturer Payables',
+              accountCode: supplierAccountCode, // ✅ FIXED: Use specific supplier account
+              accountName: `${supplier?.manufacturerName || 'Supplier'} - Payables`,
               debit: 0,
               credit: parseFloat(formData.usdAmount),
               balanceType: 'usd'

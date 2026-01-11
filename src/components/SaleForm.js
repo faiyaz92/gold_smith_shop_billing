@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { AccountingEngine } from '@/utils/accountingEngine';
 import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
@@ -16,8 +16,7 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
     customerId: '',
     weight: '',
     karat: '24k',
-    usdAmount: '',
-    paymentMethod: 'cash', // 'cash', 'gold', or 'credit'
+    paymentMethod: 'gold', // 'gold' or 'credit' - all transactions in gold
     description: '',
     goldPriceData: null
   });
@@ -116,10 +115,6 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
       newErrors.karat = 'Please select karat';
     }
 
-    if (formData.paymentMethod === 'cash' && (!formData.usdAmount || parseFloat(formData.usdAmount) <= 0)) {
-      newErrors.usdAmount = 'Please enter valid USD amount for cash payment';
-    }
-
     if (!formData.description.trim()) {
       newErrors.description = 'Please enter description';
     }
@@ -150,77 +145,65 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
       const accountingEngine = new AccountingEngine(companyId);
       const salesPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/sales`;
 
-      const pureGoldAmount = calculatePureGold(parseFloat(formData.weight), formData.karat);
       const customer = customers.find(c => c.id === formData.customerId);
-      const customerAccountCode = customer?.accountCode || `CUST-${formData.customerId.slice(-4).toUpperCase()}`;
+      const customerName = customer?.customerName || customer?.name || 'Unknown';
+      
+      // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
+      let customerAccountCode = customer?.accountCode;
+      if (!customerAccountCode) {
+        // Create customer account if missing
+        const accountManager = new HierarchicalAccountManager(companyId);
+        customerAccountCode = await accountManager.createCustomerAccount(customer);
+        // Update customer document with new account code
+        await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`, customer.id), {
+          accountCode: customerAccountCode,
+          updatedAt: serverTimestamp()
+        });
+        // Update local data
+        customer.accountCode = customerAccountCode;
+      }
+
+      const pureGoldAmount = calculatePureGold(parseFloat(formData.weight), formData.karat);
 
       let accountingEntries = [];
 
-      if (formData.paymentMethod === 'cash') {
-        // Cash payment - debit cash, credit customer receivable (reverse sale)
-        accountingEntries = [
-          {
-            accountCode: '1201', // Cash
-            accountName: 'Cash',
-            debit: parseFloat(formData.usdAmount),
-            credit: 0,
-            balanceType: 'usd'
-          },
-          {
-            accountCode: customerAccountCode,
-            accountName: `${customer?.name || 'Customer'} - Receivable`,
-            debit: 0,
-            credit: pureGoldAmount,
-            balanceType: 'gold'
-          }
-        ];
-      } else if (formData.paymentMethod === 'gold') {
-        // Gold payment - debit gold in hand, credit customer receivable
-        accountingEntries = [
-          {
-            accountCode: '1104', // Gold in Hand
-            accountName: 'Gold in Hand',
-            debit: pureGoldAmount,
-            credit: 0,
-            balanceType: 'gold'
-          },
-          {
-            accountCode: customerAccountCode,
-            accountName: `${customer?.name || 'Customer'} - Receivable`,
-            debit: 0,
-            credit: pureGoldAmount,
-            balanceType: 'gold'
-          }
-        ];
-      } else {
-        // Credit sale - debit customer receivable, credit finished goods (no cash movement)
-        accountingEntries = [
-          {
-            accountCode: customerAccountCode,
-            accountName: `${customer?.name || 'Customer'} - Receivable`,
-            debit: pureGoldAmount,
-            credit: 0,
-            balanceType: 'gold'
-          },
-          {
-            accountCode: '1103', // Finished Goods Inventory
-            accountName: 'Finished Goods Inventory',
-            debit: 0,
-            credit: pureGoldAmount,
-            balanceType: 'gold'
-          }
-        ];
+      // Always reduce finished goods inventory (credit finished goods - asset decreases)
+      accountingEntries.push({
+        accountCode: '1103', // Finished Goods Inventory
+        accountName: 'Finished Goods Inventory',
+        debit: 0,
+        credit: pureGoldAmount,
+        balanceType: 'gold'
+      });
+
+      if (formData.paymentMethod === 'gold') {
+        // Gold payment - debit gold in hand (increase gold holdings)
+        accountingEntries.push({
+          accountCode: '1104', // Gold in Hand
+          accountName: 'Gold in Hand',
+          debit: pureGoldAmount,
+          credit: 0,
+          balanceType: 'gold'
+        });
+      } else if (formData.paymentMethod === 'credit') {
+        // Credit sale - debit customer receivables (customer owes gold)
+        accountingEntries.push({
+          accountCode: customerAccountCode,
+          accountName: `${customerName} - Receivables`,
+          debit: pureGoldAmount,
+          credit: 0,
+          balanceType: 'gold'
+        });
       }
 
       // Create sale record
       const saleData = {
         customerId: formData.customerId,
-        customerName: customer?.name || 'Unknown',
+        customerName: customerName,
         customerAccountCode,
         weight: parseFloat(formData.weight),
         karat: formData.karat,
         pureGoldAmount,
-        usdAmount: formData.paymentMethod === 'cash' ? parseFloat(formData.usdAmount) : 0,
         paymentMethod: formData.paymentMethod,
         description: formData.description,
         goldPriceData: formData.goldPriceData,
@@ -243,6 +226,64 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
       });
 
       alert('✅ Sale recorded successfully!');
+      
+      // Refresh customer balances after sale
+      if (isOpen && companyId) {
+        const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
+        const customersQuery = query(collection(db, customersPath), orderBy('customerName'));
+        
+        const customersUnsubscribe = onSnapshot(customersQuery, async (snapshot) => {
+          const customersData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+
+          // Fetch updated account balances for each customer
+          const accountManager = new HierarchicalAccountManager(companyId);
+          const customersWithBalances = await Promise.all(
+            customersData.map(async (customer) => {
+              try {
+                let balance = 0;
+                let accountCode = customer.accountCode;
+
+                if (customer.accountCode) {
+                  const account = await accountManager.getAccountByCode(customer.accountCode);
+                  balance = account ? (account.currentBalanceGold || account.currentBalance || 0) : 0;
+                } else {
+                  const allAccounts = await accountManager.getAllAccounts();
+                  const customerAccount = allAccounts.find(account => 
+                    account.customerId === customer.id && account.accountCode?.startsWith('CUST-')
+                  );
+                  balance = customerAccount ? 
+                    (customerAccount.currentBalanceGold || customerAccount.currentBalance || 0) : 0;
+                  accountCode = customerAccount?.accountCode;
+                }
+
+                return {
+                  ...customer,
+                  accountBalance: balance,
+                  accountCode: accountCode
+                };
+              } catch (error) {
+                console.error(`Error fetching balance for customer ${customer.id}:`, error);
+                return {
+                  ...customer,
+                  accountBalance: 0,
+                  accountCode: null
+                };
+              }
+            })
+          );
+
+          setCustomers(customersWithBalances);
+        });
+
+        // Clean up the temporary listener after a short delay
+        setTimeout(() => {
+          customersUnsubscribe();
+        }, 1000);
+      }
+
       onClose();
 
       // Reset form
@@ -250,8 +291,7 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
         customerId: '',
         weight: '',
         karat: '24k',
-        usdAmount: '',
-        paymentMethod: 'cash',
+        paymentMethod: 'gold',
         description: '',
         goldPriceData: null
       });
@@ -378,22 +418,12 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
                 <label className="flex items-center">
                   <input
                     type="radio"
-                    value="cash"
-                    checked={formData.paymentMethod === 'cash'}
-                    onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                    className="mr-2"
-                  />
-                  Cash (USD)
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
                     value="gold"
                     checked={formData.paymentMethod === 'gold'}
                     onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
                     className="mr-2"
                   />
-                  Gold
+                  Gold Payment
                 </label>
                 <label className="flex items-center">
                   <input
@@ -407,42 +437,6 @@ export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
                 </label>
               </div>
             </div>
-
-            {/* USD Amount (for cash payments) */}
-            {formData.paymentMethod === 'cash' && (
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-gray-700">
-                    USD Amount *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowGoldPricePopup(true)}
-                    className="flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700"
-                  >
-                    <Calculator className="w-4 h-4" />
-                    Calculate from Gold
-                  </button>
-                </div>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="number"
-                    value={formData.usdAmount}
-                    onChange={(e) => setFormData(prev => ({ ...prev, usdAmount: e.target.value }))}
-                    placeholder="Enter USD amount"
-                    className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${
-                      errors.usdAmount ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    step="0.01"
-                    min="0"
-                  />
-                </div>
-                {errors.usdAmount && (
-                  <p className="text-red-500 text-xs mt-1">{errors.usdAmount}</p>
-                )}
-              </div>
-            )}
 
             {/* Description */}
             <div>

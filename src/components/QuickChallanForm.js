@@ -240,6 +240,36 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
 
       const challanRef = await addDoc(collection(db, challansPath), challanData);
 
+      // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has gold transit account code
+      let goldTransitAccountCode = manufacturer?.goldTransitAccountCode;
+      if (!goldTransitAccountCode) {
+        // Create manufacturer gold transit account if missing
+        const accountManager = new HierarchicalAccountManager(companyId);
+        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturer);
+        // Update manufacturer document with new account code
+        await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/manufacturers`, manufacturer.id), {
+          goldTransitAccountCode: goldTransitAccountCode,
+          updatedAt: serverTimestamp()
+        });
+        // Update local data
+        manufacturer.goldTransitAccountCode = goldTransitAccountCode;
+      }
+
+      // ✅ ACCOUNT CODE AUDIT: Ensure gold bank has account code
+      let goldBankAccountCode = goldBank?.accountCode;
+      if (!goldBankAccountCode) {
+        // Create gold bank account if missing
+        const accountManager = new HierarchicalAccountManager(companyId);
+        goldBankAccountCode = await accountManager.createGoldBankAccount(goldBank);
+        // Update gold bank document with new account code
+        await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/goldbanks`, goldBank.id), {
+          accountCode: goldBankAccountCode,
+          updatedAt: serverTimestamp()
+        });
+        // Update local data
+        goldBank.accountCode = goldBankAccountCode;
+      }
+
       // Create accounting entry: Debit Gold in Transit, Credit Gold Bank
       await accountingEngine.createEntry({
         date: new Date(),
@@ -249,14 +279,14 @@ export default function QuickChallanForm({ isOpen, onClose, companyId, userRole 
         referenceType: 'challan',
         entries: [
           {
-            accountCode: manufacturer?.goldTransitAccountCode || '1102',
+            accountCode: goldTransitAccountCode, // ✅ FIXED: Use specific manufacturer gold transit account
             accountName: `${manufacturer?.manufacturerName} - Gold in Transit`,
             debit: pureGoldAmount,
             credit: 0,
             balanceType: 'gold'
           },
           {
-            accountCode: goldBank?.accountCode || '1101',
+            accountCode: goldBankAccountCode, // ✅ FIXED: Use specific gold bank account
             accountName: `${goldBank?.bankName} - Gold Custody`,
             debit: 0,
             credit: pureGoldAmount,

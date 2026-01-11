@@ -1,4 +1,4 @@
-﻿// Gold Smith Wholesaler Order Management System
+// Gold Smith Wholesaler Order Management System
 'use client';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -474,21 +474,6 @@ export default function GoldSmithOrders() {
 
       const paymentRef = await addDoc(collection(db, `${basePath}/payments`), paymentData);
 
-      // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has account code
-      let manufacturerAccountCode = manufacturerData.accountCode;
-      if (!manufacturerAccountCode) {
-        // Create manufacturer account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        manufacturerAccountCode = await accountManager.createManufacturerAccount(manufacturerData);
-        // Update manufacturer document with new account code
-        await updateDoc(doc(db, `${basePath}/manufacturers`, manufacturerData.id), {
-          accountCode: manufacturerAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        manufacturerData.accountCode = manufacturerAccountCode;
-      }
-
       // Create accounting entries
       const accountingEngine = new AccountingEngine(companyId);
       
@@ -503,7 +488,7 @@ export default function GoldSmithOrders() {
             credit: 0
           },
           {
-            accountCode: manufacturerAccountCode, // Manufacturer-Specific Payables Account
+            accountCode: manufacturerData.accountCode || '2101', // Manufacturer-Specific Payables Account
             accountName: `${manufacturerData.manufacturerName || manufacturerData.name} - Payables`,
             debit: 0,
             credit: commissionAmount
@@ -529,7 +514,7 @@ export default function GoldSmithOrders() {
               credit: 0
             },
             {
-              accountCode: manufacturerAccountCode, // Manufacturer-Specific Payables Account
+              accountCode: manufacturerData.accountCode || '2101', // Manufacturer-Specific Payables Account
               accountName: `${manufacturerData.manufacturerName || manufacturerData.name} - Payables`,
               debit: 0,
               credit: commissionAmount
@@ -674,45 +659,23 @@ export default function GoldSmithOrders() {
       // Create accounting entry: Debit Gold in Transit, Credit Gold Bank
       const accountingEngine = new AccountingEngine(companyId);
       
-      // ✅ ACCOUNT CODE AUDIT: Ensure gold bank has account code
+      // Fetch gold bank data dynamically based on order.goldBankId
       let goldBankData = null;
-      let goldBankAccountCode = null;
+      let goldBankAccountCode = '1101'; // Default fallback
       if (order.goldBankId) {
         const goldBankRef = doc(db, `${basePath}/goldbanks`, order.goldBankId);
         const goldBankSnap = await getDoc(goldBankRef);
         if (goldBankSnap.exists()) {
           goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
-          goldBankAccountCode = goldBankData.accountCode;
-          if (!goldBankAccountCode) {
-            // Create gold bank account if missing
-            const accountManager = new HierarchicalAccountManager(companyId);
-            goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
-            // Update gold bank document with new account code
-            await updateDoc(goldBankRef, {
-              accountCode: goldBankAccountCode,
-              updatedAt: serverTimestamp()
-            });
-            // Update local data
-            goldBankData.accountCode = goldBankAccountCode;
-          }
+          goldBankAccountCode = goldBankData.accountCode || '1101';
         }
       }
       
-      // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has gold transit account code
-      let goldTransitAccountCode = manufacturerData.goldTransitAccountCode;
-      if (!goldTransitAccountCode) {
-        // Create manufacturer gold transit account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
-        // Update manufacturer document with new account code
-        await updateDoc(doc(db, `${basePath}/manufacturers`, manufacturerData.id), {
-          goldTransitAccountCode: goldTransitAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        manufacturerData.goldTransitAccountCode = goldTransitAccountCode;
-      }
-      const goldTransitAccountName = `${manufacturerData.manufacturerName || manufacturerData.name} - Gold in Transit`;
+      // Use manufacturer-specific gold transit account or fallback to global
+      const goldTransitAccountCode = manufacturerData.goldTransitAccountCode || '1102';
+      const goldTransitAccountName = manufacturerData.goldTransitAccountCode 
+        ? `${manufacturerData.manufacturerName || manufacturerData.name} - Gold in Transit`
+        : 'Gold in Transit';
       
       const entries = [
         {
@@ -830,46 +793,23 @@ export default function GoldSmithOrders() {
       // Create accounting entry: Debit Gold in Transit, Credit Selected Gold Bank
       const accountingEngine = new AccountingEngine(companyId);
       
-      // ✅ ACCOUNT CODE AUDIT: Ensure gold bank has account code
+      // Fetch gold bank data dynamically based on selectedGoldBankId
       let goldBankData = null;
-      let goldBankAccountCode = null;
+      let goldBankAccountCode = '1101'; // Default fallback
       if (selectedGoldBankId) {
         const goldBankRef = doc(db, `${basePath}/goldbanks`, selectedGoldBankId);
         const goldBankSnap = await getDoc(goldBankRef);
         if (goldBankSnap.exists()) {
           goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
-          goldBankAccountCode = goldBankData.accountCode;
-          if (!goldBankAccountCode) {
-            // Create gold bank account if missing
-            const accountManager = new HierarchicalAccountManager(companyId);
-            goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
-            // Update gold bank document with new account code
-            await updateDoc(goldBankRef, {
-              accountCode: goldBankAccountCode,
-              updatedAt: serverTimestamp()
-            });
-            // Update local data
-            goldBankData.accountCode = goldBankAccountCode;
-          }
+          goldBankAccountCode = goldBankData.accountCode || '1101';
         }
       }
       
-      // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has gold transit account code
-      let goldTransitAccountCode = manufacturerData.goldTransitAccountCode;
-      if (!goldTransitAccountCode) {
-        // Create manufacturer gold transit account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
-        // Update manufacturer document with new account code
-        await updateDoc(doc(db, `${basePath}/manufacturers`, manufacturerData.id), {
-          goldTransitAccountCode: goldTransitAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        manufacturerData.goldTransitAccountCode = goldTransitAccountCode;
-      }
-      
-      const goldTransitAccountName = `${manufacturerData.manufacturerName || manufacturerData.name} - Gold in Transit`;
+      // Use manufacturer-specific gold transit account or fallback to global
+      const goldTransitAccountCode = manufacturerData.goldTransitAccountCode || '1102';
+      const goldTransitAccountName = manufacturerData.goldTransitAccountCode 
+        ? `${manufacturerData.manufacturerName || manufacturerData.name} - Gold in Transit`
+        : 'Gold in Transit';
       
       const entries = [
         {
@@ -954,21 +894,6 @@ export default function GoldSmithOrders() {
       // Create accounting entry: Debit Gold in Hand, Credit Gold in Transit
       const accountingEngine = new AccountingEngine(companyId);
       
-      // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has gold transit account code
-      let goldTransitAccountCode = manufacturerData.goldTransitAccountCode;
-      if (!goldTransitAccountCode) {
-        // Create manufacturer gold transit account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
-        // Update manufacturer document with new account code
-        await updateDoc(doc(db, `${basePath}/manufacturers`, manufacturerData.id), {
-          goldTransitAccountCode: goldTransitAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        manufacturerData.goldTransitAccountCode = goldTransitAccountCode;
-      }
-      
       const entries = [
         {
           accountCode: '1104', // Gold in Hand (for customer gold deposits)
@@ -978,7 +903,7 @@ export default function GoldSmithOrders() {
           balanceType: 'gold'
         },
         {
-          accountCode: goldTransitAccountCode, // Manufacturer's Gold in Transit
+          accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold in Transit
           accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
           debit: 0,
           credit: returnGoldAmount,
@@ -1006,7 +931,7 @@ export default function GoldSmithOrders() {
             balanceType: 'gold'
           },
           {
-            accountCode: goldTransitAccountCode, // Manufacturer's Gold in Transit
+            accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold in Transit
             accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
             debit: 0,
             credit: returnGoldAmount,
@@ -1344,41 +1269,14 @@ export default function GoldSmithOrders() {
 
       // Fetch gold bank data
       let goldBankData = null;
-      let goldBankAccountCode = null;
+      let goldBankAccountCode = '1101'; // Default fallback
       if (order.goldBankId) {
         const goldBankRef = doc(db, `${basePath}/goldbanks`, order.goldBankId);
         const goldBankSnap = await getDoc(goldBankRef);
         if (goldBankSnap.exists()) {
           goldBankData = { id: goldBankSnap.id, ...goldBankSnap.data() };
-          goldBankAccountCode = goldBankData.accountCode;
-          if (!goldBankAccountCode) {
-            // Create gold bank account if missing
-            const accountManager = new HierarchicalAccountManager(companyId);
-            goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
-            // Update gold bank document with new account code
-            await updateDoc(goldBankRef, {
-              accountCode: goldBankAccountCode,
-              updatedAt: serverTimestamp()
-            });
-            // Update local data
-            goldBankData.accountCode = goldBankAccountCode;
-          }
+          goldBankAccountCode = goldBankData.accountCode || '1101';
         }
-      }
-
-      // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has gold transit account code
-      let goldTransitAccountCode = manufacturerData.goldTransitAccountCode;
-      if (!goldTransitAccountCode) {
-        // Create manufacturer gold transit account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
-        // Update manufacturer document with new account code
-        await updateDoc(manufacturerRef, {
-          goldTransitAccountCode: goldTransitAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        manufacturerData.goldTransitAccountCode = goldTransitAccountCode;
       }
 
       // Fetch customer data
@@ -1437,7 +1335,7 @@ export default function GoldSmithOrders() {
         
         const entries = [
           {
-            accountCode: goldTransitAccountCode, // Manufacturer's Gold in Transit
+            accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold in Transit
             accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
             debit: pureGoldAmount,
             credit: 0,
@@ -1465,7 +1363,7 @@ export default function GoldSmithOrders() {
           referenceType: 'challan',
           entries: [
             {
-              accountCode: goldTransitAccountCode, // Manufacturer's Gold in Transit
+              accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold in Transit
               accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
               debit: pureGoldAmount,
               credit: 0,
@@ -1845,21 +1743,6 @@ export default function GoldSmithOrders() {
       // ✅ ACCOUNTING: Record finished goods receipt from manufacturer
       // Debit: Finished Goods Inventory (1103), Credit: Gold in Transit (1102)
       const accountingEngine = new AccountingEngine(companyId);
-
-      // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has gold transit account code
-      let goldTransitAccountCode = manufacturerData.goldTransitAccountCode;
-      if (!goldTransitAccountCode) {
-        // Create manufacturer gold transit account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
-        // Update manufacturer document with new account code
-        await updateDoc(manufacturerRef, {
-          goldTransitAccountCode: goldTransitAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        manufacturerData.goldTransitAccountCode = goldTransitAccountCode;
-      }
       
       const entries = [
         {
@@ -1870,7 +1753,7 @@ export default function GoldSmithOrders() {
           balanceType: 'gold'
         },
         {
-          accountCode: goldTransitAccountCode, // ✅ FIXED: Use specific manufacturer gold transit account
+          accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold in Transit
           accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
           debit: 0,
           credit: finalPureGold,
@@ -2107,25 +1990,10 @@ export default function GoldSmithOrders() {
       // Debit: Customer Receivables, Credit: Sales Revenue, Credit: Finished Goods Inventory, Debit: Gold in Hand
       // All in pure gold terms
       const accountingEngine = new AccountingEngine(companyId);
-
-      // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
-      let customerAccountCode = customerData.accountCode;
-      if (!customerAccountCode) {
-        // Create customer account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        customerAccountCode = await accountManager.createCustomerAccount(customerData);
-        // Update customer document with new account code
-        await updateDoc(doc(db, `${basePath}/customers`, customerData.id), {
-          accountCode: customerAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        customerData.accountCode = customerAccountCode;
-      }
       
       const entries = [
         {
-          accountCode: customerAccountCode, // ✅ FIXED: Use specific customer account
+          accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).padStart(4, '0')}`,
           accountName: `${customerData.customerName} - Receivables`,
           debit: totalPureGoldOwed,
           credit: 0,
@@ -2282,21 +2150,6 @@ export default function GoldSmithOrders() {
       // Create accounting entries (all in gold terms)
       const accountingEngine = new AccountingEngine(companyId);
 
-      // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
-      let customerAccountCode = customerData.accountCode;
-      if (!customerAccountCode) {
-        // Create customer account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        customerAccountCode = await accountManager.createCustomerAccount(customerData);
-        // Update customer document with new account code
-        await updateDoc(doc(db, `${basePath}/customers`, customerData.id), {
-          accountCode: customerAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        customerData.accountCode = customerAccountCode;
-      }
-
       if (paymentMethod === 'credit') {
         // For credit: Revenue already recognized at delivery, receivable already created
         // No additional accounting entry needed for credit payment
@@ -2331,7 +2184,7 @@ export default function GoldSmithOrders() {
             balanceType: 'gold'
           },
           {
-            accountCode: customerAccountCode,
+            accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).padStart(4, '0')}`,
             accountName: `${customerData.customerName || customerData.name} - Receivables`,
             debit: 0,
             credit: totalPureGoldOwed,
@@ -2359,7 +2212,7 @@ export default function GoldSmithOrders() {
               balanceType: 'gold'
             },
             {
-              accountCode: customerAccountCode,
+              accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).padStart(4, '0')}`,
               accountName: `${customerData.customerName || customerData.name} - Receivables`,
               debit: 0,
               credit: totalPureGoldOwed,
@@ -2576,42 +2429,17 @@ export default function GoldSmithOrders() {
       try {
         const accountingEngine = new AccountingEngine(companyId || 'default-company');
         
-        // ✅ ACCOUNT CODE AUDIT: Ensure gold bank has account code
-        let goldBankAccountCode = null;
+        // ✅ FIX: Fetch gold bank account code (never use parent '1101')
+        let goldBankAccountCode = '1101'; // Default fallback
         let goldBankAccountName = 'Gold Bank (Sharaf)';
         if (selectedGoldBankId) {
           const goldBankRef = doc(db, `${basePath}/goldbanks`, selectedGoldBankId);
           const goldBankSnap = await getDoc(goldBankRef);
           if (goldBankSnap.exists()) {
             const goldBankData = goldBankSnap.data();
-            goldBankAccountCode = goldBankData.accountCode;
+            goldBankAccountCode = goldBankData.accountCode || '1101';
             goldBankAccountName = `${goldBankData.bankName || 'Gold Bank'} - Gold Custody`;
-            if (!goldBankAccountCode) {
-              // Create gold bank account if missing
-              const accountManager = new HierarchicalAccountManager(companyId || 'default-company');
-              goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
-              // Update gold bank document with new account code
-              await updateDoc(goldBankRef, {
-                accountCode: goldBankAccountCode,
-                updatedAt: serverTimestamp()
-              });
-            }
           }
-        }
-
-        // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has gold transit account code
-        let goldTransitAccountCode = manufacturerData.goldTransitAccountCode;
-        if (!goldTransitAccountCode) {
-          // Create manufacturer gold transit account if missing
-          const accountManager = new HierarchicalAccountManager(companyId || 'default-company');
-          goldTransitAccountCode = await accountManager.createManufacturerGoldTransitAccount(manufacturerData);
-          // Update manufacturer document with new account code
-          await updateDoc(manufacturerRef, {
-            goldTransitAccountCode: goldTransitAccountCode,
-            updatedAt: serverTimestamp()
-          });
-          // Update local data
-          manufacturerData.goldTransitAccountCode = goldTransitAccountCode;
         }
         
         if (challanType === 'additional_gold') {
@@ -2619,7 +2447,7 @@ export default function GoldSmithOrders() {
           
           const entries = [
             {
-              accountCode: goldTransitAccountCode, // ✅ FIXED: Use specific manufacturer gold transit account
+              accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold in Transit
               accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
               debit: pureGoldAmount,
               credit: 0,
@@ -2647,7 +2475,7 @@ export default function GoldSmithOrders() {
             referenceType: 'challan',
             entries: [
               {
-                accountCode: goldTransitAccountCode, // ✅ FIXED: Use specific manufacturer gold transit account
+                accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold in Transit
                 accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
                 debit: pureGoldAmount,
                 credit: 0,
@@ -2671,41 +2499,31 @@ export default function GoldSmithOrders() {
           });
 
         } else if (challanType === 'gold_return') {
-          // Gold Return: Debit Selected Gold Bank, Credit Gold in Transit
-          // Get the selected gold bank data to determine the account code
-          let goldBankAccountCode = null;
-          let goldBankAccountName = 'Gold Bank (Sharaf)';
+          // Gold Return: Debit Selected Gold Bank, Credit 1102 (Gold in Transit) - same logic as main challan
+          // Get the selected gold bank data to determine the account code (same logic as main challan)
+          let goldBankAccountCode = '1101'; // Default fallback
+          let goldBankAccountName = 'Gold Bank (Sharaf)'; // Default fallback
 
           if (selectedGoldBankId) {
-            const goldBankRef = doc(db, `${basePath}/goldbanks`, selectedGoldBankId);
+            const goldBankRef = doc(db, 'goldBanks', selectedGoldBankId);
             const goldBankSnap = await getDoc(goldBankRef);
             if (goldBankSnap.exists()) {
               const goldBankData = goldBankSnap.data();
-              goldBankAccountCode = goldBankData.accountCode;
+              goldBankAccountCode = goldBankData.accountCode || `1101-BANK-${selectedGoldBankId.slice(-3).toUpperCase()}`;
               goldBankAccountName = `${goldBankData.bankName} (${goldBankData.location || 'N/A'})`;
-              if (!goldBankAccountCode) {
-                // Create gold bank account if missing
-                const accountManager = new HierarchicalAccountManager(companyId || 'default-company');
-                goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
-                // Update gold bank document with new account code
-                await updateDoc(goldBankRef, {
-                  accountCode: goldBankAccountCode,
-                  updatedAt: serverTimestamp()
-                });
-              }
             }
           }
 
           const entries = [
             {
-              accountCode: goldBankAccountCode, // ✅ FIXED: Specific gold bank account
+              accountCode: goldBankAccountCode, // ✅ FIXED: Specific gold bank account (never parent)
               accountName: goldBankAccountName,
               debit: pureGoldAmount,
               credit: 0,
               balanceType: 'gold'
             },
             {
-              accountCode: goldTransitAccountCode, // ✅ FIXED: Use specific manufacturer gold transit account
+              accountCode: manufacturerData.goldTransitAccountCode || '1102', // Manufacturer's Gold in Transit
               accountName: `${manufacturerData.manufacturerName} - Gold in Transit`,
               debit: 0,
               credit: pureGoldAmount,
@@ -2894,24 +2712,9 @@ export default function GoldSmithOrders() {
       try {
         const accountingEngine = new AccountingEngine(companyId || 'default-company');
         
-        // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
-        let customerAccountCode = customerData.accountCode;
-        if (!customerAccountCode) {
-          // Create customer account if missing
-          const accountManager = new HierarchicalAccountManager(companyId);
-          customerAccountCode = await accountManager.createCustomerAccount(customerData);
-          // Update customer document with new account code
-          await updateDoc(doc(db, `${basePath}/customers`, customerData.id), {
-            accountCode: customerAccountCode,
-            updatedAt: serverTimestamp()
-          });
-          // Update local data
-          customerData.accountCode = customerAccountCode;
-        }
-        
         const entries = [
           {
-            accountCode: customerAccountCode, // Specific customer account (never parent)
+            accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).padStart(4, '0')}`, // ✅ FIXED: Specific customer account (never parent)
             accountName: `${customerData.customerName || customerData.name} - Receivables`,
             debit: totalPureGold,
             credit: 0,
@@ -2946,7 +2749,7 @@ export default function GoldSmithOrders() {
           referenceType: 'invoice',
           entries: [
             {
-              accountCode: customerAccountCode, // Specific customer account (never parent)
+              accountCode: customerData.accountCode || `CUST-${customerData.id.slice(-4).padStart(4, '0')}`, // ✅ FIXED: Specific customer account (never parent)
               accountName: `${customerData.customerName || customerData.name} - Receivables`,
               debit: totalPureGold,
               credit: 0,
@@ -3136,43 +2939,18 @@ export default function GoldSmithOrders() {
       try {
         const accountingEngine = new AccountingEngine(companyId || 'default-company');
         
-        // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
+        // Get customer account code
         const customerRef = doc(db, `${basePath}/customers`, paymentInvoiceData.customerId);
         const customerSnap = await getDoc(customerRef);
-        let customerAccountCode = null;
-        if (customerSnap.exists()) {
-          const customerData = customerSnap.data();
-          customerAccountCode = customerData.accountCode;
-          if (!customerAccountCode) {
-            // Create customer account if missing
-            const accountManager = new HierarchicalAccountManager(companyId);
-            customerAccountCode = await accountManager.createCustomerAccount(customerData);
-            // Update customer document with new account code
-            await updateDoc(customerRef, {
-              accountCode: customerAccountCode,
-              updatedAt: serverTimestamp()
-            });
-          }
-        }
+        const customerAccountCode = customerSnap.exists() ? customerSnap.data().accountCode : '1301';
         
-        // ✅ ACCOUNT CODE AUDIT: Ensure gold bank has account code
-        let goldBankAccountCode = null;
+        // Get gold bank account code (use default if not specified)
+        let goldBankAccountCode = '1101'; // Default fallback
         if (paymentData.goldBankId) {
           const goldBankRef = doc(db, `${basePath}/goldbanks`, paymentData.goldBankId);
           const goldBankSnap = await getDoc(goldBankRef);
           if (goldBankSnap.exists()) {
-            const goldBankData = goldBankSnap.data();
-            goldBankAccountCode = goldBankData.accountCode;
-            if (!goldBankAccountCode) {
-              // Create gold bank account if missing
-              const accountManager = new HierarchicalAccountManager(companyId);
-              goldBankAccountCode = await accountManager.createGoldBankAccount(goldBankData);
-              // Update gold bank document with new account code
-              await updateDoc(goldBankRef, {
-                accountCode: goldBankAccountCode,
-                updatedAt: serverTimestamp()
-              });
-            }
+            goldBankAccountCode = goldBankSnap.data().accountCode || '1101';
           }
         }
         
@@ -3509,21 +3287,6 @@ export default function GoldSmithOrders() {
       // Create accounting entries (USD to Gold conversion)
       try {
         const accountingEngine = new AccountingEngine(companyId || 'default-company');
-        
-        // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
-        let customerAccountCode = customerData?.accountCode;
-        if (!customerAccountCode) {
-          // Create customer account if missing
-          const accountManager = new HierarchicalAccountManager(companyId);
-          customerAccountCode = await accountManager.createCustomerAccount(customerData);
-          // Update customer document with new account code
-          await updateDoc(doc(db, `${basePath}/customers`, order.customerId), {
-            accountCode: customerAccountCode,
-            updatedAt: serverTimestamp()
-          });
-          // Update local data
-          customerData.accountCode = customerAccountCode;
-        }
         await accountingEngine.createEntry({
           date: new Date(),
           description: `Quick Payment ${paymentNumber} received from ${order.customerName} for Invoice ${order.invoiceNumber} - ${goldEquivalent.toFixed(3)}g pure gold equivalent`,
@@ -3539,7 +3302,7 @@ export default function GoldSmithOrders() {
               balanceType: 'usd'
             },
             {
-              accountCode: customerAccountCode, // Specific customer account (never parent)
+              accountCode: customerData?.accountCode || `CUST-${order.customerId.slice(-4).padStart(4, '0')}`, // ✅ FIXED: Specific customer account (never parent)
               accountName: `${order.customerName} - Receivables`,
               debit: 0,
               credit: goldEquivalent,
@@ -3696,22 +3459,12 @@ export default function GoldSmithOrders() {
         debitAccountCode = '1104'; // Gold in Hand
         debitAccountName = 'Gold in Hand';
       } else {
-        // ✅ ACCOUNT CODE AUDIT: Ensure gold bank has account code
+        // ✅ FIX: Fetch gold bank account code from gold bank document
         const goldBankRef = doc(db, `${basePath}/goldbanks`, selectedGoldBankId);
         const goldBankSnap = await getDoc(goldBankRef);
         if (goldBankSnap.exists()) {
           const goldBankData = goldBankSnap.data();
-          debitAccountCode = goldBankData.accountCode;
-          if (!debitAccountCode) {
-            // Create gold bank account if missing
-            const accountManager = new HierarchicalAccountManager(companyId);
-            debitAccountCode = await accountManager.createGoldBankAccount(goldBankData);
-            // Update gold bank document with new account code
-            await updateDoc(goldBankRef, {
-              accountCode: debitAccountCode,
-              updatedAt: serverTimestamp()
-            });
-          }
+          debitAccountCode = goldBankData.accountCode || '1101';
           debitAccountName = `${goldBankData.bankName || 'Gold Bank'} - Gold Custody`;
         } else {
           alert('Selected gold bank not found.');
@@ -3719,19 +3472,10 @@ export default function GoldSmithOrders() {
         }
       }
       
-      // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
-      let creditAccountCode = order.customerData?.accountCode;
+      const creditAccountCode = order.customerData?.accountCode;
       if (!creditAccountCode) {
-        // Create customer account if missing
-        const accountManager = new HierarchicalAccountManager(companyId);
-        creditAccountCode = await accountManager.createCustomerAccount(order.customerData);
-        // Update customer document with new account code
-        await updateDoc(doc(db, `${basePath}/customers`, order.customerId), {
-          accountCode: creditAccountCode,
-          updatedAt: serverTimestamp()
-        });
-        // Update local data
-        order.customerData.accountCode = creditAccountCode;
+        alert('Customer account code not found. Please ensure customer has an account.');
+        return;
       }
 
       // Create payment document

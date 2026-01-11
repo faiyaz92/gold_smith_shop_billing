@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { AccountingEngine } from '@/utils/accountingEngine';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 import { X, Calculator, DollarSign, CreditCard, Building } from 'lucide-react';
 
 export default function PayManufacturerForm({ isOpen, onClose, companyId, userRole }) {
@@ -99,7 +100,23 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
 
       const paymentRef = await addDoc(collection(db, paymentsPath), paymentData);
 
+      // ✅ ACCOUNT CODE AUDIT: Ensure manufacturer has account code
+      let manufacturerAccountCode = selectedManufacturer?.accountCode;
+      if (!manufacturerAccountCode) {
+        // Create manufacturer account if missing
+        const accountManager = new HierarchicalAccountManager(companyId);
+        manufacturerAccountCode = await accountManager.createManufacturerAccount(selectedManufacturer);
+        // Update manufacturer document with new account code
+        await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/manufacturers`, selectedManufacturer.id), {
+          accountCode: manufacturerAccountCode,
+          updatedAt: serverTimestamp()
+        });
+        // Update local data
+        selectedManufacturer.accountCode = manufacturerAccountCode;
+      }
+
       // Create accounting entry: Debit Manufacturer Payables, Credit Cash/Bank
+      
       await accountingEngine.createEntry({
         date: new Date(),
         description: `Payment made to ${selectedManufacturer?.name} - ${formData.description}`,
@@ -108,8 +125,8 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
         referenceType: 'payment',
         entries: [
           {
-            accountCode: '2101', // Manufacturer Payables
-            accountName: 'Manufacturer Payables',
+            accountCode: manufacturerAccountCode, // ✅ FIXED: Use specific manufacturer account instead of parent '2101'
+            accountName: `${selectedManufacturer?.name || 'Manufacturer'} - Payables`,
             debit: parseFloat(formData.paymentAmount),
             credit: 0,
             balanceType: 'usd'

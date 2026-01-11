@@ -23,7 +23,8 @@ import {
   BarChart3,
   RefreshCw,
   FileText,
-  Building
+  Building,
+  ArrowRightLeft
 } from 'lucide-react';
 import {
   BarChart,
@@ -244,22 +245,19 @@ export default function GoldSmithDashboard() {
       
       try {
         const accountManager = new HierarchicalAccountManager(companyId);
-        // Try MAIN-1003 first (Accounts Receivable), fallback to 1301 (Customer Receivables)
-        let receivablesAccount = await accountManager.getAccountByCode('MAIN-1003');
-        if (!receivablesAccount) {
-          receivablesAccount = await accountManager.getAccountByCode('1301');
-        }
-        if (receivablesAccount) {
-          const balance = receivablesAccount.currentBalanceGold || receivablesAccount.currentBalance || 0;
-          setOutstandingReceivables(balance);
-        } else {
-          // Fallback to customer data if no accounting accounts exist
-          const customerReceivables = customers.reduce((total, customer) => {
-            const goldBalance = customer.currentPureGoldBalance || 0;
-            return total + goldBalance;
-          }, 0);
-          setOutstandingReceivables(customerReceivables);
-        }
+        
+        // Get all customer accounts (CUST-XXXX format) and sum their balances
+        const allAccounts = await accountManager.getAllAccounts();
+        const customerAccounts = allAccounts.filter(account => 
+          account.accountCode && account.accountCode.startsWith('CUST-')
+        );
+        
+        // Sum gold balances from all customer accounts
+        const totalReceivables = customerAccounts.reduce((total, account) => {
+          return total + (account.currentBalanceGold || account.currentBalance || 0);
+        }, 0);
+        
+        setOutstandingReceivables(totalReceivables);
       } catch (error) {
         console.error('Error fetching receivables from accounting system:', error);
         // Fallback to customer data if accounting system fails
@@ -281,18 +279,19 @@ export default function GoldSmithDashboard() {
       
       try {
         const accountManager = new HierarchicalAccountManager(companyId);
-        // Get payables from account 2101 (Manufacturer Payables)
-        const payablesAccount = await accountManager.getAccountByCode('2101');
-        if (payablesAccount) {
-          const balance = payablesAccount.currentBalanceUSD || payablesAccount.currentBalance || 0;
-          setOutstandingPayables(balance);
-        } else {
-          // Fallback to manufacturer data if no accounting accounts exist
-          const manufacturerPayables = manufacturers.reduce((total, manufacturer) => {
-            return total + (manufacturer.currentBalanceUSD || 0);
-          }, 0);
-          setOutstandingPayables(manufacturerPayables);
-        }
+        
+        // Get all manufacturer accounts (2101-MFG-XXX format) and sum their balances
+        const allAccounts = await accountManager.getAllAccounts();
+        const manufacturerAccounts = allAccounts.filter(account => 
+          account.accountCode && account.accountCode.startsWith('2101-MFG-')
+        );
+        
+        // Sum USD balances from all manufacturer accounts
+        const totalPayables = manufacturerAccounts.reduce((total, account) => {
+          return total + (account.currentBalanceUSD || account.currentBalance || 0);
+        }, 0);
+        
+        setOutstandingPayables(totalPayables);
       } catch (error) {
         console.error('Error fetching payables from accounting system:', error);
         // Fallback to manufacturer data if accounting system fails
@@ -313,18 +312,37 @@ export default function GoldSmithDashboard() {
 
       try {
         const accountManager = new HierarchicalAccountManager(companyId);
+        const allAccounts = await accountManager.getAllAccounts();
 
-        // Fetch balances for gold accounts
-        const goldBankAccount = await accountManager.getAccountByCode('1101'); // Gold Bank (Sharaf)
-        const goldInHandAccount = await accountManager.getAccountByCode('1104'); // Gold in Hand
-        const goldInTransitAccount = await accountManager.getAccountByCode('1102'); // Gold in Transit
-        const finishedGoodsAccount = await accountManager.getAccountByCode('1103'); // Finished Goods Inventory
+        // Sum balances from all gold bank accounts (1101-BANK-XXX format)
+        const goldBankAccounts = allAccounts.filter(account => 
+          account.accountCode && account.accountCode.startsWith('1101-BANK-')
+        );
+        const goldBankBalance = goldBankAccounts.reduce((total, account) => {
+          return total + (account.currentBalanceGold || account.currentBalance || 0);
+        }, 0);
+
+        // Sum balances from all manufacturer gold transit accounts (1102-MFG-XXX format)
+        const goldInTransitAccounts = allAccounts.filter(account => 
+          account.accountCode && account.accountCode.startsWith('1102-MFG-')
+        );
+        const goldInTransitBalance = goldInTransitAccounts.reduce((total, account) => {
+          return total + (account.currentBalanceGold || account.currentBalance || 0);
+        }, 0);
+
+        // Get gold in hand from system account 1104
+        const goldInHandAccount = await accountManager.getAccountByCode('1104');
+        const goldInHandBalance = goldInHandAccount ? (goldInHandAccount.currentBalanceGold || goldInHandAccount.currentBalance || 0) : 0;
+
+        // Get finished goods from system account 1103
+        const finishedGoodsAccount = await accountManager.getAccountByCode('1103');
+        const finishedGoodsBalance = finishedGoodsAccount ? (finishedGoodsAccount.currentBalanceGold || finishedGoodsAccount.currentBalance || 0) : 0;
 
         const balances = {
-          goldBank: goldBankAccount ? (goldBankAccount.currentBalanceGold || goldBankAccount.currentBalance || 0) : 0,
-          goldInHand: goldInHandAccount ? (goldInHandAccount.currentBalanceGold || goldInHandAccount.currentBalance || 0) : 0,
-          goldInTransit: goldInTransitAccount ? (goldInTransitAccount.currentBalanceGold || goldInTransitAccount.currentBalance || 0) : 0,
-          finishedGoods: finishedGoodsAccount ? (finishedGoodsAccount.currentBalanceGold || finishedGoodsAccount.currentBalance || 0) : 0,
+          goldBank: goldBankBalance,
+          goldInHand: goldInHandBalance,
+          goldInTransit: goldInTransitBalance,
+          finishedGoods: finishedGoodsBalance,
           total: 0
         };
 
@@ -375,10 +393,10 @@ export default function GoldSmithDashboard() {
       order.updatedAt >= todayStart && order.updatedAt < tomorrow
     );
 
-    // Outstanding receivables (from accounting system - MAIN-1003 or 1301)
+    // Outstanding receivables (from accounting system - sum of all CUST-XXXX customer account balances)
     const outstandingReceivablesValue = outstandingReceivables;
 
-    // Outstanding payables (from accounting system - 2101)
+    // Outstanding payables (from accounting system - sum of all 2101-MFG-XXX manufacturer account balances)
     const outstandingPayablesValue = outstandingPayables;
 
     // Gold inventory value
@@ -799,6 +817,16 @@ export default function GoldSmithDashboard() {
               <Building className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
               <span className="text-sm font-medium text-blue-700">Pay Manufacturer</span>
               <span className="text-xs text-blue-600 mt-1">Outstanding payments</span>
+            </button>
+
+            {/* Quick Transfer */}
+            <button
+              onClick={() => router.push('/admin/accounting/quick-transfer')}
+              className="flex flex-col items-center p-4 bg-red-50 hover:bg-red-100 rounded-lg transition-colors group"
+            >
+              <ArrowRightLeft className="w-8 h-8 text-red-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-red-700">Quick Transfer</span>
+              <span className="text-xs text-red-600 mt-1">Transfer between accounts</span>
             </button>
 
             {/* Receive Payment */}

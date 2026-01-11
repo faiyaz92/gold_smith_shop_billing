@@ -16,7 +16,7 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
   const [formData, setFormData] = useState({
     customerId: '',
     paymentAmount: '',
-    paymentMethod: 'cash', // cash, bank_transfer, check
+    paymentMethod: 'gold', // Always gold payment
     description: '',
     goldPriceData: null,
     isOrderPayment: false,
@@ -47,18 +47,20 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
             customersData.map(async (customer) => {
               try {
                 let balance = 0;
+                let customerAccount = null;
 
                 // Method 1: Use accountCode from customer document if available
                 if (customer.accountCode) {
                   const account = await accountManager.getAccountByCode(customer.accountCode);
+                  customerAccount = account;
                   balance = account ? (account.currentBalanceGold || account.currentBalance || 0) : 0;
                 } else {
                   // Method 2: Try to find account by customerId
                   const allAccounts = await accountManager.getAllAccounts();
-                  const customerAccount = allAccounts.find(account => 
+                  customerAccount = allAccounts.find(account =>
                     account.customerId === customer.id && account.accountCode?.startsWith('CUST-')
                   );
-                  balance = customerAccount ? 
+                  balance = customerAccount ?
                     (customerAccount.currentBalanceGold || customerAccount.currentBalance || 0) : 0;
                 }
 
@@ -163,10 +165,6 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
       newErrors.paymentAmount = 'Please enter valid payment amount';
     }
 
-    if (!formData.paymentMethod) {
-      newErrors.paymentMethod = 'Please select payment method';
-    }
-
     if (!formData.description.trim()) {
       newErrors.description = 'Please enter payment description';
     }
@@ -186,9 +184,21 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
       const accountingEngine = new AccountingEngine(companyId);
       const paymentsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/payments`;
 
-      const selectedCustomer = formData.isOrderPayment 
+      const selectedCustomer = formData.isOrderPayment
         ? { id: formData.orderData.customerId, name: formData.orderData.customerName, accountCode: formData.orderData.customerAccountCode }
         : customers.find(c => c.id === formData.customerId);
+
+      // Validate that selected customer exists
+      if (!selectedCustomer) {
+        throw new Error('Selected customer not found. Please refresh the page and try again.');
+      }
+
+      if (!selectedCustomer.customerName && !selectedCustomer.name) {
+        throw new Error('Customer name is missing. Please check customer data.');
+      }
+
+      // Normalize customer name field
+      const customerName = selectedCustomer.customerName || selectedCustomer.name;
 
       // Generate payment reference number
       const paymentsSnapshot = await onSnapshot(query(collection(db, paymentsPath), orderBy('createdAt', 'desc'), limit(1)), () => {});
@@ -196,13 +206,18 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
       // Note: In a real implementation, you'd get the actual snapshot data
 
       // Create payment record
+      const usdAmount = parseFloat(formData.paymentAmount);
+      const goldEquivalent = formData.goldPriceData ? 
+        (usdAmount / formData.goldPriceData.pricePerGram) : 0;
+
       const paymentData = {
         paymentNumber,
-        paymentType: formData.isOrderPayment ? 'order_payment' : 'customer_payment',
+        paymentType: formData.isOrderPayment ? 'order_payment' : 'customer_gold_payment',
         customerId: selectedCustomer.id,
-        customerName: selectedCustomer.name,
-        paymentAmount: parseFloat(formData.paymentAmount),
-        paymentMethod: formData.paymentMethod,
+        customerName: customerName,
+        paymentAmount: usdAmount,
+        goldEquivalent: goldEquivalent,
+        paymentMethod: 'gold', // Always gold payment
         description: formData.description,
         status: 'received',
         receivedDate: serverTimestamp(),
@@ -222,29 +237,42 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
 
       const paymentRef = await addDoc(collection(db, paymentsPath), paymentData);
 
-      // Create accounting entry: Debit Cash/Bank, Credit Customer Receivables
-      const customerAccountCode = selectedCustomer?.accountCode || `CUST-${formData.customerId.slice(-4).toUpperCase()}`;
+      // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
+      let customerAccountCode = selectedCustomer?.accountCode;
+      if (!customerAccountCode) {
+        // Create customer account if missing
+        const accountManager = new HierarchicalAccountManager(companyId);
+        customerAccountCode = await accountManager.createCustomerAccount(selectedCustomer);
+        // Update customer document with new account code
+        await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`, selectedCustomer.id), {
+          accountCode: customerAccountCode,
+          updatedAt: serverTimestamp()
+        });
+        // Update local data
+        selectedCustomer.accountCode = customerAccountCode;
+      }
 
+      // Create accounting entry: Debit Gold in Hand, Credit Customer Receivables (Gold)
       await accountingEngine.createEntry({
         date: new Date(),
-        description: `Payment received from ${selectedCustomer?.name} - ${formData.description}`,
-        transactionType: 'customer_payment',
+        description: `Gold payment received from ${customerName} - ${formData.description}`,
+        transactionType: 'customer_gold_payment',
         referenceId: paymentRef.id,
         referenceType: 'payment',
         entries: [
           {
-            accountCode: formData.paymentMethod === 'cash' ? '1201' : '1202', // Cash or Bank
-            accountName: formData.paymentMethod === 'cash' ? 'Cash' : 'Bank Account',
-            debit: parseFloat(formData.paymentAmount),
+            accountCode: '1104', // Gold in Hand
+            accountName: 'Gold in Hand',
+            debit: goldEquivalent,
             credit: 0,
-            balanceType: 'usd'
+            balanceType: 'gold'
           },
           {
             accountCode: customerAccountCode,
-            accountName: `${selectedCustomer?.name} - Receivables`,
+            accountName: `${customerName} - Receivables`,
             debit: 0,
-            credit: parseFloat(formData.paymentAmount),
-            balanceType: 'usd'
+            credit: goldEquivalent,
+            balanceType: 'gold'
           }
         ]
       });
@@ -281,7 +309,7 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
         }
       }
 
-      alert(`✅ Payment received successfully!\n\nPayment: ${paymentNumber}\nAmount: $${formData.paymentAmount}\nFrom: ${selectedCustomer?.name}${formData.isOrderPayment ? `\nOrder: ${formData.orderData.orderNumber}` : ''}`);
+      alert(`✅ Gold payment received successfully!\n\nPayment: ${paymentNumber}\nUSD Amount: $${usdAmount.toFixed(2)}\nGold Equivalent: ${goldEquivalent.toFixed(3)}g\nFrom: ${customerName}${formData.isOrderPayment ? `\nOrder: ${formData.orderData.orderNumber}` : ''}`);
       onClose();
 
       // Reset form
@@ -328,7 +356,7 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
           {/* Description */}
           <div className="px-6 py-3 bg-green-50 border-b">
             <p className="text-sm text-green-800">
-              Record customer payments against outstanding receivables or specific orders. Payments can be in USD or converted from gold.
+              Record customer gold payments against outstanding receivables. Enter USD amount and convert to gold equivalent using current market price. Gold received will increase &quot;Gold in Hand&quot; account and reduce customer receivables.
             </p>
           </div>
 
@@ -436,14 +464,14 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
             {/* Payment Amount */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Amount (USD) *
+                Payment Amount (USD) - Will be converted to Gold Equivalent *
               </label>
               <div className="flex gap-2">
                 <input
                   type="number"
                   value={formData.paymentAmount}
                   onChange={(e) => setFormData(prev => ({ ...prev, paymentAmount: e.target.value }))}
-                  placeholder="Enter payment amount"
+                  placeholder="Enter USD amount to convert to gold"
                   step="0.01"
                   min="0"
                   className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${
@@ -456,33 +484,16 @@ export default function ReceivePaymentForm({ isOpen, onClose, companyId, userRol
                   className="px-3 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-md flex items-center gap-1"
                 >
                   <Calculator className="w-4 h-4" />
-                  Convert
+                  Convert to Gold
                 </button>
               </div>
+              {formData.goldPriceData && formData.paymentAmount && (
+                <p className="text-green-600 text-xs mt-1">
+                  Gold Equivalent: {(parseFloat(formData.paymentAmount) / formData.goldPriceData.pricePerGram).toFixed(3)}g at ${formData.goldPriceData.pricePerGram}/g
+                </p>
+              )}
               {errors.paymentAmount && (
                 <p className="text-red-500 text-xs mt-1">{errors.paymentAmount}</p>
-              )}
-            </div>
-
-            {/* Payment Method */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Method *
-              </label>
-              <select
-                value={formData.paymentMethod}
-                onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                  errors.paymentMethod ? 'border-red-500' : 'border-gray-300'
-                }`}
-              >
-                <option value="cash">Cash</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="check">Check</option>
-                <option value="card">Credit/Debit Card</option>
-              </select>
-              {errors.paymentMethod && (
-                <p className="text-red-500 text-xs mt-1">{errors.paymentMethod}</p>
               )}
             </div>
 

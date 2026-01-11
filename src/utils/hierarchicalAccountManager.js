@@ -1444,4 +1444,15 @@ export class HierarchicalAccountManager {
       throw error;
     }
   }
+
+  // Check if an account is a parent account (has child accounts)
+  async isParentAccount(accountCode) {
+    try {
+      const childAccounts = await this.getChildAccounts(accountCode);
+      return childAccounts.length > 0;
+    } catch (error) {
+      console.error('Error checking if account is parent:', error);
+      return false;
+    }
+  }
 }
