@@ -9,11 +9,14 @@ import { db } from '@/app/firebase';
 import { collection, getDocs, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { Building2, Plus, Edit2, Trash2, MapPin, Scale } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 
 export default function GoldBanksPage() {
   const [goldBanks, setGoldBanks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
+  const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
   const [formData, setFormData] = useState({
     bankName: '',
     location: '',
@@ -56,46 +59,31 @@ export default function GoldBanksPage() {
         });
         toast.success('Gold bank updated successfully');
       } else {
-        // Auto-generate account code: 1101-BANK-XXX
-        const bankCount = goldBanks.length + 1;
-        const accountCode = `1101-BANK-${String(bankCount).padStart(3, '0')}`;
-        
-        const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
-        const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
-        
+        // Create gold bank document first
         const docRef = await addDoc(collection(db, 'goldBanks'), {
           ...formData,
-          accountCode,
           currentGoldBalance: 0,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
 
-        // ✅ Auto-create accounting gold bank sub-account
-        const accountsPath = `${basePath}/accounts`;
-        const goldBankAccountData = {
-          accountCode: accountCode,
-          accountName: formData.bankName,
-          name: formData.bankName,
-          accountType: 'asset',
-          category: 'Current Assets',
-          balanceType: 'debit',
-          parentAccount: '1101', // Gold Bank parent
-          currentBalance: 0,
-          currentBalanceGold: 0,
-          description: `Gold custody account at ${formData.bankName}, ${formData.location}`,
+        // ✅ Use centralized account creation method
+        const accountManager = new HierarchicalAccountManager(companyId);
+        const accountResult = await accountManager.createGoldBankAccount({
           goldBankId: docRef.id,
-          isSystem: false,
-          isActive: true,
-          level: 2,
-          companyId,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          createdBy: 'system'
-        };
+          bankName: formData.bankName,
+          location: formData.location
+        });
 
-        const accountRef = await addDoc(collection(db, accountsPath), goldBankAccountData);
-        await updateDoc(accountRef, { accountId: accountRef.id });
+        if (!accountResult.success) {
+          throw new Error(`Failed to create account: ${accountResult.message}`);
+        }
+
+        // Update gold bank document with account code
+        await updateDoc(docRef, {
+          accountCode: accountResult.account.accountCode,
+          accountId: accountResult.account.id
+        });
 
         toast.success('✅ Gold bank and account created successfully');
       }
@@ -301,7 +289,7 @@ export default function GoldBanksPage() {
         <div className="text-center py-12 text-gray-500">
           <Building2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
           <p>No gold banks added yet</p>
-          <p className="text-sm">Click "Add Gold Bank" to start</p>
+          <p className="text-sm">Click &quot;Add Gold Bank&quot; to start</p>
         </div>
       )}
     </div>

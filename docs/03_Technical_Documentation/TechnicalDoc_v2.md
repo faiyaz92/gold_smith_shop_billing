@@ -7008,3 +7008,125 @@ BRD_v2.md [Section X] → TaskList_v2.md [Task Y] → Files Affected Doc v2 [Fil
 ```
 
 This documentation enables systematic, automated QA validation for all future development tasks.
+
+---
+
+## 17. GOLD SMITH ORDER PROCESSING & CHALLAN SYSTEM
+
+### 17.1 Order Processing Workflow (Current Implementation)
+
+**Order Lifecycle (BRD v2.0 Section 4.1):**
+```
+New Order → Challan Issued → Product Received → Customer Billed → Payment Received → Completed
+```
+
+**Status Definitions:**
+- **New Order**: Order created, pending confirmation
+- **Challan Issued**: Gold challan issued to manufacturer (gold moves to transit)
+- **Product Received**: Finished product received from manufacturer
+- **Customer Billed**: Invoice/bill generated for customer
+- **Payment Received**: Customer paid (gold or USD)
+- **Completed**: Transaction fully closed
+
+### 17.2 Gold Challan Implementation
+
+**Current Accounting Logic (Issue Gold Challan):**
+```javascript
+// From: src/app/admin/orders/page.js - handleIssueChallan()
+
+// Accounting Entry: Debit Gold in Transit (1102), Credit Gold Bank (1101)
+await accountingEngine.createEntry({
+  date: new Date(),
+  description: `Gold withdrawal challan ${challanNumber} issued for Order ${order.id.slice(-8)}`,
+  transactionType: 'gold_challan_issued',
+  referenceId: challanRef.id,
+  referenceType: 'challan',
+  entries: [
+    {
+      accountCode: '1102',  // Gold in Transit - Asset
+      accountName: 'Gold in Transit',
+      debit: pureGoldAmount,
+      credit: 0,
+      balanceType: 'gold'
+    },
+    {
+      accountCode: '1101',  // Gold Bank (Sharaf) - Asset  
+      accountName: 'Gold Bank (Sharaf)',
+      debit: 0,
+      credit: pureGoldAmount,
+      balanceType: 'gold'
+    }
+  ]
+});
+```
+
+**Business Flow:**
+1. **Order Creation**: No accounting entry (just order record)
+2. **Issue Challan**: Gold moves from Gold Bank to Gold in Transit
+3. **Manufacturer Production**: Gold stays in transit
+4. **Product Received**: Gold moves from transit to Finished Goods Inventory
+5. **Customer Billing**: Customer receivable created
+6. **Customer Payment**: Gold moves back to Gold Bank (or stays in transit)
+
+### 17.3 Difference with BRD v2.0
+
+**BRD v2.0 Specification (Section 3.2):**
+- **Gold Bank Accounts**: Should use individual sub-accounts (BANK-[BankID])
+- **Challan Accounting**: Should debit specific gold bank sub-account, not main 1101
+
+**Current Implementation Issues:**
+- ❌ **Hardcoded Account Codes**: Uses '1101' (main Gold Bank) instead of specific bank sub-accounts
+- ❌ **No Gold Bank Selection**: Orders don't store which gold bank to use
+- ❌ **Missing Sub-Account Logic**: System creates 1101-BANK-001, 1101-BANK-002, etc. but doesn't use them
+
+**Required Fix:**
+```javascript
+// TODO: Update challan to use specific gold bank sub-account
+// 1. Add goldBankId field to orders
+// 2. Fetch gold bank account code (e.g., 1101-BANK-001)  
+// 3. Use specific sub-account instead of hardcoded '1101'
+```
+
+### 17.4 Payment Processing (Current Implementation)
+
+**Customer Payment Accounting:**
+```javascript
+// Gold portion: Debit Gold in Transit (1102), Credit Customer Receivable
+if (goldPortion > 0) {
+  await accountingEngine.recordTransaction({
+    description: `Payment ${paymentNumber} (gold portion)`,
+    debitAccountId: '1102', // Gold in Transit - WRONG!
+    creditAccountId: customerAccountCode,
+    amount: goldPortion,
+    referenceType: 'payment',
+    referenceId: paymentRef.id
+  });
+}
+```
+
+**Issue:** When customer pays in gold, it should go to Gold Bank, not Gold in Transit. Gold in Transit is for manufacturer custody, not customer payments.
+
+**Correct Logic (BRD v2.0 Section 3.7):**
+- **Customer Gold Payment**: Debit Gold Bank (1101), Credit Customer Receivable
+- **Customer USD Payment**: Debit Cash (1201), Credit Customer Receivable
+
+### 17.5 Current System State
+
+**Working Components:**
+- ✅ Order creation and status management
+- ✅ Challan PDF generation with bilingual support
+- ✅ Basic accounting entries (though with wrong account codes)
+- ✅ Invoice generation and customer billing
+- ✅ Payment recording with mixed gold/USD support
+
+**Known Issues:**
+- ❌ Gold challan uses hardcoded main account (1101) instead of sub-accounts
+- ❌ Customer gold payments credit wrong account (1102 instead of 1101)
+- ❌ No gold bank selection in order creation
+- ❌ Accounting doesn't track specific gold bank balances
+
+**Next Steps:**
+1. Add gold bank selection to order creation
+2. Update challan accounting to use specific gold bank sub-accounts
+3. Fix customer payment accounting (gold payments should go to Gold Bank, not Transit)
+4. Update BRD to reflect current sub-account structure vs original BANK-[ID] concept

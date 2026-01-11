@@ -186,7 +186,7 @@ export async function quickBalanceIntegrityCheck(companyId) {
     const balanceEngine = new BalanceCalculationEngine(companyId);
 
     // Check a few key accounts
-    const keyAccounts = ['MAIN-1001', 'MAIN-1002', 'MAIN-1003', 'MAIN-4001']; // Cash, Bank, Receivables, Sales
+    const keyAccounts = ['1201', '1202', '1301', '4101']; // Cash, Bank, Receivables, Commission Income (GoldSmith)
     let allConsistent = true;
 
     for (const accountCode of keyAccounts) {

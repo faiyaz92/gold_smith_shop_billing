@@ -25,8 +25,8 @@ export class AutomatedTransactionEngine {
 
     // For cash sales: Debit Cash, Credit Jewelry Sales Revenue
     // For credit sales: Debit Accounts Receivable, Credit Jewelry Sales Revenue
-    const debitAccount = paymentMethod === 'cash' ? 'MAIN-1001' : 'MAIN-1003'; // Cash or AR
-    const creditAccount = 'MAIN-4001'; // Jewelry Sales Revenue
+    const debitAccount = paymentMethod === 'cash' ? '1201' : '1301'; // Cash or AR (GoldSmith)
+    const creditAccount = '4101'; // Commission Income (GoldSmith)
 
     return {
       transactionId: `SALE-${orderId}-${Date.now()}`,
@@ -83,8 +83,8 @@ export class AutomatedTransactionEngine {
 
     // For cash purchases: Debit Metal Inventory, Credit Cash
     // For credit purchases: Debit Metal Inventory, Credit Accounts Payable
-    const debitAccount = 'MAIN-1004'; // Gold Inventory (can be updated based on metal type)
-    const creditAccount = paymentMethod === 'cash' ? 'MAIN-1001' : 'MAIN-2001'; // Cash or AP
+    const debitAccount = '1103'; // Finished Goods Inventory (GoldSmith)
+    const creditAccount = paymentMethod === 'cash' ? '1201' : '2102'; // Cash or Other Payables (GoldSmith)
 
     return {
       transactionId: `PURCHASE-${purchaseId}-${Date.now()}`,
@@ -140,11 +140,11 @@ export class AutomatedTransactionEngine {
     let debitAccount, creditAccount;
 
     if (paymentMethod === 'cash') {
-      debitAccount = 'MAIN-1001'; // Cash
-      creditAccount = 'MAIN-1003'; // Accounts Receivable
+      debitAccount = '1201'; // Cash (GoldSmith)
+      creditAccount = '1301'; // Customer Receivables (GoldSmith)
     } else {
-      debitAccount = 'MAIN-1002'; // Bank Account
-      creditAccount = 'MAIN-1003'; // Accounts Receivable
+      debitAccount = '1202'; // Bank Account (GoldSmith)
+      creditAccount = '1301'; // Customer Receivables (GoldSmith)
     }
 
     return {
@@ -198,11 +198,11 @@ export class AutomatedTransactionEngine {
 
     let debitAccount, creditAccount;
 
-    debitAccount = 'MAIN-2001'; // Accounts Payable
+    debitAccount = '2101'; // Manufacturer Payables (GoldSmith)
     if (paymentMethod === 'cash') {
-      creditAccount = 'MAIN-1001'; // Cash
+      creditAccount = '1201'; // Cash (GoldSmith)
     } else {
-      creditAccount = 'MAIN-1002'; // Bank Account
+      creditAccount = '1202'; // Bank Account (GoldSmith)
     }
 
     return {
@@ -259,12 +259,12 @@ export class AutomatedTransactionEngine {
     let debitAccount, creditAccount, description;
 
     if (adjustmentType === 'increase') {
-      debitAccount = 'MAIN-1004'; // Gold Inventory
-      creditAccount = 'MAIN-4003'; // Other Income (inventory gain)
+      debitAccount = '1103'; // Finished Goods Inventory (GoldSmith)
+      creditAccount = '3201'; // Retained Earnings (GoldSmith)
       description = `Metal inventory increase - ${reason}`;
     } else {
-      debitAccount = 'MAIN-5107'; // Wastage Loss
-      creditAccount = 'MAIN-1004'; // Gold Inventory
+      debitAccount = '5101'; // Making Charges (GoldSmith)
+      creditAccount = '1103'; // Finished Goods Inventory (GoldSmith)
       description = `Metal inventory decrease/wastage - ${reason}`;
     }
 

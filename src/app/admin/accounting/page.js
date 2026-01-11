@@ -246,6 +246,8 @@ export default function AccountingDashboard() {
   const [initializing, setInitializing] = useState(false);
   const [initializingGold, setInitializingGold] = useState(false);
 
+  const router = useRouter();
+
   // Check if generic accounts exist
   const checkGenericAccountsExist = async () => {
     if (!companyId) return false;
@@ -441,8 +443,6 @@ export default function AccountingDashboard() {
       maximumFractionDigits: 0
     }).format(amount);
   };
-
-  const router = useRouter();
 
   return (
     <div className="accounting-dashboard p-6 max-w-7xl mx-auto">

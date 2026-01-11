@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Users,
   Package,
@@ -22,7 +22,9 @@ import {
   DollarSign,
   BarChart3,
   RefreshCw,
-  FileText
+  FileText,
+  Building,
+  ArrowRightLeft
 } from 'lucide-react';
 import {
   BarChart,
@@ -42,17 +44,31 @@ import { collection, query, orderBy, onSnapshot, where, getDocs } from 'firebase
 import { db } from '@/app/firebase';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import AdminLayout from '../AdminLayout';
+import { DevModeToggle } from '@/components/DevModeToggle.js';
+import GoldPricePopup from '@/components/GoldPricePopup.js';
+import GoldPriceManager from '@/components/GoldPriceManager.js';
+import PurchaseForm from '@/components/PurchaseForm.js';
+import SaleForm from '@/components/SaleForm.js';
+import LoanForm from '@/components/LoanForm.js';
+import QuickChallanForm from '@/components/QuickChallanForm.js';
+import ReceivePaymentForm from '@/components/ReceivePaymentForm.js';
+import PayManufacturerForm from '@/components/PayManufacturerForm.js';
+import { fetchGoldPrice, getLatestGoldPrice } from '@/utils/goldPriceAPI';
+import { useAccounting } from '@/app/context/AccountingContext';
+import AdminLayout from '@/app/admin/AdminLayout';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 
 // Gold Smith Dashboard - Key Metrics for Jewelry Wholesaler
 export default function GoldSmithDashboard() {
   const router = useRouter();
+  const { companyId } = useAccounting();
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshingPrice, setRefreshingPrice] = useState(false);
 
   // Core Data States
   const [orders, setOrders] = useState([]);
+  const [dueOrders, setDueOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [manufacturers, setManufacturers] = useState([]);
   const [inventory, setInventory] = useState([]);
@@ -60,20 +76,38 @@ export default function GoldSmithDashboard() {
   const [payments, setPayments] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
 
-  const companyId = process.env.NEXT_PUBLIC_COMPANY_ID || 'goldsmith';
-  const ordersPath = `companies/${companyId}/orders`;
-  const customersPath = `companies/${companyId}/customers`;
-  const manufacturersPath = `companies/${companyId}/manufacturers`;
-  const inventoryPath = `companies/${companyId}/inventory`;
-  const categoriesPath = `companies/${companyId}/categories`;
-  const paymentsPath = `companies/${companyId}/payments`;
+  // Quick Operations States
+  const [showGoldPricePopup, setShowGoldPricePopup] = useState(false);
+  const [showPurchaseForm, setShowPurchaseForm] = useState(false);
+  const [showSaleForm, setShowSaleForm] = useState(false);
+  const [showLoanForm, setShowLoanForm] = useState(false);
+  const [showChallanForm, setShowChallanForm] = useState(false);
+  const [showReceivePaymentForm, setShowReceivePaymentForm] = useState(false);
+  const [showPayManufacturerForm, setShowPayManufacturerForm] = useState(false);
+  const [showGoldPriceManager, setShowGoldPriceManager] = useState(false);
+  const [currentGoldPrice, setCurrentGoldPrice] = useState(null);
+  const [goldPriceData, setGoldPriceData] = useState(null);
+  const [outstandingReceivables, setOutstandingReceivables] = useState(0);
+  const [outstandingPayables, setOutstandingPayables] = useState(0);
+  const [goldBalances, setGoldBalances] = useState({
+    goldBank: 0,
+    goldInHand: 0,
+    goldInTransit: 0,
+    finishedGoods: 0,
+    total: 0
+  });
 
-  useEffect(() => {
-    setIsClient(true);
-    fetchDashboardData();
-  }, []);
+  const userRole = typeof window !== 'undefined' ? (localStorage.getItem('userRole') || 'company_admin') : 'company_admin';
+  const basePath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}`;
+  const ordersPath = `${basePath}/orders`;
+  console.log('Dashboard: companyId:', companyId, 'basePath:', basePath, 'ordersPath:', ordersPath);
+  const customersPath = `${basePath}/customers`;
+  const manufacturersPath = `${basePath}/manufacturers`;
+  const inventoryPath = `${basePath}/inventory`;
+  const categoriesPath = `${basePath}/categories`;
+  const paymentsPath = `${basePath}/payments`;
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setIsLoading(true);
 
@@ -83,10 +117,37 @@ export default function GoldSmithDashboard() {
         const ordersData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-          updatedAt: doc.data().updatedAt?.toDate() || new Date()
+          createdAt: doc.data().createdAt?.toDate() || doc.data().orderDate?.toDate() || new Date(),
+          updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+          expectedDeliveryDate: doc.data().expectedDeliveryDate ? new Date(doc.data().expectedDeliveryDate) : null
         }));
+        console.log('Dashboard: Fetched orders:', ordersData.length, 'orders from path:', ordersPath);
+        console.log('Dashboard: Orders data:', ordersData);
         setOrders(ordersData);
+      });
+
+      // Fetch due orders (delivery today/tomorrow)
+      const today = new Date();
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowEnd = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate() + 1);
+
+      const dueOrdersQuery = query(
+        collection(db, ordersPath),
+        where('expectedDeliveryDate', '>=', todayStart),
+        where('expectedDeliveryDate', '<', tomorrowEnd)
+      );
+      const dueOrdersUnsubscribe = onSnapshot(dueOrdersQuery, (snapshot) => {
+        const dueOrdersData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || doc.data().orderDate?.toDate() || new Date(),
+          updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+          expectedDeliveryDate: doc.data().expectedDeliveryDate ? new Date(doc.data().expectedDeliveryDate) : null
+        }));
+        console.log('Dashboard: Fetched due orders:', dueOrdersData.length, 'from path:', ordersPath);
+        setDueOrders(dueOrdersData);
       });
 
       // Fetch customers
@@ -140,8 +201,22 @@ export default function GoldSmithDashboard() {
         setPayments(paymentsData);
       });
 
+      // Fetch current gold price
+      const loadGoldPrice = async () => {
+        try {
+          const priceData = await getLatestGoldPrice();
+          if (priceData) {
+            setCurrentGoldPrice(priceData);
+          }
+        } catch (error) {
+          console.error('Error loading gold price:', error);
+        }
+      };
+      loadGoldPrice();
+
       return () => {
         ordersUnsubscribe();
+        dueOrdersUnsubscribe();
         customersUnsubscribe();
         manufacturersUnsubscribe();
         inventoryUnsubscribe();
@@ -154,7 +229,142 @@ export default function GoldSmithDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [ordersPath, customersPath, manufacturersPath, inventoryPath, categoriesPath, paymentsPath]);
+
+  useEffect(() => {
+    setIsClient(true);
+    if (companyId) {
+      fetchDashboardData();
+    }
+  }, [companyId, fetchDashboardData]);
+
+  // Fetch outstanding receivables from accounting system
+  useEffect(() => {
+    const fetchReceivables = async () => {
+      if (!companyId) return;
+      
+      try {
+        const accountManager = new HierarchicalAccountManager(companyId);
+        
+        // Get all customer accounts (CUST-XXXX format) and sum their balances
+        const allAccounts = await accountManager.getAllAccounts();
+        const customerAccounts = allAccounts.filter(account => 
+          account.accountCode && account.accountCode.startsWith('CUST-')
+        );
+        
+        // Sum gold balances from all customer accounts
+        const totalReceivables = customerAccounts.reduce((total, account) => {
+          return total + (account.currentBalanceGold || account.currentBalance || 0);
+        }, 0);
+        
+        setOutstandingReceivables(totalReceivables);
+      } catch (error) {
+        console.error('Error fetching receivables from accounting system:', error);
+        // Fallback to customer data if accounting system fails
+        const customerReceivables = customers.reduce((total, customer) => {
+          const goldBalance = customer.currentPureGoldBalance || 0;
+          return total + goldBalance;
+        }, 0);
+        setOutstandingReceivables(customerReceivables);
+      }
+    };
+
+    fetchReceivables();
+  }, [companyId, customers]);
+
+  // Fetch outstanding payables from accounting system
+  useEffect(() => {
+    const fetchPayables = async () => {
+      if (!companyId) return;
+      
+      try {
+        const accountManager = new HierarchicalAccountManager(companyId);
+        
+        // Get all manufacturer accounts (2101-MFG-XXX format) and sum their balances
+        const allAccounts = await accountManager.getAllAccounts();
+        const manufacturerAccounts = allAccounts.filter(account => 
+          account.accountCode && account.accountCode.startsWith('2101-MFG-')
+        );
+        
+        // Sum USD balances from all manufacturer accounts
+        const totalPayables = manufacturerAccounts.reduce((total, account) => {
+          return total + (account.currentBalanceUSD || account.currentBalance || 0);
+        }, 0);
+        
+        setOutstandingPayables(totalPayables);
+      } catch (error) {
+        console.error('Error fetching payables from accounting system:', error);
+        // Fallback to manufacturer data if accounting system fails
+        const manufacturerPayables = manufacturers.reduce((total, manufacturer) => {
+          return total + (manufacturer.currentBalanceUSD || 0);
+        }, 0);
+        setOutstandingPayables(manufacturerPayables);
+      }
+    };
+
+    fetchPayables();
+  }, [companyId, manufacturers]);
+
+  // Fetch gold balances from accounting system
+  useEffect(() => {
+    const fetchGoldBalances = async () => {
+      if (!companyId) return;
+
+      try {
+        const accountManager = new HierarchicalAccountManager(companyId);
+        const allAccounts = await accountManager.getAllAccounts();
+
+        // Sum balances from all gold bank accounts (1101-BANK-XXX format)
+        const goldBankAccounts = allAccounts.filter(account => 
+          account.accountCode && account.accountCode.startsWith('1101-BANK-')
+        );
+        const goldBankBalance = goldBankAccounts.reduce((total, account) => {
+          return total + (account.currentBalanceGold || account.currentBalance || 0);
+        }, 0);
+
+        // Sum balances from all manufacturer gold transit accounts (1102-MFG-XXX format)
+        const goldInTransitAccounts = allAccounts.filter(account => 
+          account.accountCode && account.accountCode.startsWith('1102-MFG-')
+        );
+        const goldInTransitBalance = goldInTransitAccounts.reduce((total, account) => {
+          return total + (account.currentBalanceGold || account.currentBalance || 0);
+        }, 0);
+
+        // Get gold in hand from system account 1104
+        const goldInHandAccount = await accountManager.getAccountByCode('1104');
+        const goldInHandBalance = goldInHandAccount ? (goldInHandAccount.currentBalanceGold || goldInHandAccount.currentBalance || 0) : 0;
+
+        // Get finished goods from system account 1103
+        const finishedGoodsAccount = await accountManager.getAccountByCode('1103');
+        const finishedGoodsBalance = finishedGoodsAccount ? (finishedGoodsAccount.currentBalanceGold || finishedGoodsAccount.currentBalance || 0) : 0;
+
+        const balances = {
+          goldBank: goldBankBalance,
+          goldInHand: goldInHandBalance,
+          goldInTransit: goldInTransitBalance,
+          finishedGoods: finishedGoodsBalance,
+          total: 0
+        };
+
+        // Calculate total
+        balances.total = balances.goldBank + balances.goldInHand + balances.goldInTransit + balances.finishedGoods;
+
+        setGoldBalances(balances);
+      } catch (error) {
+        console.error('Error fetching gold balances from accounting system:', error);
+        // Set default values if accounting system fails
+        setGoldBalances({
+          goldBank: 0,
+          goldInHand: 0,
+          goldInTransit: 0,
+          finishedGoods: 0,
+          total: 0
+        });
+      }
+    };
+
+    fetchGoldBalances();
+  }, [companyId]);
 
   // Calculate dashboard metrics
   const dashboardMetrics = useMemo(() => {
@@ -164,19 +374,18 @@ export default function GoldSmithDashboard() {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Today's orders
-    const todayOrders = orders.filter(order =>
-      order.createdAt >= todayStart && order.createdAt < tomorrow
-    );
-
-    // Due orders (delivery today/tomorrow)
-    const dueOrders = orders.filter(order => {
-      if (!order.expectedDeliveryDate) return false;
-      const deliveryDate = new Date(order.expectedDeliveryDate);
-      const deliveryStart = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate());
-      const deliveryEnd = new Date(deliveryStart);
-      deliveryEnd.setDate(deliveryEnd.getDate() + 1);
-      return deliveryStart <= tomorrow && deliveryEnd > todayStart;
+    const todayOrders = orders.filter(order => {
+      if (!order.createdAt) return false;
+      const orderDate = new Date(order.createdAt);
+      const today = new Date();
+      return orderDate.getDate() === today.getDate() &&
+             orderDate.getMonth() === today.getMonth() &&
+             orderDate.getFullYear() === today.getFullYear();
     });
+    console.log('Dashboard: Today orders count:', todayOrders.length, 'from total orders:', orders.length);
+
+    // Due orders (fetched directly from Firestore query)
+    const filteredDueOrders = dueOrders;
 
     // Today's deliveries
     const todayDeliveries = orders.filter(order =>
@@ -184,15 +393,11 @@ export default function GoldSmithDashboard() {
       order.updatedAt >= todayStart && order.updatedAt < tomorrow
     );
 
-    // Outstanding receivables (customer dues)
-    const outstandingReceivables = customers.reduce((total, customer) => {
-      return total + (customer.balance || 0);
-    }, 0);
+    // Outstanding receivables (from accounting system - sum of all CUST-XXXX customer account balances)
+    const outstandingReceivablesValue = outstandingReceivables;
 
-    // Outstanding payables (manufacturer dues)
-    const outstandingPayables = manufacturers.reduce((total, manufacturer) => {
-      return total + (manufacturer.balance || 0);
-    }, 0);
+    // Outstanding payables (from accounting system - sum of all 2101-MFG-XXX manufacturer account balances)
+    const outstandingPayablesValue = outstandingPayables;
 
     // Gold inventory value
     const goldInventoryValue = inventory.reduce((total, item) => {
@@ -238,19 +443,19 @@ export default function GoldSmithDashboard() {
     return {
       todayOrders: {
         count: todayOrders.length,
-        value: todayOrders.reduce((sum, order) => sum + (order.total || 0), 0)
+        value: todayOrders.reduce((sum, order) => sum + (order.displayAmountUSD || 0), 0)
       },
       totalOrders: orders.length,
-      dueOrders: dueOrders.length,
+      dueOrders: filteredDueOrders.length,
       todayDeliveries: todayDeliveries.length,
-      outstandingReceivables,
-      outstandingPayables,
+      outstandingReceivables: outstandingReceivablesValue,
+      outstandingPayables: outstandingPayablesValue,
       goldInventoryValue,
       todayCommission,
       orderStatusBreakdown,
       recentActivities: activities
     };
-  }, [orders, customers, manufacturers, inventory, categories, payments]);
+  }, [orders, dueOrders, manufacturers, inventory, categories, payments, outstandingReceivables, outstandingPayables]);
 
   // Quick Actions Handlers
   const handleRefreshGoldPrice = async () => {
@@ -271,12 +476,38 @@ export default function GoldSmithDashboard() {
     router.push('/admin/orders');
   };
 
-  const handleRecordPayment = () => {
-    router.push('/admin/orders?action=payment');
+  const handleReceivePayment = () => {
+    setShowReceivePaymentForm(true);
   };
 
   const handleViewReports = () => {
     router.push('/admin/invoices');
+  };
+
+  // New Quick Operations Handlers
+  const handlePurchaseFromSupplier = () => {
+    setShowPurchaseForm(true);
+  };
+
+  const handleSaleInvoice = () => {
+    setShowSaleForm(true);
+  };
+
+  const handleLoanToCustomer = () => {
+    setShowLoanForm(true);
+  };
+
+  const handleQuickChallan = () => {
+    setShowChallanForm(true);
+  };
+
+  const handlePayManufacturer = () => {
+    setShowPayManufacturerForm(true);
+  };
+
+  const handleGoldPriceConfirm = (priceData) => {
+    setGoldPriceData(priceData);
+    setShowGoldPricePopup(false);
   };
 
   if (!isClient) {
@@ -297,8 +528,13 @@ export default function GoldSmithDashboard() {
     <AdminLayout>
       <div className="p-6">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Gold Smith Dashboard</h1>
-          <p className="text-gray-600 mt-2">Jewelry wholesaler management overview</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Gold Smith Dashboard</h1>
+              <p className="text-gray-600 mt-2">Jewelry wholesaler management overview</p>
+            </div>
+            <DevModeToggle />
+          </div>
         </div>
 
         {/* Key Metrics Cards */}
@@ -347,8 +583,8 @@ export default function GoldSmithDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Receivables</p>
-                <p className="text-2xl font-bold text-gray-900">₹{dashboardMetrics.outstandingReceivables.toLocaleString()}</p>
-                <p className="text-sm text-gray-500">Customer dues</p>
+                <p className="text-2xl font-bold text-gray-900">{dashboardMetrics.outstandingReceivables.toFixed(2)}g</p>
+                <p className="text-sm text-gray-500">Customer gold dues</p>
               </div>
               <TrendingUp className="w-8 h-8 text-green-500" />
             </div>
@@ -373,7 +609,28 @@ export default function GoldSmithDashboard() {
         </div>
 
         {/* Secondary Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Total Pure Gold */}
+          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-600">Total Pure Gold</p>
+                <p className="text-xl font-bold text-gray-900">{goldBalances.total.toFixed(3)}g</p>
+                <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                  <div>In transit: {goldBalances.goldInTransit.toFixed(3)}g</div>
+                  <div>In gold bank: {goldBalances.goldBank.toFixed(3)}g</div>
+                  <div>Finished goods: {goldBalances.finishedGoods.toFixed(3)}g</div>
+                  <div>In hand: {goldBalances.goldInHand.toFixed(3)}g</div>
+                </div>
+              </div>
+              <div className="ml-2">
+                <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                  <span className="text-yellow-600 font-bold text-sm">Au</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Total Orders */}
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
@@ -385,17 +642,6 @@ export default function GoldSmithDashboard() {
             </div>
           </div>
 
-          {/* Gold Inventory Value */}
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Gold Inventory Value</p>
-                <p className="text-xl font-bold text-gray-900">₹{dashboardMetrics.goldInventoryValue.toLocaleString()}</p>
-              </div>
-              <BarChart3 className="w-6 h-6 text-gray-500" />
-            </div>
-          </div>
-
           {/* Outstanding Payables */}
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
@@ -404,6 +650,25 @@ export default function GoldSmithDashboard() {
                 <p className="text-xl font-bold text-gray-900">₹{dashboardMetrics.outstandingPayables.toLocaleString()}</p>
               </div>
               <AlertTriangle className="w-6 h-6 text-gray-500" />
+            </div>
+          </div>
+
+          {/* Current Gold Price - Moved to last position */}
+          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500 cursor-pointer hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-600">Gold Price (24k)</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {currentGoldPrice ? `$${currentGoldPrice.pricePerOunce?.toLocaleString()}` : 'Loading...'}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {currentGoldPrice ? `$${currentGoldPrice.pricePerGram?.toFixed(2)}/g` : ''}
+                </p>
+              </div>
+              <div className="flex flex-col items-end ml-2">
+                <RefreshCw className="w-5 h-5 text-yellow-500 mb-1" />
+                <span className="text-xs text-gray-400">Click to edit</span>
+              </div>
             </div>
           </div>
         </div>
@@ -486,12 +751,12 @@ export default function GoldSmithDashboard() {
 
             {/* Record Payment */}
             <button
-              onClick={handleRecordPayment}
+              onClick={handleReceivePayment}
               className="flex flex-col items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors group"
             >
               <DollarSign className="w-8 h-8 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-medium text-green-700">Record Payment</span>
-              <span className="text-xs text-green-600 mt-1">Gold or USD payment</span>
+              <span className="text-sm font-medium text-green-700">Receive Payment (Gold)</span>
+              <span className="text-xs text-green-600 mt-1">General or order payments</span>
             </button>
 
             {/* View Reports */}
@@ -502,6 +767,76 @@ export default function GoldSmithDashboard() {
               <FileText className="w-8 h-8 text-purple-600 mb-2 group-hover:scale-110 transition-transform" />
               <span className="text-sm font-medium text-purple-700">View Reports</span>
               <span className="text-xs text-purple-600 mt-1">Invoices & statements</span>
+            </button>
+
+            {/* Purchase from Supplier */}
+            <button
+              onClick={handlePurchaseFromSupplier}
+              className="flex flex-col items-center p-4 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors group"
+            >
+              <ShoppingBag className="w-8 h-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-indigo-700">Purchase</span>
+              <span className="text-xs text-indigo-600 mt-1">Gold or jewelry</span>
+            </button>
+
+            {/* Sale Invoice */}
+            <button
+              onClick={handleSaleInvoice}
+              className="flex flex-col items-center p-4 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors group"
+            >
+              <PackageCheck className="w-8 h-8 text-teal-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-teal-700">Sale Invoice</span>
+              <span className="text-xs text-teal-600 mt-1">Sell jewelry</span>
+            </button>
+
+            {/* Loan to Customer */}
+            <button
+              onClick={handleLoanToCustomer}
+              className="flex flex-col items-center p-4 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors group"
+            >
+              <IndianRupee className="w-8 h-8 text-orange-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-orange-700">Loan</span>
+              <span className="text-xs text-orange-600 mt-1">Cash to customer</span>
+            </button>
+
+            {/* Quick Challan */}
+            <button
+              onClick={handleQuickChallan}
+              className="flex flex-col items-center p-4 bg-cyan-50 hover:bg-cyan-100 rounded-lg transition-colors group"
+            >
+              <Truck className="w-8 h-8 text-cyan-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-cyan-700">Quick Challan</span>
+              <span className="text-xs text-cyan-600 mt-1">Gold withdrawal</span>
+            </button>
+
+            {/* Pay Manufacturer */}
+            <button
+              onClick={handlePayManufacturer}
+              className="flex flex-col items-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors group"
+            >
+              <Building className="w-8 h-8 text-blue-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-blue-700">Pay Manufacturer</span>
+              <span className="text-xs text-blue-600 mt-1">Outstanding payments</span>
+            </button>
+
+            {/* Quick Transfer */}
+            <button
+              onClick={() => router.push('/admin/accounting/quick-transfer')}
+              className="flex flex-col items-center p-4 bg-red-50 hover:bg-red-100 rounded-lg transition-colors group"
+            >
+              <ArrowRightLeft className="w-8 h-8 text-red-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-red-700">Quick Transfer</span>
+              <span className="text-xs text-red-600 mt-1">Transfer between accounts</span>
+            </button>
+
+            {/* Receive Payment */}
+            <button
+              onClick={() => router.push('/admin/orders?action=payment')}
+              className="flex flex-col items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors group"
+            >
+              <DollarSign className="w-8 h-8 text-green-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-green-700">Order Payments</span>
+              <span className="text-xs text-green-600 mt-1">Invoice payments</span>
             </button>
           </div>
           
@@ -534,6 +869,67 @@ export default function GoldSmithDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Gold Price Popup */}
+      <GoldPricePopup
+        isOpen={showGoldPricePopup}
+        onClose={() => setShowGoldPricePopup(false)}
+        onPriceConfirm={handleGoldPriceConfirm}
+      />
+
+      {/* Purchase Form */}
+      <PurchaseForm
+        isOpen={showPurchaseForm}
+        onClose={() => setShowPurchaseForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Sale Form */}
+      <SaleForm
+        isOpen={showSaleForm}
+        onClose={() => setShowSaleForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Loan Form */}
+      <LoanForm
+        isOpen={showLoanForm}
+        onClose={() => setShowLoanForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Quick Challan Form */}
+      <QuickChallanForm
+        isOpen={showChallanForm}
+        onClose={() => setShowChallanForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Receive Payment Form */}
+      <ReceivePaymentForm
+        isOpen={showReceivePaymentForm}
+        onClose={() => setShowReceivePaymentForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Pay Manufacturer Form */}
+      <PayManufacturerForm
+        isOpen={showPayManufacturerForm}
+        onClose={() => setShowPayManufacturerForm(false)}
+        companyId={companyId}
+        userRole={userRole}
+      />
+
+      {/* Gold Price Manager */}
+      <GoldPriceManager
+        isOpen={showGoldPriceManager}
+        onClose={() => setShowGoldPriceManager(false)}
+      />
     </AdminLayout>
   );
 }

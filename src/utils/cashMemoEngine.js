@@ -113,7 +113,7 @@ export class CashMemoEngine {
 
     // Debit: Cash/Bank
     // Credit: Sales Revenue
-    const cashAccountId = memoData.paymentMethod === 'cash' ? 'MAIN-1001' : 'MAIN-1002'; // Cash or Bank
+    const cashAccountId = memoData.paymentMethod === 'cash' ? '1201' : '1202'; // Cash or Bank (GoldSmith)
 
     await accountingEngine.recordTransaction({
       description: `Cash Memo ${memoData.memoNumber} - ${memoData.customerName}`,

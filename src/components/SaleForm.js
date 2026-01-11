@@ -1,0 +1,491 @@
+"use client";
+import { useState, useEffect } from 'react';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
+import { db } from '@/app/firebase';
+import { AccountingEngine } from '@/utils/accountingEngine';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
+import { X, Calculator, PackageCheck, DollarSign } from 'lucide-react';
+import GoldPricePopup from './GoldPricePopup';
+
+export default function SaleForm({ isOpen, onClose, companyId, userRole }) {
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showGoldPricePopup, setShowGoldPricePopup] = useState(false);
+
+  const [formData, setFormData] = useState({
+    customerId: '',
+    weight: '',
+    karat: '24k',
+    paymentMethod: 'gold', // 'gold' or 'credit' - all transactions in gold
+    description: '',
+    goldPriceData: null
+  });
+
+  const [errors, setErrors] = useState({});
+
+  // Load customers with account balances
+  useEffect(() => {
+    if (!isOpen || !companyId) return;
+
+    const loadCustomersWithBalances = async () => {
+      try {
+        const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
+        const customersQuery = query(collection(db, customersPath), orderBy('customerName'));
+        
+        const customersUnsubscribe = onSnapshot(customersQuery, async (snapshot) => {
+          const customersData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+
+          // Fetch account balances for each customer
+          const accountManager = new HierarchicalAccountManager(companyId);
+          const customersWithBalances = await Promise.all(
+            customersData.map(async (customer) => {
+              try {
+                let balance = 0;
+                let accountCode = customer.accountCode;
+
+                // Method 1: Use accountCode from customer document if available
+                if (customer.accountCode) {
+                  const account = await accountManager.getAccountByCode(customer.accountCode);
+                  balance = account ? (account.currentBalanceGold || account.currentBalance || 0) : 0;
+                } else {
+                  // Method 2: Fallback - find account by customerId
+                  const allAccounts = await accountManager.getAllAccounts();
+                  const customerAccount = allAccounts.find(account => 
+                    account.customerId === customer.id && account.accountCode?.startsWith('CUST-')
+                  );
+                  balance = customerAccount ? 
+                    (customerAccount.currentBalanceGold || customerAccount.currentBalance || 0) : 0;
+                  accountCode = customerAccount?.accountCode;
+                }
+
+                return {
+                  ...customer,
+                  accountBalance: balance,
+                  accountCode: accountCode
+                };
+              } catch (error) {
+                console.error(`Error fetching balance for customer ${customer.id}:`, error);
+                return {
+                  ...customer,
+                  accountBalance: 0,
+                  accountCode: null
+                };
+              }
+            })
+          );
+
+          setCustomers(customersWithBalances);
+        });
+
+        return () => {
+          customersUnsubscribe();
+        };
+      } catch (error) {
+        console.error('Error setting up customers listener:', error);
+      }
+    };
+
+    loadCustomersWithBalances();
+  }, [isOpen, companyId]);
+
+  const handleGoldPriceConfirm = (priceData) => {
+    setFormData(prev => ({
+      ...prev,
+      goldPriceData: priceData,
+      usdAmount: priceData.usdAmount.toString()
+    }));
+    setShowGoldPricePopup(false);
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.customerId) {
+      newErrors.customerId = 'Please select a customer';
+    }
+
+    if (!formData.weight || parseFloat(formData.weight) <= 0) {
+      newErrors.weight = 'Please enter valid jewelry weight';
+    }
+
+    if (!formData.karat) {
+      newErrors.karat = 'Please select karat';
+    }
+
+    if (!formData.description.trim()) {
+      newErrors.description = 'Please enter description';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const calculatePureGold = (weight, karat) => {
+    const purityCoefficient = {
+      '24k': 1.0,
+      '22k': 0.9166,
+      '21k': 0.875,
+      '18k': 0.75,
+      '14k': 0.5833
+    };
+    return weight * (purityCoefficient[karat] || 0.75);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) return;
+
+    setLoading(true);
+
+    try {
+      const accountingEngine = new AccountingEngine(companyId);
+      const salesPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/sales`;
+
+      const customer = customers.find(c => c.id === formData.customerId);
+      const customerName = customer?.customerName || customer?.name || 'Unknown';
+      
+      // ✅ ACCOUNT CODE AUDIT: Ensure customer has account code
+      let customerAccountCode = customer?.accountCode;
+      if (!customerAccountCode) {
+        // Create customer account if missing
+        const accountManager = new HierarchicalAccountManager(companyId);
+        customerAccountCode = await accountManager.createCustomerAccount(customer);
+        // Update customer document with new account code
+        await updateDoc(doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`, customer.id), {
+          accountCode: customerAccountCode,
+          updatedAt: serverTimestamp()
+        });
+        // Update local data
+        customer.accountCode = customerAccountCode;
+      }
+
+      const pureGoldAmount = calculatePureGold(parseFloat(formData.weight), formData.karat);
+
+      let accountingEntries = [];
+
+      // Always reduce finished goods inventory (credit finished goods - asset decreases)
+      accountingEntries.push({
+        accountCode: '1103', // Finished Goods Inventory
+        accountName: 'Finished Goods Inventory',
+        debit: 0,
+        credit: pureGoldAmount,
+        balanceType: 'gold'
+      });
+
+      if (formData.paymentMethod === 'gold') {
+        // Gold payment - debit gold in hand (increase gold holdings)
+        accountingEntries.push({
+          accountCode: '1104', // Gold in Hand
+          accountName: 'Gold in Hand',
+          debit: pureGoldAmount,
+          credit: 0,
+          balanceType: 'gold'
+        });
+      } else if (formData.paymentMethod === 'credit') {
+        // Credit sale - debit customer receivables (customer owes gold)
+        accountingEntries.push({
+          accountCode: customerAccountCode,
+          accountName: `${customerName} - Receivables`,
+          debit: pureGoldAmount,
+          credit: 0,
+          balanceType: 'gold'
+        });
+      }
+
+      // Create sale record
+      const saleData = {
+        customerId: formData.customerId,
+        customerName: customerName,
+        customerAccountCode,
+        weight: parseFloat(formData.weight),
+        karat: formData.karat,
+        pureGoldAmount,
+        paymentMethod: formData.paymentMethod,
+        description: formData.description,
+        goldPriceData: formData.goldPriceData,
+        status: 'completed',
+        createdAt: serverTimestamp(),
+        createdBy: userRole,
+        accountingRecorded: false
+      };
+
+      const saleRef = await addDoc(collection(db, salesPath), saleData);
+
+      // Record accounting entry
+      await accountingEngine.createEntry({
+        date: new Date(),
+        description: `Sale to ${saleData.customerName}: ${formData.description}`,
+        transactionType: 'sale',
+        referenceId: saleRef.id,
+        referenceType: 'sale',
+        entries: accountingEntries
+      });
+
+      alert('✅ Sale recorded successfully!');
+      
+      // Refresh customer balances after sale
+      if (isOpen && companyId) {
+        const customersPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/customers`;
+        const customersQuery = query(collection(db, customersPath), orderBy('customerName'));
+        
+        const customersUnsubscribe = onSnapshot(customersQuery, async (snapshot) => {
+          const customersData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+
+          // Fetch updated account balances for each customer
+          const accountManager = new HierarchicalAccountManager(companyId);
+          const customersWithBalances = await Promise.all(
+            customersData.map(async (customer) => {
+              try {
+                let balance = 0;
+                let accountCode = customer.accountCode;
+
+                if (customer.accountCode) {
+                  const account = await accountManager.getAccountByCode(customer.accountCode);
+                  balance = account ? (account.currentBalanceGold || account.currentBalance || 0) : 0;
+                } else {
+                  const allAccounts = await accountManager.getAllAccounts();
+                  const customerAccount = allAccounts.find(account => 
+                    account.customerId === customer.id && account.accountCode?.startsWith('CUST-')
+                  );
+                  balance = customerAccount ? 
+                    (customerAccount.currentBalanceGold || customerAccount.currentBalance || 0) : 0;
+                  accountCode = customerAccount?.accountCode;
+                }
+
+                return {
+                  ...customer,
+                  accountBalance: balance,
+                  accountCode: accountCode
+                };
+              } catch (error) {
+                console.error(`Error fetching balance for customer ${customer.id}:`, error);
+                return {
+                  ...customer,
+                  accountBalance: 0,
+                  accountCode: null
+                };
+              }
+            })
+          );
+
+          setCustomers(customersWithBalances);
+        });
+
+        // Clean up the temporary listener after a short delay
+        setTimeout(() => {
+          customersUnsubscribe();
+        }, 1000);
+      }
+
+      onClose();
+
+      // Reset form
+      setFormData({
+        customerId: '',
+        weight: '',
+        karat: '24k',
+        paymentMethod: 'gold',
+        description: '',
+        goldPriceData: null
+      });
+      setErrors({});
+
+    } catch (error) {
+      console.error('Error recording sale:', error);
+      alert('❌ Failed to record sale. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b">
+            <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+              <PackageCheck className="w-5 h-5 text-teal-600" />
+              Sale Invoice
+            </h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            {/* Customer Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Customer *
+              </label>
+              <select
+                value={formData.customerId}
+                onChange={(e) => setFormData(prev => ({ ...prev, customerId: e.target.value }))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+                  errors.customerId ? 'border-red-500' : 'border-gray-300'
+                }`}
+              >
+                <option value="">Select Customer</option>
+                {customers.map(customer => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name || customer.customerName} {customer.phone ? `(${customer.phone})` : ''} 
+                    {customer.accountBalance > 0 ? ` - Balance: ${customer.accountBalance.toFixed(3)}g gold` : ''}
+                  </option>
+                ))}
+              </select>
+              {errors.customerId && (
+                <p className="text-red-500 text-xs mt-1">{errors.customerId}</p>
+              )}
+            </div>
+
+            {/* Weight and Karat */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Jewelry Weight (g) *
+                </label>
+                <input
+                  type="number"
+                  value={formData.weight}
+                  onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))}
+                  placeholder="Enter weight in grams"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+                    errors.weight ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  step="0.001"
+                  min="0"
+                />
+                {errors.weight && (
+                  <p className="text-red-500 text-xs mt-1">{errors.weight}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Karat *
+                </label>
+                <select
+                  value={formData.karat}
+                  onChange={(e) => setFormData(prev => ({ ...prev, karat: e.target.value }))}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+                    errors.karat ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
+                  <option value="24k">24k (99.9%)</option>
+                  <option value="22k">22k (91.6%)</option>
+                  <option value="21k">21k (87.5%)</option>
+                  <option value="18k">18k (75%)</option>
+                  <option value="14k">14k (58.3%)</option>
+                </select>
+                {errors.karat && (
+                  <p className="text-red-500 text-xs mt-1">{errors.karat}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Pure Gold Calculation Display */}
+            {formData.weight && (
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
+                <div className="flex justify-between text-sm">
+                  <span>Pure Gold Equivalent:</span>
+                  <span className="font-semibold">
+                    {calculatePureGold(parseFloat(formData.weight), formData.karat).toFixed(4)}g
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Method */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Method *
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="gold"
+                    checked={formData.paymentMethod === 'gold'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                    className="mr-2"
+                  />
+                  Gold Payment
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="credit"
+                    checked={formData.paymentMethod === 'credit'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                    className="mr-2"
+                  />
+                  Credit (Udhar)
+                </label>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description *
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Enter sale description"
+                rows={3}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+                  errors.description ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              {errors.description && (
+                <p className="text-red-500 text-xs mt-1">{errors.description}</p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 pt-6 border-t">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-md hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Recording...' : 'Record Sale'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Gold Price Popup */}
+      <GoldPricePopup
+        isOpen={showGoldPricePopup}
+        onClose={() => setShowGoldPricePopup(false)}
+        onPriceConfirm={handleGoldPriceConfirm}
+        initialAmount={parseFloat(formData.usdAmount) || 0}
+        amountType="usd"
+      />
+    </>
+  );
+}

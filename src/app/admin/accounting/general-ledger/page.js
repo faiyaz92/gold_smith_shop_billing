@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { useAccounting } from '@/app/context/AccountingContext';
@@ -7,7 +7,7 @@ import AdminLayout from '@/app/admin/AdminLayout';
 import { BookOpen, Calendar, Printer, Download, Search, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function GeneralLedgerPage() {
+function GeneralLedgerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { companyId } = useAccounting();
@@ -454,5 +454,13 @@ export default function GeneralLedgerPage() {
         </div>
       </div>
     </AdminLayout>
+  );
+}
+
+export default function GeneralLedgerPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <GeneralLedgerContent />
+    </Suspense>
   );
 }

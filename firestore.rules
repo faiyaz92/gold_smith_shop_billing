@@ -449,6 +449,22 @@ service cloud.firestore {
     }
 
     // ============================================================================
+    // GOLD BANKS COLLECTION (Global - not tenant-specific)
+    // ============================================================================
+
+    match /goldBanks/{bankId} {
+      allow read: if isValidUser();
+      allow create: if isValidUser() &&
+                       hasRequiredFields(['bankName', 'location', 'accountCode']) &&
+                       request.resource.data.accountCode.matches('^1101-BANK-\\d{3}$') &&
+                       createAuditLog('create', 'goldBanks', bankId, {'bankName': request.resource.data.bankName});
+      allow update: if isValidUser() &&
+                       createAuditLog('update', 'goldBanks', bankId, {'changes': request.resource.data.diff(resource.data).affectedKeys()});
+      allow delete: if isCompanyAdmin(getUserData()) &&
+                       createAuditLog('delete', 'goldBanks', bankId, {'bankName': resource.data.bankName});
+    }
+
+    // ============================================================================
     // DEFAULT DENY RULE
     // ============================================================================
 

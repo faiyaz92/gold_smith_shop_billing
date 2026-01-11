@@ -8,7 +8,7 @@ import AdminLayout from '@/app/admin/AdminLayout';
 import { Plus, Edit, Trash2, Save, X, Search, Filter } from 'lucide-react';
 
 // Jewelry Accounting Entry Form Component
-function JournalEntryForm({ entry, onSave, onCancel, accounts }) {
+function JournalEntryForm({ entry, onSave, onCancel, accounts, accountTypes, accountsByType }) {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     description: '',
@@ -254,23 +254,35 @@ function JournalEntryForm({ entry, onSave, onCancel, accounts }) {
                         className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                       >
                         <option value="">Select Account</option>
-                        {accounts
-                          .sort((a, b) => {
-                            // Sort by accountCode to group parent and children together
-                            return a.accountCode.localeCompare(b.accountCode);
-                          })
-                          .map(account => {
-                            const isSubAccount = account.level === 2 || account.parentAccount;
-                            const prefix = isSubAccount ? '\u00A0\u00A0\u00A0\u00A0↳ ' : '';
-                            return (
-                              <option 
-                                key={account.accountId} 
-                                value={account.accountId}
-                                className={isSubAccount ? 'text-gray-600' : 'font-semibold'}
-                              >
-                                {prefix}{account.accountCode} - {account.accountName || account.name}
+                        {Object.entries(accountTypes)
+                          .sort(([,a], [,b]) => a.order - b.order)
+                          .flatMap(([typeKey, typeInfo]) => {
+                            const typeAccounts = accountsByType[typeKey] || [];
+                            if (typeAccounts.length === 0) return [];
+                            
+                            const headerOption = (
+                              <option key={`${typeKey}-header`} disabled className="font-bold bg-gray-100">
+                                ── {typeInfo.label} ({typeAccounts.length} accounts) ──
                               </option>
                             );
+                            
+                            const accountOptions = typeAccounts
+                              .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+                              .map(account => {
+                                const isSubAccount = account.level === 2 || account.parentAccount;
+                                const prefix = isSubAccount ? '  ↳ ' : '';
+                                return (
+                                  <option 
+                                    key={account.accountId} 
+                                    value={account.accountId}
+                                    className={isSubAccount ? 'text-gray-600' : 'font-semibold'}
+                                  >
+                                    {prefix}{account.accountCode} - {account.accountName || account.name}
+                                  </option>
+                                );
+                              });
+                            
+                            return [headerOption, ...accountOptions];
                           })}
                       </select>
                     </td>
@@ -386,6 +398,23 @@ export default function JournalEntriesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
+  // Group accounts by type for better organization
+  const accountsByType = accounts.reduce((acc, account) => {
+    const type = account.accountType;
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(account);
+    return acc;
+  }, {});
+
+  // Account types configuration
+  const accountTypes = {
+    asset: { label: 'Assets', order: 1 },
+    liability: { label: 'Liabilities', order: 2 },
+    equity: { label: 'Equity', order: 3 },
+    income: { label: 'Income/Revenue', order: 4 },
+    expense: { label: 'Expenses', order: 5 }
+  };
+
   // Load journal entries and accounts
   useEffect(() => {
     if (!companyId) return;
@@ -434,6 +463,7 @@ export default function JournalEntriesPage() {
         updatedAt: serverTimestamp(),
         createdBy: userRole,
         status: 'posted',
+        entryType: 'manual-journal-entry',
         _version: '2.0',
         _migrationStatus: 'active',
         _v3Ready: true,
@@ -451,94 +481,15 @@ export default function JournalEntriesPage() {
         await addDoc(collection(db, entriesPath), entryToSave);
       }
 
-      // ✅ Helper function to update parent account balance
-      const updateParentBalance = async (childAccountData) => {
-        if (!childAccountData.parentAccount) return; // No parent, nothing to update
-
-        // Find parent account
-        const parentAccountsSnapshot = await getDocs(query(collection(db, accountsPath)));
-        const allAccounts = parentAccountsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        const parentAccount = allAccounts.find(acc => 
-          acc.id === childAccountData.parentAccount || 
-          acc.accountCode === childAccountData.parentAccount
-        );
-
-        if (!parentAccount) return; // Parent not found
-
-        // Get all children of this parent
-        const children = allAccounts.filter(acc => 
-          acc.parentAccount === parentAccount.id || 
-          acc.parentAccount === parentAccount.accountCode
-        );
-
-        // Calculate sum of all children balances
-        const totalChildrenBalance = children.reduce((sum, child) => {
-          return sum + (child.currentBalance || 0);
-        }, 0);
-
-        // Update parent account balance
-        const parentRef = doc(db, accountsPath, parentAccount.id);
-        await updateDoc(parentRef, {
-          currentBalance: totalChildrenBalance,
-          updatedAt: serverTimestamp()
-        });
-
-        console.log(`✅ Updated parent ${parentAccount.accountCode}: ${parentAccount.currentBalance || 0} → ${totalChildrenBalance}`);
-      };
-
-      // ✅ UPDATE ACCOUNT BALANCES
-      const updatedAccounts = []; // Track which accounts were updated
-      
-      for (const line of entryData.lines) {
-        if (!line.accountId) continue;
-
-        const accountRef = doc(db, accountsPath, line.accountId);
-        const accountSnap = await getDoc(accountRef);
-        
-        if (accountSnap.exists()) {
-          const accountData = accountSnap.data();
-          const currentBalance = accountData.currentBalance || 0;
-          
-          // Debit increases asset/expense, decreases liability/equity/income
-          // Credit decreases asset/expense, increases liability/equity/income
-          let newBalance = currentBalance;
-          
-          if (accountData.balanceType === 'debit') {
-            // Asset or Expense account
-            newBalance = currentBalance + (parseFloat(line.debit) || 0) - (parseFloat(line.credit) || 0);
-          } else {
-            // Liability, Equity, or Income account
-            newBalance = currentBalance - (parseFloat(line.debit) || 0) + (parseFloat(line.credit) || 0);
-          }
-
-          await updateDoc(accountRef, {
-            currentBalance: newBalance,
-            updatedAt: serverTimestamp()
-          });
-
-          console.log(`✅ Updated ${accountData.accountCode}: ${currentBalance} → ${newBalance}`);
-          
-          // Track updated account with new balance
-          updatedAccounts.push({ ...accountData, currentBalance: newBalance, id: line.accountId });
-        }
-      }
-
-      // ✅ UPDATE PARENT ACCOUNT BALANCES
-      const parentAccountsToUpdate = new Set();
-      for (const updatedAccount of updatedAccounts) {
-        if (updatedAccount.parentAccount) {
-          parentAccountsToUpdate.add(updatedAccount.parentAccount);
-        }
-      }
-
-      // Update each parent account
-      for (const parentId of parentAccountsToUpdate) {
-        const dummyChild = updatedAccounts.find(acc => acc.parentAccount === parentId);
-        if (dummyChild) {
-          await updateParentBalance(dummyChild);
-        }
-      }
+      // ✅ Use AccountingEngine to handle all accounting logic
+      const accountingEngine = new AccountingEngine(companyId);
+      await accountingEngine.createJournalEntry({
+        entryDate: entryData.date,
+        description: entryData.description,
+        reference: entryData.reference,
+        entries: entryData.lines,
+        createdBy: userRole
+      });
 
       setShowForm(false);
       setEditingEntry(null);
@@ -647,6 +598,8 @@ export default function JournalEntriesPage() {
                   setEditingEntry(null);
                 }}
                 accounts={accounts}
+                accountTypes={accountTypes}
+                accountsByType={accountsByType}
               />
             </div>
           </div>

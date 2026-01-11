@@ -4,6 +4,7 @@
 
 import { db } from '@/app/firebase';
 import { collection, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { HierarchicalAccountManager } from './hierarchicalAccountManager';
 
 /**
  * Initialize 15 default gold smith accounts
@@ -13,7 +14,7 @@ export const initializeDefaultAccounts = async (companyId) => {
   try {
     console.log('🔍 Starting Gold Smith account initialization for company:', companyId);
 
-    // 15 Default Accounts per BRD v2 Section 2.3.1
+    // 16 Default Accounts per BRD v2 Section 2.3.1
     const defaultAccounts = [
       {
         accountCode: '1101',
@@ -52,6 +53,20 @@ export const initializeDefaultAccounts = async (companyId) => {
         currentBalance: 0,
         currentBalanceGold: 0,
         description: 'Finished jewelry inventory in pure gold equivalent',
+        isSystem: true,
+        isActive: true,
+        parentAccount: null,
+        level: 1,
+      },
+      {
+        accountCode: '1104',
+        accountName: 'Gold in Hand',
+        accountType: 'asset',
+        category: 'current_assets',
+        balanceType: 'debit',
+        currentBalance: 0,
+        currentBalanceGold: 0,
+        description: 'Physical gold held in business premises for customer transactions',
         isSystem: true,
         isActive: true,
         parentAccount: null,
@@ -230,26 +245,67 @@ export const initializeDefaultAccounts = async (companyId) => {
     // Create all accounts in correct path
     const accountsPath = `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/accounts`;
     console.log('🔍 Creating Gold accounts at path:', accountsPath);
-    const accountsRef = collection(db, accountsPath);
-    
+
+    // Initialize HierarchicalAccountManager for this company
+    const accountManager = new HierarchicalAccountManager(companyId);
+
+    const results = {
+      created: [],
+      skipped: [],
+      errors: []
+    };
+
     for (const account of defaultAccounts) {
-      const newAccountRef = doc(accountsRef);
-      const accountData = {
-        ...account,
-        accountId: newAccountRef.id,
-        companyId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      console.log('🔍 Creating account:', account.accountCode, account.accountName);
-      await setDoc(newAccountRef, accountData);
+      try {
+        // Check if account already exists
+        const existingAccount = await accountManager.getAccountByCode(account.accountCode);
+        if (existingAccount) {
+          results.skipped.push(`${account.accountCode}: ${account.accountName} (already exists)`);
+          continue;
+        }
+
+        // Call CORE createAccount method with system account additional fields
+        const createdAccount = await accountManager.createAccount({
+          accountCode: account.accountCode,
+          accountName: account.accountName,
+          accountType: account.accountType,
+          category: account.category,
+          balanceType: account.balanceType,
+          currentBalance: account.currentBalance,
+          currentBalanceGold: account.currentBalanceGold,
+          description: account.description,
+          parentAccount: account.parentAccount,
+          level: account.level,
+          isSystem: account.isSystem,
+          isActive: account.isActive,
+          createdBy: 'system'
+        }, {
+          // System account specific additional fields
+          // Migration-ready fields
+          _version: "2.0",
+          _migrationStatus: "active",
+          _v3Ready: true,
+          _v4Ready: false
+        });
+
+        results.created.push(`${account.accountCode}: ${account.accountName}`);
+        console.log('🔍 Created account:', account.accountCode, account.accountName);
+
+      } catch (error) {
+        console.error('❌ Error creating account:', account.accountCode, error);
+        results.errors.push(`${account.accountCode}: ${error.message}`);
+      }
     }
 
-    console.log('✅ Successfully initialized 15 default accounts for company:', companyId);
-    return { 
-      success: true, 
-      message: '15 default accounts created successfully',
-      accountCount: 15 
+    console.log('✅ Successfully initialized default accounts for company:', companyId);
+    return {
+      success: results.errors.length === 0,
+      message: results.errors.length === 0 ? '16 default accounts created successfully' : 'Some accounts failed to create',
+      accountCount: results.created.length,
+      createdCount: results.created.length,
+      skippedCount: results.skipped.length,
+      errorCount: results.errors.length,
+      results
     };
 
   } catch (error) {

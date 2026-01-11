@@ -325,15 +325,21 @@ AUTO PROCESS:
 CLIENT ACTION: Creates Gold Bank profile in Gold Banks menu
 AUTO PROCESS:
 ├── Client enters: Bank Name, Branch, Contact (business details only)
-├── System auto-creates custody account: BANK-[BankID]
+├── System auto-creates custody sub-account: 1101-BANK-[SequentialID] under MAIN-1101
 ├── Links to gold bank profile (invisible to client)
 ├── Ready for gold custody tracking (invisible to client)
 └── Client sees gold bank list, never sees accounts
 ```
 
+**Current Implementation Notes:**
+- **Account Structure:** Creates sub-accounts under MAIN-1101 (Gold Bank parent)
+- **Naming Pattern:** 1101-BANK-001, 1101-BANK-002, etc.
+- **Parent Account:** All gold bank sub-accounts roll up to MAIN-1101
+- **Balance Tracking:** Individual bank balances + consolidated parent balance
+
 **Client NEVER Sees:**
 - Account creation forms
-- Account codes (CUST-, SUPP-, BANK-)
+- Account codes (1101-BANK-XXX)
 - Account balances
 - Any accounting terminology
 
@@ -368,13 +374,23 @@ AUTO PROCESS:
 
 **Account Code Structure:**
 - **MAIN-XXXX:** Parent accounts (can have children)
-- **XXXX-XXX:** Child accounts under parents
+- **XXXX-XXX:** Child accounts under parents (e.g., 1101-BANK-001 for gold banks)
 - **XXXX-XXX-YYY:** Sub-accounts under children
 
+**Gold Bank Hierarchy Example:**
+```
+MAIN-1101: Gold Bank (Sharaf) - Parent
+├── 1101-BANK-001: Sharaf Main Branch
+├── 1101-BANK-002: Sharaf Kabul Branch  
+└── 1101-BANK-003: Sharaf Kandahar Branch
+```
+
 **Balance Types:**
-- **Gold Accounts:** Track pure gold grams (1101, 1102, 1103, 1301, 4101)
+- **Gold Accounts:** Track pure gold grams (1101*, 1102, 1103, 1301, 4101)
 - **USD Accounts:** Track USD currency (1001, 1002, 2101, 5001-5005)
 - **Mixed Accounts:** Can hold both (3001 for owner contributions)
+
+*Note: 1101 includes all gold bank sub-accounts (1101-BANK-XXX)
 
 ### 2.4 Automated Transactions (100% INVISIBLE TO CLIENT)
 
@@ -393,9 +409,11 @@ Client Sees: Order confirmation, nothing about accounting
 ```
 Client Action: Clicks "Issue Challan" for order
 Auto Accounting:
-Debit: Gold in Transit - Supplier (invisible)
-Credit: Gold Bank (Sharaf) (invisible)
+Debit: Gold in Transit - Manufacturer (invisible)
+Credit: Selected Gold Bank Sub-Account (e.g., 1101-BANK-001) (invisible)
 Client Sees: Challan printed, ready for supplier
+
+Current Implementation Note: Currently uses main account 1101, should be updated to use specific gold bank sub-accounts
 ```
 
 **3. Supplier Returns Product:**
@@ -427,6 +445,8 @@ Auto Accounting:
 Debit: Gold Bank (Sharaf) (invisible) - Total equivalent gold grams
 Credit: Customer Receivables (invisible) - Total equivalent gold grams
 Client Sees: Payment recorded, balance updated (all in gold grams)
+
+Current Implementation Note: Currently debits Gold in Transit (1102) instead of Gold Bank (1101) - needs correction
 ```
 
 **6. Client Pays Supplier:**
@@ -825,6 +845,8 @@ Auto Accounting Entries:
 Narration: Payment received - 321.557g gold + $1,000 USD (converted @ $145.43/g = 6.881g equivalent)
 ```
 
+*Note: Current implementation incorrectly debits Gold in Transit (1102) for gold portion instead of Gold Bank (1101)*
+
 **"Gold in Hand" Concept:**
 - **Physical Gold:** Gold received from customers goes to Gold Bank (Sharaf)
 - **USD Cash:** USD received is "cash in hand" until deposited to bank
@@ -976,8 +998,10 @@ Date: Dec 30, 2025
 Description: Gold Challan #CH-001 issued to Karimi Manufacturing
 
 Debit:  Gold in Transit - Manufacturer (1102)    375.000g
-Credit: Gold Bank (Sharaf) (1101)                375.000g
+Credit: Gold Bank Sub-Account (e.g., 1101-BANK-001)    375.000g
 ```
+
+*Note: Current implementation uses main account 1101, should be updated to use specific gold bank sub-accounts*
 
 **Challan Document:**
 ```
@@ -1150,6 +1174,8 @@ Description: Payment Receipt #PAY-001 from Ahmad Shop
 Debit:  Gold Bank (Sharaf) (1101)                328.438g
 Credit: Customer Receivables (1301)              328.438g
 ```
+
+*Note: Current implementation incorrectly debits Gold in Transit (1102) instead of Gold Bank (1101)*
 
 **Payment Receipt:**
 ```
@@ -1336,11 +1362,11 @@ New Order → Challan Issued → In Production → Product Received → Customer
 | Status | Description | Accounting Impact |
 |--------|-------------|-------------------|
 | **New Order** | Customer order received | None - just order record |
-| **Challan Issued** | Gold challan issued to manufacturer | Debit: Gold in Transit, Credit: Gold Bank (Sharaf) |
+| **Challan Issued** | Gold challan issued to manufacturer | Debit: Gold in Transit, Credit: Gold Bank (Sharaf) - *Currently uses main account 1101, should use specific sub-account* |
 | **In Production** | Manufacturer working on product | None |
 | **Product Received** | Finished product received from manufacturer | Debit: Inventory, Credit: Gold in Transit + Record Making Charges Payable |
 | **Customer Billed** | Invoice/bill generated for customer | Debit: Customer Receivable, Credit: Inventory + Commission Income |
-| **Payment Received** | Customer paid in pure gold | Debit: Gold Bank (Sharaf), Credit: Customer Receivable |
+| **Payment Received** | Customer paid in pure gold | Debit: Gold Bank (Sharaf), Credit: Customer Receivable - *Currently debits Gold in Transit (1102) instead of Gold Bank (1101)* |
 | **Completed** | Transaction fully closed | None |
 
 ### 4.2 Order Entry Interface

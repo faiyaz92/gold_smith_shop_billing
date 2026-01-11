@@ -15,7 +15,9 @@ import {
   Plus,
   Minus,
   Calendar,
-  Eye
+  Eye,
+  DollarSign,
+  FileText
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -257,7 +259,7 @@ export default function InventoryManagement() {
       const accountingEngine = new AccountingEngine(companyId);
 
       if (type === 'add') {
-        // Direct Purchase: Debit 1103 Inventory, Credit 1001 Cash
+        // Direct Purchase: Debit 1103 Inventory, Credit 1201 Cash
         await accountingEngine.createEntry({
           date: new Date(),
           description: `Direct gold purchase - ${reason}`,
@@ -274,7 +276,7 @@ export default function InventoryManagement() {
               notes: `${actualGold}g ${karat} (${pureGold.toFixed(3)}g pure). ${notes || ''}`
             },
             {
-              accountCode: '1001',
+              accountCode: '1201', // ✅ FIXED: Use correct cash account code
               accountName: 'Cash in Hand',
               debit: 0,
               credit: pureGold,

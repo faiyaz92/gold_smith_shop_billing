@@ -156,9 +156,9 @@ export class BalanceAccuracyTester {
     // Test 2.1: Parent equals sum of children
     results.totalTests++;
     try {
-      // Test with Accounts Receivable (MAIN-1003) which should have customer children
-      const parentBalance = await this.balanceEngine.calculateAccountBalance('MAIN-1003');
-      const childAccounts = await this.accountManager.getChildAccounts('MAIN-1003');
+      // Test with Customer Receivables (1301) which should have customer children
+      const parentBalance = await this.balanceEngine.calculateAccountBalance('1301');
+      const childAccounts = await this.accountManager.getChildAccounts('1301');
       const sumOfChildren = childAccounts.reduce((sum, child) => sum + (child.balance || 0), 0);
 
       if (Math.abs(parentBalance - sumOfChildren) < 0.01) {
@@ -249,8 +249,8 @@ export class BalanceAccuracyTester {
 
       await this.accountingEngine.recordTransaction({
         description: 'Test transaction for equation integrity',
-        debitAccountId: 'MAIN-1001', // Cash
-        creditAccountId: 'MAIN-4001', // Sales Revenue
+        debitAccountId: '1201', // Cash (GoldSmith)
+        creditAccountId: '4101', // Commission Income (GoldSmith)
         amount: 100,
         referenceType: 'test',
         referenceId: 'EQUATION_TEST_001'
@@ -280,20 +280,20 @@ export class BalanceAccuracyTester {
     // Test 4.1: Double-entry transaction balance impact
     results.totalTests++;
     try {
-      const cashBefore = await this.balanceEngine.calculateAccountBalance('MAIN-1001');
-      const salesBefore = await this.balanceEngine.calculateAccountBalance('MAIN-4001');
+      const cashBefore = await this.balanceEngine.calculateAccountBalance('1201');
+      const salesBefore = await this.balanceEngine.calculateAccountBalance('4101');
 
       await this.accountingEngine.recordTransaction({
         description: 'Test double-entry transaction',
-        debitAccountId: 'MAIN-1001', // Cash +100
-        creditAccountId: 'MAIN-4001', // Sales +100
+        debitAccountId: '1201', // Cash +100 (GoldSmith)
+        creditAccountId: '4101', // Commission Income +100 (GoldSmith)
         amount: 200,
         referenceType: 'test',
         referenceId: 'TX_ACCURACY_TEST_001'
       });
 
-      const cashAfter = await this.balanceEngine.calculateAccountBalance('MAIN-1001');
-      const salesAfter = await this.balanceEngine.calculateAccountBalance('MAIN-4001');
+      const cashAfter = await this.balanceEngine.calculateAccountBalance('1201');
+      const salesAfter = await this.balanceEngine.calculateAccountBalance('4101');
 
       const cashChange = cashAfter - cashBefore;
       const salesChange = salesAfter - salesBefore;
@@ -319,7 +319,7 @@ export class BalanceAccuracyTester {
         customerName: 'Test Customer'
       });
 
-      const parentBefore = await this.balanceEngine.calculateAccountBalance('MAIN-1003');
+      const parentBefore = await this.balanceEngine.calculateAccountBalance('1301');
 
       // Record payment to customer (reduces receivable)
       await this.accountingEngine.recordCustomerPayment({
@@ -329,7 +329,7 @@ export class BalanceAccuracyTester {
         paymentMethod: 'cash'
       });
 
-      const parentAfter = await this.balanceEngine.calculateAccountBalance('MAIN-1003');
+      const parentAfter = await this.balanceEngine.calculateAccountBalance('1301');
       const customerBalance = await this.balanceEngine.calculateAccountBalance(customerAccount.account.accountCode);
 
       // Parent should decrease by 150, customer should decrease by 150
@@ -396,7 +396,7 @@ export class BalanceAccuracyTester {
     // Test 6.1: Balance engine functionality
     results.totalTests++;
     try {
-      const testBalance = await this.balanceEngine.calculateAccountBalance('MAIN-1001');
+      const testBalance = await this.balanceEngine.calculateAccountBalance('1201');
       if (typeof testBalance === 'number') {
         results.passedTests++;
         results.testResults.push({ test: 'Balance Engine', status: 'PASS', details: `Successfully calculated balance: ${testBalance}` });
@@ -412,7 +412,7 @@ export class BalanceAccuracyTester {
     // Test 6.2: Recursive balance updates
     results.totalTests++;
     try {
-      const updateResult = await this.balanceEngine.updateAccountBalanceRecursive('MAIN-1001', 50);
+      const updateResult = await this.balanceEngine.updateAccountBalanceRecursive('1201', 50);
 
       if (updateResult.success) {
         results.passedTests++;
@@ -449,8 +449,8 @@ export class BalanceAccuracyTester {
     try {
       await this.accountingEngine.recordTransaction({
         description: 'Zero amount test',
-        debitAccountId: 'MAIN-1001',
-        creditAccountId: 'MAIN-4001',
+        debitAccountId: '1201', // Cash (GoldSmith)
+        creditAccountId: '4101', // Commission Income (GoldSmith)
         amount: 0,
         referenceType: 'test',
         referenceId: 'ZERO_AMOUNT_TEST'
@@ -489,11 +489,11 @@ export class BalanceAccuracyTester {
 
       // Calculate balances for multiple accounts
       const promises = [
-        this.balanceEngine.calculateAccountBalance('MAIN-1001'),
-        this.balanceEngine.calculateAccountBalance('MAIN-1002'),
-        this.balanceEngine.calculateAccountBalance('MAIN-1003'),
-        this.balanceEngine.calculateAccountBalance('MAIN-4001'),
-        this.balanceEngine.calculateAccountBalance('MAIN-5001')
+        this.balanceEngine.calculateAccountBalance('1201'), // Cash (GoldSmith)
+        this.balanceEngine.calculateAccountBalance('1202'), // Bank (GoldSmith)
+        this.balanceEngine.calculateAccountBalance('1301'), // Customer Receivables (GoldSmith)
+        this.balanceEngine.calculateAccountBalance('4101'), // Commission Income (GoldSmith)
+        this.balanceEngine.calculateAccountBalance('5101') // Making Charges (GoldSmith)
       ];
 
       await Promise.all(promises);
@@ -517,7 +517,7 @@ export class BalanceAccuracyTester {
     try {
       // Run multiple operations to check for memory leaks
       for (let i = 0; i < 10; i++) {
-        await this.balanceEngine.calculateAccountBalance('MAIN-1001');
+        await this.balanceEngine.calculateAccountBalance('1201');
       }
 
       results.passedTests++;

@@ -5,6 +5,7 @@ import { db } from '@/app/firebase';
 import { useAccounting } from '@/app/context/AccountingContext';
 import { Plus, Edit, Trash2, Save, X, FolderTree, ChevronRight, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
 
 export default function ChartOfAccountsPage() {
   const router = useRouter();
@@ -115,22 +116,43 @@ export default function ChartOfAccountsPage() {
         });
         alert('✅ Account updated successfully!');
       } else {
-        // Create new account
-        const accountData = {
-          ...formData,
-          companyId,
+        // Create new account using centralized method
+        const accountManager = new HierarchicalAccountManager(companyId);
+
+        // Check for duplicate account code first
+        const existingAccount = await accountManager.getAccountByCode(formData.accountCode);
+        if (existingAccount) {
+          alert('❌ Account code already exists. Please choose a different code.');
+          return;
+        }
+
+        // Determine level based on parent account
+        const level = formData.parentAccount ? 2 : 1;
+
+        // Call CORE createAccount method with manual account additional fields
+        const createdAccount = await accountManager.createAccount({
+          accountCode: formData.accountCode,
+          accountName: formData.accountName,
+          accountType: formData.accountType,
+          category: formData.category,
+          balanceType: formData.balanceType,
           currentBalance: 0,
           currentBalanceGold: 0,
-          level: formData.parentAccount ? 2 : 1,
+          description: formData.description,
+          parentAccount: formData.parentAccount,
+          level: level,
           isSystem: false,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          isActive: formData.isActive,
           createdBy: userRole
-        };
+        }, {
+          // Manual account specific additional fields
+          // Migration-ready fields
+          _version: "2.0",
+          _migrationStatus: "active",
+          _v3Ready: true,
+          _v4Ready: false
+        });
 
-        const newAccountRef = await addDoc(collection(db, accountsPath), accountData);
-        await updateDoc(newAccountRef, { accountId: newAccountRef.id });
-        
         alert('✅ Account created successfully!');
       }
 
