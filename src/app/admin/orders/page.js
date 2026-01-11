@@ -34,7 +34,8 @@ import {
   addDoc,
   getDocs,
   getDoc,
-  limit
+  limit,
+  where
 } from 'firebase/firestore';
 
 import { db } from '../../firebase';
@@ -5305,6 +5306,8 @@ export default function GoldSmithOrders() {
                         const commissionRate = parseFloat(deliveryData.commissionRate) || 0;
                         const goldPrice = parseFloat(deliveryData.goldPrice) || 0;
                         const commissionAmount = finalWeight * commissionRate;
+                        const commissionGold = commissionAmount / goldPrice;
+                        const totalPureGoldOwed = commissionGold + finalPureGold;
                         const goldValue = finalPureGold * goldPrice;
                         const totalAmount = commissionAmount + goldValue;
 
