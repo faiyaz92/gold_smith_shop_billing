@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, limit } from 'firebase/firestore';
 import { db } from '@/app/firebase';
 import { AccountingEngine } from '@/utils/accountingEngine';
 import { HierarchicalAccountManager } from '@/utils/hierarchicalAccountManager';
@@ -13,7 +13,7 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
   const [formData, setFormData] = useState({
     manufacturerId: '',
     paymentAmount: '',
-    paymentMethod: 'cash', // cash, bank_transfer, check
+    paymentMethod: 'cash', // gold payment method
     description: '',
     manufacturerData: null
   });
@@ -129,14 +129,14 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
             accountName: `${selectedManufacturer?.name || 'Manufacturer'} - Payables`,
             debit: parseFloat(formData.paymentAmount),
             credit: 0,
-            balanceType: 'usd'
+            balanceType: 'gold'
           },
           {
             accountCode: formData.paymentMethod === 'cash' ? '1201' : '1202', // Cash or Bank
             accountName: formData.paymentMethod === 'cash' ? 'Cash' : 'Bank Account',
             debit: 0,
             credit: parseFloat(formData.paymentAmount),
-            balanceType: 'usd'
+            balanceType: 'gold'
           }
         ]
       });
@@ -149,16 +149,16 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
 
       // Update manufacturer balance
       const manufacturerRef = doc(db, `Easy2Solutions/companyDirectory/tenantCompanies/${companyId}/manufacturers`, formData.manufacturerId);
-      const currentBalance = selectedManufacturer?.currentBalanceUSD || 0;
+      const currentBalance = selectedManufacturer?.currentBalanceGold || 0;
       const newBalance = Math.max(0, currentBalance - parseFloat(formData.paymentAmount));
 
       await updateDoc(manufacturerRef, {
-        currentBalanceUSD: newBalance,
+        currentBalanceGold: newBalance,
         lastPaymentDate: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
 
-      alert(`✅ Payment made successfully!\n\nPayment: ${paymentNumber}\nAmount: $${formData.paymentAmount}\nTo: ${selectedManufacturer?.name}`);
+      alert(`✅ Payment made successfully!\n\nPayment: ${paymentNumber}\nAmount: ${formData.paymentAmount}g Gold\nTo: ${selectedManufacturer?.name}`);
       onClose();
 
       // Reset form
@@ -228,12 +228,9 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
               }`}
             >
               <option value="">Select Manufacturer</option>
-              {manufacturers
-                .filter(m => (m.currentBalanceUSD || 0) > 0)
-                .map(manufacturer => (
+              {manufacturers.map(manufacturer => (
                 <option key={manufacturer.id} value={manufacturer.id}>
-                  {manufacturer.manufacturerName} {manufacturer.phone ? `(${manufacturer.phone})` : ''}
-                  {manufacturer.currentBalanceUSD ? ` - Balance: $${manufacturer.currentBalanceUSD.toFixed(2)}` : ''}
+                  {manufacturer.manufacturerName || manufacturer.name}
                 </option>
               ))}
             </select>
@@ -245,25 +242,19 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
           {/* Payment Amount */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Payment Amount (USD) *
+              Payment Amount (Gold grams) *
             </label>
             <input
               type="number"
               value={formData.paymentAmount}
               onChange={(e) => setFormData(prev => ({ ...prev, paymentAmount: e.target.value }))}
-              placeholder="Enter payment amount"
-              step="0.01"
+              placeholder="Enter payment amount in gold grams"
+              step="0.001"
               min="0"
-              max={formData.manufacturerData?.currentBalanceUSD || undefined}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.paymentAmount ? 'border-red-500' : 'border-gray-300'
               }`}
             />
-            {formData.manufacturerData && (
-              <p className="text-sm text-gray-600 mt-1">
-                Outstanding balance: ${formData.manufacturerData.currentBalanceUSD?.toFixed(2) || '0.00'}
-              </p>
-            )}
             {errors.paymentAmount && (
               <p className="text-red-500 text-xs mt-1">{errors.paymentAmount}</p>
             )}
@@ -281,9 +272,7 @@ export default function PayManufacturerForm({ isOpen, onClose, companyId, userRo
                 errors.paymentMethod ? 'border-red-500' : 'border-gray-300'
               }`}
             >
-              <option value="cash">Cash</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="check">Check</option>
+              <option value="cash">Gold</option>
             </select>
             {errors.paymentMethod && (
               <p className="text-red-500 text-xs mt-1">{errors.paymentMethod}</p>

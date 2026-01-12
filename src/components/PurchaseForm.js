@@ -143,8 +143,8 @@ export default function PurchaseForm({ isOpen, onClose, companyId, userRole }) {
               accountCode: '1201', // Cash
               accountName: 'Cash',
               debit: 0,
-              credit: parseFloat(formData.usdAmount),
-              balanceType: 'usd'
+              credit: pureGoldAmount,
+              balanceType: 'gold'
             }
           ];
         } else {
@@ -203,8 +203,8 @@ export default function PurchaseForm({ isOpen, onClose, companyId, userRole }) {
               accountCode: supplierAccountCode, // ✅ FIXED: Use specific supplier account
               accountName: `${supplier?.manufacturerName || 'Supplier'} - Payables`,
               debit: 0,
-              credit: parseFloat(formData.usdAmount),
-              balanceType: 'usd'
+              credit: pureGoldAmount,
+              balanceType: 'gold'
             }
           ];
         }
@@ -225,8 +225,8 @@ export default function PurchaseForm({ isOpen, onClose, companyId, userRole }) {
               accountCode: '1201', // Cash
               accountName: 'Cash',
               debit: 0,
-              credit: parseFloat(formData.usdAmount),
-              balanceType: 'usd'
+              credit: pureGoldAmount,
+              balanceType: 'gold'
             }
           ];
         } else {
@@ -260,8 +260,8 @@ export default function PurchaseForm({ isOpen, onClose, companyId, userRole }) {
               accountCode: supplierAccountCode, // ✅ FIXED: Use specific supplier account
               accountName: `${supplier?.manufacturerName || 'Supplier'} - Payables`,
               debit: 0,
-              credit: parseFloat(formData.usdAmount),
-              balanceType: 'usd'
+              credit: pureGoldAmount,
+              balanceType: 'gold'
             }
           ];
         }
